@@ -32,6 +32,27 @@ const CARD_FIELD_CSS = {
   "font-family": "inherit",
 };
 
+const CARD_FIELD_IDS = ["nv-cc-number", "nv-cc-exp", "nv-cc-cvv"];
+
+/* Checked only after a tokenize has already failed, never to gate the form:
+   a false negative here would block a checkout that actually works. */
+const cardFieldsVisible = () =>
+  CARD_FIELD_IDS.every((id) => {
+    const frame = document.querySelector(`#${id} iframe`);
+    return frame && frame.getBoundingClientRect().height > 10;
+  });
+
+/* Gateways answer declines in terse trade wording: "DECLINED", "PICK UP CARD",
+   "DO NOT HONOR". None of that tells a patient what to do, so lead with
+   something actionable and only append the gateway's own text when it says
+   more than "this was declined". */
+const GENERIC_DECLINE = /^declin(e|ed)$/i;
+const declineMessage = (gatewayText) => {
+  const detail = (gatewayText || "").trim();
+  const base = "That card was declined. Please try another card.";
+  return !detail || GENERIC_DECLINE.test(detail) ? base : `${base} (${detail})`;
+};
+
 /* Matches CARD_FIELD_CSS above so our two inputs sit level with the gateway's
    three iframes. */
 const CARD_INPUT =
@@ -250,30 +271,11 @@ export default function IntakePage() {
     return () => clearTimeout(t);
   }, [payDemo, loaded, paid]);
 
-  /* Move the CRM opportunity to Paid the moment checkout completes. This fires
-     on `paid` alone — the team wants to see the card move immediately — whereas
-     the MDI release below has to wait for the case id as well. */
-  const marked = useRef(false);
-  useEffect(() => {
-    if (!paid || marked.current) return;
-    marked.current = true;
-
-    let opportunityId = null;
-    let payToken = null;
-    try {
-      opportunityId = sessionStorage.getItem("ghl_opportunity");
-      payToken = sessionStorage.getItem("mdi_release_token");
-    } catch { /* private mode */ }
-    if (!opportunityId) return;
-
-    // Swallowed on failure: a CRM write must never surface to the patient as a
-    // checkout error. The server logs the reason.
-    fetch("/api/ghl-paid", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ opportunity_id: opportunityId, release_token: payToken }),
-    }).catch((e) => console.error("GHL Paid move failed:", e.message));
-  }, [paid]);
+  /* The Paid move used to live here, as a follow-up call once `paid` flipped.
+     It read the opportunity id out of sessionStorage and returned silently when
+     it wasn't there, which is how a charge could clear while GHL heard nothing.
+     /api/pay now does it server side off the gateway's own approval, so the
+     move no longer depends on this tab still holding its session. */
 
   /* Releasing the held case needs two facts that no longer arrive together:
      payment (taken at "identification") and the case id (only known once MDI
@@ -369,6 +371,8 @@ function PaymentGateModal({ productName, price, pid, onPaid }) {
      a promise, so the resolver is parked here for the callback to pick up. */
   const resolver = useRef(null);
   const configured = useRef(false);
+  // Keyed by Collect.js field name: ccnumber / ccexp / cvv.
+  const fieldErrors = useRef({});
 
   useEffect(() => {
     if (!TOKENIZATION_KEY) {
@@ -407,6 +411,11 @@ function PaymentGateModal({ productName, price, pid, onPaid }) {
           validCss: { "border-color": "#cfd8d3" },
           placeholderCss: { color: "#8a938f" },
           fieldsAvailableCallback: () => alive && setStatus("ready"),
+          // Per-field verdicts as the patient types, so a failed tokenize can
+          // say "Card number is invalid" instead of shrugging.
+          validationCallback: (field, valid, message) => {
+            fieldErrors.current[field] = valid ? null : message || null;
+          },
           timeoutDuration: 15000,
           timeoutCallback: () => settle(null),
           callback: (response) => settle(response?.token || null),
@@ -444,7 +453,20 @@ function PaymentGateModal({ productName, price, pid, onPaid }) {
     const token = await tokenize();
     if (!token) {
       setStatus("ready");
-      setMessage("Please check your card details and try again.");
+      /* Three different failures used to share one unhelpful message. Ask the
+         gateway's own per-field validation first, then check the iframes are
+         actually on screen: an ad blocker or a blocked stylesheet can leave
+         them invisible while Collect.js still reports itself ready, which
+         looks to the patient like a dead button under an empty gap. */
+      const fieldError = Object.values(fieldErrors.current).find(Boolean);
+      if (fieldError) {
+        setMessage(fieldError);
+      } else if (!cardFieldsVisible()) {
+        console.error("Collect.js iframes are not visible — likely blocked by an extension or CSP.");
+        setStatus("dead");
+      } else {
+        setMessage("Please check your card details and try again.");
+      }
       return;
     }
 
@@ -471,7 +493,7 @@ function PaymentGateModal({ productName, price, pid, onPaid }) {
       setStatus("ready");
       setMessage(
         r?.declined
-          ? r.message || "That card was declined. Please try another card."
+          ? declineMessage(r.message)
           : "We couldn't take payment just now. Please try again."
       );
     } catch (e) {

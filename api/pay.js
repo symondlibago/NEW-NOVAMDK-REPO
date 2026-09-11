@@ -1,6 +1,6 @@
 import { PRICES } from "./_prices.js";
 import { blocked } from "./_guard.js";
-import { ghlConfigured, tagContact, untagContact } from "./_ghl.js";
+import { ghlConfigured, tagContact, untagContact, markOpportunityPaid } from "./_ghl.js";
 
 /* Charges a card through the NMI gateway (PayTechTrust is an NMI white-label).
  *
@@ -49,6 +49,31 @@ async function syncTag(contactId, { failed }) {
     else await untagContact(contactId, [FAILED_TAG]);
   } catch (e) {
     console.error(`GHL ${failed ? "tag" : "untag"} ${FAILED_TAG} failed:`, e.message);
+  }
+}
+
+/* Moving the card to Paid belongs here, not in the browser.
+ *
+ * It used to be a follow-up call the intake page made after the charge cleared,
+ * reading the opportunity id out of sessionStorage. Anything that emptied that
+ * storage — a link opened in a fresh tab, private browsing, a cleared session —
+ * meant the patient paid successfully while GHL never heard about it. Money
+ * taken, no card moved, no conversion counted, and nothing in the CRM to show
+ * a paying patient was waiting. The server already knows the charge cleared, so
+ * the server owns the write. */
+async function markPaid(opportunityId, transactionId) {
+  if (!ghlConfigured()) return;
+  if (!opportunityId) {
+    console.error(
+      `NMI sale ${transactionId} carried no opportunity id, so the Paid move was skipped. ` +
+        `The charge went through — this card needs moving by hand.`
+    );
+    return;
+  }
+  try {
+    await markOpportunityPaid(opportunityId);
+  } catch (e) {
+    console.error(`GHL Paid move failed for opportunity ${opportunityId}:`, e.message, e.details ?? "");
   }
 }
 
@@ -130,7 +155,11 @@ export default async function handler(req, res) {
   if (code === "1") {
     // Amount and id only: the product name stays out of the logs.
     console.info(`NMI sale approved: txn ${transactionId}, product ${pid}, $${amount.toFixed(2)}`);
-    await syncTag(clean(contact_id, 60), { failed: false });
+    // Independent of each other, and neither may fail the patient's checkout.
+    await Promise.allSettled([
+      syncTag(clean(contact_id, 60), { failed: false }),
+      markPaid(orderId, transactionId),
+    ]);
     return res.status(200).json({ ok: true, transactionId, amount });
   }
 
