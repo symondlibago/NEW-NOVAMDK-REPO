@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /intake
+Disallow: /portal
+Disallow: /start
+
+Sitemap: https://www.novamdk.com/sitemap.xml

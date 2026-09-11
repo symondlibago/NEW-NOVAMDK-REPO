@@ -1,0 +1,912 @@
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600;1,700&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,500;1,9..144,700&family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600;1,700&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Lato:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,400;1,500&family=Roboto+Mono:ital,wght@0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,700&family=Manrope:wght@400;500;600;700;800&family=Work+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&family=Mulish:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+
+@import "tailwindcss";
+
+/* ---- Semantic tokens → Tailwind utilities (kept inline = runtime swappable) ---- */
+@theme inline {
+  --color-bg: var(--nv-bg);
+  --color-surface: var(--nv-surface);
+  --color-surface-2: var(--nv-surface-2);
+  --color-ink: var(--nv-ink);
+  --color-panel: var(--nv-ink-panel);
+  --color-primary: var(--nv-primary);
+  --color-primary-deep: var(--nv-primary-deep);
+  --color-accent: var(--nv-accent);
+  --color-line: var(--nv-line);
+  --color-line-strong: var(--nv-line-strong);
+  --color-muted: var(--nv-muted);
+  --color-on-primary: var(--nv-on-primary);
+  --color-on-panel: var(--nv-on-panel);
+
+  --font-display: var(--nv-font-display);
+  --font-body: var(--nv-font-body);
+  --font-mono: var(--nv-font-mono);
+
+  /* The journal's serif. Deliberately NOT wired to --nv-font-display: the
+     theme switcher owns that, and the blog's headings are meant to stay serif
+     whichever theme is picked. Playfair is already imported at the top of this
+     file. */
+  --font-journal: 'Playfair Display', Georgia, 'Times New Roman', serif;
+
+  /* Legacy aliases used across existing components — now follow the theme. */
+  --font-sans: var(--nv-font-body);
+  --font-baskerville: var(--nv-font-display);
+  --font-brand: var(--nv-font-display);
+}
+
+/* ---- Runtime defaults (Slate & Stone · Grotesk · Medium). JS overrides these. ---- */
+:root {
+  --nv-bg: #F1F1ED;
+  --nv-surface: #FBFBF8;
+  --nv-surface-2: #F4F4EE;
+  --nv-ink: #233039;
+  --nv-ink-panel: #2B3742;
+  --nv-primary: #3F5268;
+  --nv-primary-deep: #33435A;
+  --nv-accent: #7D93A8;
+  --nv-line: #E2E6E6;
+  --nv-line-strong: #D2DAD9;
+  --nv-muted: #65727F;
+  --nv-on-primary: #F4F4EF;
+  --nv-on-panel: #E7ECF0;
+
+  --nv-font-display: 'Hanken Grotesk', system-ui, sans-serif;
+  --nv-font-body: 'Hanken Grotesk', system-ui, sans-serif;
+  --nv-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --nv-display-tracking: -0.032em;
+  --nv-weight-heading: 700;
+  --nv-weight-body: 450;
+
+  --nv-r: 22px;
+  --nv-shadow: 0 1px 2px rgba(20, 24, 28, 0.04), 0 24px 50px -32px rgba(20, 24, 28, 0.34);
+  --nv-shadow-lg: 0 2px 4px rgba(20, 24, 28, 0.05), 0 44px 90px -44px rgba(20, 24, 28, 0.45);
+
+  /* Treatments goal cards — derived from the live palette so the tan, the
+     reveal band and the arrow all follow a theme swap. See .nv-goal below. */
+  /* Deeper than it was: the comp's cards are a mid brown-tan, and the cream copy
+     the comp puts on them needs the extra depth to separate at all. */
+  --nv-goal-rest: color-mix(in oklab, var(--nv-accent) 58%, var(--nv-surface-2));
+  --nv-goal-rest-soft: color-mix(in oklab, var(--nv-accent) 8%, var(--nv-surface-2));
+  --nv-goal-reveal: color-mix(in oklab, var(--nv-accent) 38%, var(--nv-surface));
+  --nv-goal-arrow: var(--nv-primary-deep);
+  /* The cards sit on a tinted page, so --nv-shadow is far too soft to separate
+     them. Tied to --nv-ink rather than a grey literal so it stays warm and
+     follows a palette swap. */
+  --nv-goal-shadow:
+    0 2px 6px color-mix(in oklab, var(--nv-ink) 12%, transparent),
+    0 16px 28px -12px color-mix(in oklab, var(--nv-ink) 34%, transparent);
+  --nv-goal-shadow-hover:
+    0 5px 14px color-mix(in oklab, var(--nv-ink) 16%, transparent),
+    0 34px 54px -18px color-mix(in oklab, var(--nv-ink) 46%, transparent);
+  --nv-goal-dur: 420ms;
+  /* Longer beat, used only by the Weight Management arrow draw + its wedge —
+     the stroke has to read as being laid down, which 420ms is too quick for. */
+  --nv-goal-draw: 800ms;
+  --nv-goal-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* shadcn/ui scale — preserved so existing ui/* primitives keep working. */
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+  --radius: 0.75rem;
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; overflow-x: clip; }
+  body {
+    margin: 0;
+    overflow-x: clip;
+    width: 100%;
+    background-color: var(--nv-bg);
+    color: var(--nv-ink);
+    font-family: var(--nv-font-body);
+    font-weight: var(--nv-weight-body);
+    font-size: 1.0625rem;
+    line-height: var(--nv-line-height, 1.6);
+    letter-spacing: var(--nv-letter-spacing, normal);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    transition: background-color 0.5s ease, color 0.4s ease;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--nv-font-display);
+    font-weight: var(--nv-weight-heading);
+    line-height: 1.06;
+    letter-spacing: var(--nv-display-tracking);
+  }
+
+  h1:not(.nv-weight-keep), h2:not(.nv-weight-keep),
+  h3:not(.nv-weight-keep), h4:not(.nv-weight-keep) {
+    font-weight: var(--nv-weight-heading) !important;
+  }
+  ::selection { background: var(--nv-primary); color: var(--nv-on-primary); }
+  :focus-visible { outline: 2px solid var(--nv-primary); outline-offset: 3px; border-radius: 8px; }
+
+
+  button, a, label, summary, select,
+  [role="button"], [role="tab"], [role="menuitem"], [onclick] {
+    cursor: pointer;
+  }
+  button:disabled, [aria-disabled="true"], [disabled] {
+    cursor: not-allowed;
+  }
+
+  /* Large color blocks crossfade on palette swap; :where keeps specificity 0
+     so component-level hover transitions still win. */
+  :where(header, footer, section, .nv-surface, .nv-panel, .nv-card) {
+    transition: background-color 0.5s ease, border-color 0.5s ease;
+  }
+}
+
+/* Chrome will not interpolate background-image between two gradients: it swaps
+   them in a single frame, so the take-turns cross-fade had no fade in it at all
+   no matter how long the keyframes were. A custom property registered with a
+   <color> syntax IS interpolated, so the animation moves this one value and the
+   gradient recomputes from it every frame. Top level rather than inside a layer
+   so nothing can reorder it away from the rules that use it. */
+@property --nv-edge {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: #b49a5d;
+}
+
+@layer components {
+  .nv-eyebrow {
+    font-family: var(--nv-font-mono);
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--nv-primary);
+  }
+  /* Italic display accent — toggled from the studio. */
+  [data-italic="true"] .nv-em { font-style: italic; }
+  .nv-em { font-style: normal; }
+
+  .nv-shadow { box-shadow: var(--nv-shadow); }
+  .nv-shadow-lg { box-shadow: var(--nv-shadow-lg); }
+
+  /* Scroll-reveal primitive (paired with the useReveal hook). */
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s cubic-bezier(0.2,0.7,0.3,1), transform 0.7s cubic-bezier(0.2,0.7,0.3,1); }
+  .reveal.in { opacity: 1; transform: none; }
+
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+
+  .nv-scroll { scrollbar-width: thin; scrollbar-color: var(--nv-line-strong) transparent; }
+  .nv-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .nv-scroll::-webkit-scrollbar-thumb { background: var(--nv-line-strong); border-radius: 999px; }
+  .nv-scroll::-webkit-scrollbar-track { background: transparent; }
+
+  /* Wider, grabbable scrollbar for tall panels (Design Studio). */
+  .nv-scroll-lg { scrollbar-width: auto; scrollbar-color: var(--nv-muted) var(--nv-surface-2); }
+  .nv-scroll-lg::-webkit-scrollbar { width: 12px; height: 12px; }
+  .nv-scroll-lg::-webkit-scrollbar-thumb {
+    background: var(--nv-line-strong);
+    border-radius: 999px;
+    border: 3px solid var(--nv-surface);
+  }
+  .nv-scroll-lg::-webkit-scrollbar-thumb:hover { background: var(--nv-muted); }
+  .nv-scroll-lg::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---- Luxury homepage primitives (index 9 design language) ---- */
+  /* Frosted glass surface, tinted by the live palette. */
+  .nv-glass {
+    background: linear-gradient(160deg,
+      color-mix(in oklab, var(--nv-primary) 48%, transparent) 0%,
+      color-mix(in oklab, var(--nv-primary) 80%, transparent) 100%);
+    backdrop-filter: blur(12px) saturate(120%);
+    -webkit-backdrop-filter: blur(12px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+  /* Slow ken-burns drift for the hero background photo. */
+  .nv-kenburns { animation: nv-kenburns 26s ease-in-out infinite alternate; }
+  @keyframes nv-kenburns {
+    from { transform: scale(1) translate(0, 0); }
+    to   { transform: scale(1.09) translate(-1.5%, -1%); }
+  }
+  /* Gentle bob for floating pill/product renders. */
+  .nv-bob { animation: nv-bob 6s cubic-bezier(0.22, 0.61, 0.18, 1) infinite; }
+  @keyframes nv-bob {
+    0%, 100% { transform: translateY(0) rotate(0); }
+    50%      { transform: translateY(-7px) rotate(-3deg); }
+  }
+  /* Idle vertical float for product card images — wrapper-only so hover transforms compose. */
+  .nv-float { animation: nv-float 5.5s ease-in-out infinite; }
+  @keyframes nv-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-8px); }
+  }
+
+  /* Carousel frame swap — keyed on src, so React remounts the img and this
+     replays on every step change. */
+  .nv-fade-in { animation: nv-fade-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @keyframes nv-fade-in {
+    from { opacity: 0; transform: scale(0.97); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* Slower sibling, for copy that changes alongside a cross-dissolving image:
+     the 380ms above lands well before a 700ms crossfade and reads as a snap. */
+  .nv-fade-slow { animation: nv-fade-slow 620ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @keyframes nv-fade-slow {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .nv-seq__bar { transform: scaleX(0); transform-origin: left; }
+  .nv-seq__label { opacity: 0; }
+  .nv-seq.is-in .nv-seq__bar {
+    animation: nv-seq-bar 750ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .nv-seq.is-in .nv-seq__label {
+    animation: nv-seq-label 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes nv-seq-bar {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+  @keyframes nv-seq-label {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .nv-diagram .nv-wire { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  .nv-diagram .nv-wire__label { opacity: 0; }
+  .nv-diagram.is-in .nv-wire {
+    animation: nv-wire-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .nv-diagram.is-in .nv-wire__label {
+    animation: nv-wire-label 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes nv-wire-draw {
+    from { stroke-dashoffset: 1; }
+    to   { stroke-dashoffset: 0; }
+  }
+  @keyframes nv-wire-label {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .nv-rail__line { transform: scaleX(0); transform-origin: left; }
+  .nv-rail__dot,
+  .nv-rail__item { opacity: 0; }
+  .nv-rail.is-in .nv-rail__line {
+    animation: nv-rail-line 1600ms linear both;
+  }
+  .nv-rail.is-in .nv-rail__dot {
+    animation: nv-rail-dot 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .nv-rail.is-in .nv-rail__item {
+    animation: nv-rail-item 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes nv-rail-line {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+  @keyframes nv-rail-dot {
+    from { opacity: 0; transform: scale(0.3); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes nv-rail-item {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .nv-chiptrack {
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 9%, #000 95%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 9%, #000 95%, transparent 100%);
+  }
+  @media (min-width: 64rem) {
+    .nv-chiptrack {
+      -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 22%, #000 44%, #000 96%, transparent 100%);
+      mask-image: linear-gradient(90deg, transparent 0%, transparent 22%, #000 44%, #000 96%, transparent 100%);
+    }
+  }
+
+  /* The claims used to be guillotined at 42% — a hard edge standing in open
+     brass a little to the left of the bottle, which read as a clipping bug
+     rather than as one passing behind the glass. The occlusion is the bottle's
+     halo now (see SublingualBanner), so the ramp is placed to dissolve with it
+     rather than to cut on its own.
+
+     The claims travel right to left, so the bottle is the end of their run, not
+     something they pass through — nothing survives to its left. The ramp starts
+     inside the glass and finishes where the halo's own fade reaches, which is
+     what makes them go behind the bottle instead of under a line.
+
+     The padding is what carries the highlighted claim: this element is exactly
+     one chip tall, so a chip scaled past 1 had its top and bottom sheared off by
+     the overflow clip. It also has to clear the lit chip's glow, not just its
+     border. */
+  .nv-nadtrack {
+    padding-block: 1.75rem;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 46%, #000 66%, #000 92%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, transparent 46%, #000 66%, #000 92%, transparent 100%);
+  }
+
+  /* Glutathione closing band. The shot's own backdrop is the band's colour, so
+     fading its left edge to nothing is what makes the two read as one surface
+     rather than a photo pasted onto a panel. */
+  .nv-feelfade {
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 42%, #000 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 42%, #000 100%);
+  }
+
+  /* Scream Cream's brass card: three phrases that take it in turns to light up,
+     one lit at a time. One keyframe on all three with the cycle split into
+     thirds by a stagger, so there is no timer in React and nothing re-renders.
+     The delays are negative so the row is already mid-cycle on the first paint
+     rather than starting with all three dim. */
+  /* 9s, three phrases, so each holds the light for 3s. The cross-fades are a
+     tenth of the cycle each (0.9s) and eased, which is what stops the change
+     reading as a snap — at 6.6s with a 0.66s linear fade it was over before the
+     eye had found it. */
+  /* Only the two edge stops move. Lit is the whole phrase at #f1e3ca, dim keeps
+     that colour in the middle and darkens towards both ends, so animating the
+     edge alone is the entire difference between the two states.
+
+     9s, three phrases, so each holds the light for 3s, and each hand-off takes
+     a fifth of the cycle (1.8s) rather than a frame. */
+  .nv-taketurns > * {
+    background-image: linear-gradient(90deg, var(--nv-edge) 0%, #f1e3ca 50%, var(--nv-edge) 100%);
+    animation: nv-turn 9s ease-in-out infinite;
+  }
+  .nv-taketurns > :nth-child(2) { animation-delay: -6s; }
+  .nv-taketurns > :nth-child(3) { animation-delay: -3s; }
+
+  @keyframes nv-turn {
+    0% { --nv-edge: #f1e3ca; }
+    12% { --nv-edge: #f1e3ca; }
+    32% { --nv-edge: #b49a5d; }
+    80% { --nv-edge: #b49a5d; }
+    100% { --nv-edge: #f1e3ca; }
+}
+
+  /* Sports-medicine recovery row. The cards on either end are meant to be half
+     gone, and the comp dissolves them rather than cutting them — so the fade is
+     a mask on the scroller itself, symmetric, and tight enough that the three in
+     the middle stay at full strength. */
+  .nv-fanrow {
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 17%, #000 83%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 17%, #000 83%, transparent 100%);
+  }
+
+  /* Sports-medicine tick fan. Each dash grows out of the arc rather than fading
+     in, so the fan reads as being struck outward from the heading. */
+  .nv-ticks .nv-ticks__tick { opacity: 0; transform: scale(0.7); transform-box: fill-box; transform-origin: 50% 100%; }
+  .nv-ticks.is-in .nv-ticks__tick {
+    animation: nv-tick-strike 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes nv-tick-strike {
+    from { opacity: 0; transform: scale(0.7); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* The claims row carries half again as many chips as it used to, so it needs
+     its own duration: .nv-marquee crosses half the track in a fixed time, which
+     means a wider set travels proportionally faster for free. */
+  .nv-marquee--claims { animation: nv-marquee 54s linear infinite; will-change: transform; }
+
+  .nv-figfade {
+    -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 78%, transparent 100%);
+  }
+  .nv-bandfade {
+    -webkit-mask-image: linear-gradient(180deg, #000 62%, rgba(0, 0, 0, 0.55) 82%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 62%, rgba(0, 0, 0, 0.55) 82%, transparent 100%);
+  }
+  .nv-plot .nv-plot__sweep {
+    transform-box: view-box;
+    transform-origin: 20% 50%;
+    transform: scaleX(0);
+  }
+  .nv-plot .nv-plot__fill,
+  .nv-plot .nv-plot__dot,
+  .nv-plot .nv-plot__label,
+  .nv-plot .nv-plot__caption { opacity: 0; }
+  .nv-plot .nv-plot__drop { opacity: 0; transform: scaleY(0); transform-origin: top; }
+
+  .nv-plot.is-in .nv-plot__sweep {
+    animation: nv-plot-draw 1400ms cubic-bezier(0.33, 0, 0.2, 1) both;
+  }
+  .nv-plot.is-in .nv-plot__fill {
+    animation: nv-plot-in 760ms ease-out both;
+  }
+  .nv-plot.is-in .nv-plot__drop {
+    animation: nv-plot-drop 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .nv-plot.is-in .nv-plot__dot {
+    animation: nv-plot-dot 460ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .nv-plot.is-in .nv-plot__label,
+  .nv-plot.is-in .nv-plot__caption {
+    animation: nv-plot-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes nv-plot-draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes nv-plot-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes nv-plot-drop {
+    from { opacity: 0; transform: scaleY(0); }
+    to   { opacity: 1; transform: scaleY(1); }
+  }
+  @keyframes nv-plot-dot {
+    from { opacity: 0; transform: scale(0.2); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  .nv-cap .nv-cap__fill { width: 0; }
+  .nv-cap .nv-cap__pill { left: 0; opacity: 0; }
+  .nv-cap.is-in .nv-cap__fill {
+    animation: nv-cap-fill 1600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .nv-cap.is-in .nv-cap__pill {
+    animation: nv-cap-travel 1600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes nv-cap-fill { from { width: 0; } to { width: 72%; } }
+  @keyframes nv-cap-travel {
+    from { left: 0; opacity: 0; }
+    14%  { opacity: 1; }
+    to   { left: 72%; opacity: 1; }
+  }
+  .nv-arc .nv-arc__line { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  .nv-arc.is-in .nv-arc__line {
+    animation: nv-arc-draw 1800ms cubic-bezier(0.33, 0, 0.2, 1) both;
+  }
+  @keyframes nv-arc-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+  .nv-marquee { animation: nv-marquee 38s linear infinite; will-change: transform; }
+  @keyframes nv-marquee {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(-50%, 0, 0); }
+  }
+
+  /* Slower sibling for the weight-loss closing band, where the pattern is a
+     backdrop rather than content: at 38s it reads as a passing train. */
+  .nv-marquee--slow { animation: nv-marquee 90s linear infinite; will-change: transform; }
+
+  /* The chip the sublingual marquee has carried to the middle of the band.
+     Which one that is can only be measured, so the class is toggled from JS;
+     everything about how it looks lives here. */
+  .nv-midchip {
+    transition:
+      transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+      color 420ms ease,
+      background-color 420ms ease,
+      box-shadow 420ms ease,
+      border-color 420ms ease;
+  }
+  /* Lit rather than zoomed: at 1.28 the capsule's own border grew with it and
+     read as a different, larger design element parked mid-row. */
+  .nv-midchip.is-mid {
+    transform: scale(1.12);
+    color: #fff6dd;
+    border-color: rgba(255, 240, 204, 0.9);
+    background: rgba(255, 232, 177, 0.1);
+    box-shadow: 0 0 26px rgba(255, 232, 177, 0.28);
+  }
+
+  /* Featured pillar's bar chart. transform-box: fill-box is what lets an SVG
+     rect take a percentage transform-origin off its own bounds rather than the
+     viewport's, so each bar grows from its own foot. */
+  .nv-bars .nv-bars__bar { transform: scaleY(0); transform-box: fill-box; transform-origin: 50% 100%; }
+  .nv-bars .nv-bars__trend { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  .nv-bars.is-in .nv-bars__bar {
+    animation: nv-bars-rise 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .nv-bars.is-in .nv-bars__trend {
+    animation: nv-bars-trend 900ms cubic-bezier(0.33, 0, 0.2, 1) both;
+  }
+  @keyframes nv-bars-rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  @keyframes nv-bars-trend { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+  /* Sublingual 1–4 list. The steps run off the same gate as the trails between
+     them rather than off four separate Reveals: two in-view clocks on a list
+     this tall let a trail wipe down to a step that had not arrived yet. */
+  .nv-steps .nv-steps__item { opacity: 0; transform: translateY(18px); }
+  .nv-steps.is-in .nv-steps__item {
+    animation: nv-steps-item 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes nv-steps-item {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* The dots are a repeating background, so the trail is wiped in with the mask
+     rather than scaled — a scaleY would stretch every dot into a dash on the
+     way down. */
+  .nv-steps .nv-steps__trail {
+    -webkit-mask-image: linear-gradient(180deg, #000, #000);
+    mask-image: linear-gradient(180deg, #000, #000);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 0%;
+    mask-size: 100% 0%;
+  }
+  .nv-steps.is-in .nv-steps__trail {
+    animation: nv-steps-trail 520ms cubic-bezier(0.33, 0, 0.2, 1) both;
+  }
+  @keyframes nv-steps-trail {
+    from { -webkit-mask-size: 100% 0%; mask-size: 100% 0%; }
+    to   { -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+  }
+
+  /* Sexual-health chip rows. Same seam-free trick as .nv-marquee — the set is
+     rendered twice and the track shifted by half its width — but the two rows
+     run opposite ways, so the second needs its own keyframes rather than a
+     negative duration, which is not a thing. */
+  .nv-chiprow--rtl { animation: nv-marquee 42s linear infinite; will-change: transform; }
+  .nv-chiprow--ltr { animation: nv-marquee-rev 42s linear infinite; will-change: transform; }
+  @keyframes nv-marquee-rev {
+    from { transform: translate3d(-50%, 0, 0); }
+    to   { transform: translate3d(0, 0, 0); }
+  }
+
+  .nv-goal {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: var(--nv-goal-rest);
+    /* A resting shadow, not just a hover one — the cards sit on a tinted page
+       background, so without it their edges barely separate from it. */
+    box-shadow: var(--nv-goal-shadow);
+    transition:
+      transform var(--nv-goal-dur) var(--nv-goal-ease),
+      box-shadow var(--nv-goal-dur) var(--nv-goal-ease);
+  }
+  /* The "not sure where to start" cell is the quiet one in the grid. */
+  .nv-goal--muted { background: var(--nv-goal-rest-soft); }
+
+  .nv-goal__layer { position: absolute; inset: 0; pointer-events: none; }
+  .nv-goal__fade { opacity: 0; transition: opacity var(--nv-goal-dur) var(--nv-goal-ease); }
+
+  .nv-goal__cream { z-index: 1; background: var(--nv-surface); }
+  .nv-goal__bloom {
+    z-index: 2;
+    background: radial-gradient(66% 94% at 100% 0%,
+      color-mix(in oklab, var(--nv-accent) 48%, transparent), transparent 68%);
+  }
+  .nv-goal__figure { z-index: 4; }
+  .nv-goal__content { position: relative; z-index: 6; }
+
+  .nv-goal__band {
+    z-index: 3;
+    background: var(--nv-goal-reveal);
+    clip-path: polygon(21% 100%, 21% 100%, 21% 100%, 21% 100%, 21% 100%, 21% 100%, 21% 100%);
+    transition: clip-path var(--nv-goal-draw) var(--nv-goal-ease);
+  }
+  .nv-goal__arrow {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    height: 100%;
+    width: 100%;
+    color: var(--nv-goal-arrow);
+    pointer-events: none;
+  }
+  .nv-goal__arrow-shaft {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    transition: stroke-dashoffset var(--nv-goal-draw) var(--nv-goal-ease);
+  }
+  .nv-goal__arrow-head {
+    opacity: 0;
+    /* Unfurl forward from where the shaft lands rather than from the point. */
+    transform-box: view-box;
+    transform-origin: 208px 158px;
+    transform: scale(0.55);
+    transition: opacity 150ms ease-out, transform 190ms ease-out;
+  }
+
+  .nv-goal__glow {
+    z-index: 3;
+    background: radial-gradient(46% 42% at 46% 44%,
+      color-mix(in oklab, var(--nv-accent) 40%, transparent) 0%,
+      color-mix(in oklab, var(--nv-accent) 17%, transparent) 46%,
+      transparent 72%);
+    opacity: 0;
+    transform: scale(0.84);
+    will-change: transform, opacity;
+    transition:
+      transform var(--nv-goal-dur) var(--nv-goal-ease),
+      opacity var(--nv-goal-dur) var(--nv-goal-ease);
+  }
+
+  .nv-goal__spark {
+    position: absolute;
+    z-index: 3;
+    bottom: 6%;
+    left: 6%;
+    width: 34%;
+    max-width: 118px;
+    opacity: 0;
+    transform: translate3d(-10%, 14%, 0) scale(0.7);
+    will-change: transform, opacity;
+    transition:
+      transform var(--nv-goal-dur) var(--nv-goal-ease),
+      opacity var(--nv-goal-dur) var(--nv-goal-ease);
+  }
+  .nv-goal__orbs {
+    position: absolute;
+    z-index: 3;
+    inset: -8%;
+    opacity: 0;
+    transform: translate3d(-3%, 7%, 0) scale(0.9);
+    will-change: transform, opacity;
+    transition:
+      transform var(--nv-goal-dur) var(--nv-goal-ease),
+      opacity var(--nv-goal-dur) var(--nv-goal-ease);
+  }
+  .nv-goal__orb {
+    position: absolute;
+    z-index: 4;
+    border-radius: 999px;
+    background: radial-gradient(circle at 34% 30%,
+      color-mix(in oklab, var(--nv-surface) 72%, var(--nv-primary-deep)) 0%,
+      var(--nv-primary-deep) 56%,
+      color-mix(in oklab, var(--nv-primary-deep) 35%, transparent) 100%);
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.55);
+    transition:
+      transform var(--nv-goal-dur) var(--nv-goal-ease),
+      opacity var(--nv-goal-dur) var(--nv-goal-ease);
+  }
+  .nv-goal__orb--a { left: 14%; top: 22%; height: 22px; width: 22px; }
+  .nv-goal__orb--b { left: 34%; bottom: 16%; height: 13px; width: 13px; }
+  .nv-goal__orb--c { right: 26%; top: 14%; height: 9px; width: 9px; }
+
+  @keyframes nv-orb-drift {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50%      { transform: translate3d(2.5%, -3.5%, 0) scale(1.035); }
+  }
+  @keyframes nv-orb-float {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.72; }
+    50%      { transform: translate3d(6px, -11px, 0) scale(1.08); opacity: 1; }
+  }
+
+  /* --- Everything hover, in one pointer-gated block --- */
+  @media (hover: hover) and (pointer: fine) {
+    .nv-goal:hover { transform: translateY(-5px); box-shadow: var(--nv-goal-shadow-hover); }
+    .nv-goal:hover .nv-goal__fade { opacity: 1; }
+
+    /* Wedge and stroke share one timeline; leaving the card simply reverses it. */
+    .nv-goal:hover .nv-goal__band {
+      clip-path: polygon(21% 100%, 30% 91%, 41% 79%, 53% 65%, 65% 49%, 100% 4%, 100% 100%);
+    }
+    .nv-goal:hover .nv-goal__arrow-shaft { stroke-dashoffset: 0; }
+    .nv-goal:hover .nv-goal__arrow-head {
+      opacity: 1;
+      transform: scale(1);
+      transition:
+        opacity 170ms ease-out 660ms,
+        transform 230ms cubic-bezier(0.34, 1.56, 0.64, 1) 660ms;
+    }
+
+    .nv-goal:hover .nv-goal__glow { opacity: 1; transform: scale(1); }
+
+    .nv-goal:hover .nv-goal__spark {
+      opacity: 0.92;
+      transform: translate3d(140%, -92%, 0) scale(1);
+    }
+
+    .nv-goal:hover .nv-goal__orbs {
+      opacity: 0.9;
+      transform: translate3d(0, 0, 0) scale(1);
+      animation: nv-orb-drift 9s ease-in-out var(--nv-goal-dur) infinite;
+    }
+    .nv-goal:hover .nv-goal__orb {
+      opacity: 0.85;
+      transform: translate3d(0, 0, 0) scale(1);
+      animation: nv-orb-float 5.5s ease-in-out infinite;
+    }
+    .nv-goal:hover .nv-goal__orb--a { animation-delay: 0.35s; }
+    .nv-goal:hover .nv-goal__orb--b { animation-delay: 1.4s; animation-duration: 6.8s; }
+    .nv-goal:hover .nv-goal__orb--c { animation-delay: 0.9s; animation-duration: 4.6s; }
+
+    /* Restraint-level polish on the two calm cards. */
+    .nv-goal:hover .nv-goal__figure--float { transform: translate3d(0, -4px, 0) scale(1.02); }
+    .nv-goal:hover .nv-goal__figure--zoom { transform: scale(1.03); }
+    .nv-goal:hover .nv-goal__nudge { transform: translate3d(5px, 0, 0); }
+  }
+
+  .nv-goal__figure--float,
+  .nv-goal__figure--zoom,
+  .nv-goal__nudge {
+    transition: transform var(--nv-goal-dur) var(--nv-goal-ease);
+  }
+
+  .nv-range {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    height: 22px;
+    background: transparent;
+    cursor: grab;
+  }
+  .nv-range:active { cursor: grabbing; }
+  .nv-range::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--nv-primary) 0 var(--nv-fill, 0%),
+      var(--nv-surface-2) var(--nv-fill, 0%) 100%
+    );
+    border: 1px solid var(--nv-line);
+  }
+  .nv-range::-moz-range-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--nv-surface-2);
+    border: 1px solid var(--nv-line);
+  }
+  /* Firefox can fill the portion left of the thumb; WebKit cannot without JS. */
+  .nv-range::-moz-range-progress {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--nv-primary);
+  }
+
+  .nv-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 22px;
+    width: 22px;
+    margin-top: -9px; /* centres the thumb on the 6px track */
+    border-radius: 999px;
+    background: var(--nv-primary);
+    border: 3px solid var(--nv-surface);
+    box-shadow: var(--nv-shadow);
+    transition: transform 0.15s ease;
+  }
+  .nv-range::-moz-range-thumb {
+    height: 22px;
+    width: 22px;
+    border-radius: 999px;
+    background: var(--nv-primary);
+    border: 3px solid var(--nv-surface);
+    box-shadow: var(--nv-shadow);
+    transition: transform 0.15s ease;
+  }
+  .nv-range:hover::-webkit-slider-thumb,
+  .nv-range:active::-webkit-slider-thumb { transform: scale(1.12); }
+  .nv-range:hover::-moz-range-thumb,
+  .nv-range:active::-moz-range-thumb { transform: scale(1.12); }
+
+  .nv-range:focus-visible { outline: none; }
+  .nv-range:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--nv-primary) 30%, transparent);
+  }
+  .nv-range:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--nv-primary) 30%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nv-kenburns, .nv-bob, .nv-float, .nv-marquee, .nv-marquee--slow, .nv-marquee--claims { animation: none !important; }
+  /* Drawn, not drawing. */
+  .nv-bars .nv-bars__bar, .nv-bars .nv-bars__trend { animation: none !important; }
+  .nv-bars .nv-bars__bar { transform: none !important; }
+  .nv-bars .nv-bars__trend { stroke-dashoffset: 0 !important; }
+  .nv-steps .nv-steps__trail { animation: none !important; -webkit-mask-image: none !important; mask-image: none !important; }
+  .nv-steps .nv-steps__item { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .nv-ticks .nv-ticks__tick { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .nv-midchip.is-mid { transform: none !important; }
+  /* No rotation, so all three read at full strength instead of two sitting
+     permanently dimmed on whichever frame the cycle froze. */
+  .nv-taketurns > * { animation: none !important; --nv-edge: #f1e3ca; }
+  /* Swapped content arrives in place rather than fading up. */
+  .nv-fade-in, .nv-fade-slow { animation: none !important; }
+  /* The bars and labels arrive already in place rather than relay-running. */
+  .nv-seq .nv-seq__bar, .nv-seq .nv-seq__label { animation: none !important; }
+  .nv-seq .nv-seq__bar { transform: none !important; }
+  .nv-seq .nv-seq__label { opacity: 1 !important; }
+  /* Same for the callout diagram and the horizontal rail: drawn, not drawing. */
+  .nv-diagram .nv-wire,
+  .nv-diagram .nv-wire__label,
+  .nv-rail .nv-rail__line,
+  .nv-rail .nv-rail__dot,
+  .nv-rail .nv-rail__item { animation: none !important; }
+  .nv-diagram .nv-wire { stroke-dashoffset: 0 !important; }
+  .nv-rail .nv-rail__line { transform: none !important; }
+  .nv-diagram .nv-wire__label,
+  .nv-rail .nv-rail__dot,
+  .nv-rail .nv-rail__item { opacity: 1 !important; }
+  .nv-goal:hover { transform: none !important; }
+  .nv-goal__glow,
+  .nv-goal__spark,
+  .nv-goal__orbs,
+  .nv-goal__orb,
+  .nv-goal__figure--float,
+  .nv-goal__figure--zoom,
+  .nv-goal__nudge,
+  .nv-goal:hover .nv-goal__glow,
+  .nv-goal:hover .nv-goal__spark,
+  .nv-goal:hover .nv-goal__orbs,
+  .nv-goal:hover .nv-goal__orb,
+  .nv-goal:hover .nv-goal__figure--float,
+  .nv-goal:hover .nv-goal__figure--zoom,
+  .nv-goal:hover .nv-goal__nudge {
+    transform: none !important;
+    animation: none !important;
+  }
+  .nv-goal__band,
+  .nv-goal__arrow-shaft,
+  .nv-goal__arrow-head {
+    transition: none !important;
+  }
+  .nv-goal__arrow-head { transform: none !important; }
+  .nv-goal__spark { left: auto; right: 16%; bottom: 6%; }
+}
+
+/* Kiosk / portrait tablet (same media query as useKioskMode): hide the page
+   scrollbar — it's a touch screen, and the classic scrollbar track otherwise
+   paints a light vertical bar over the hero video. Touch scrolling unaffected. */
+@media (min-width: 600px) and (max-width: 1024px) and (orientation: portrait) {
+  html { scrollbar-width: none; }
+  html::-webkit-scrollbar { width: 0; height: 0; }
+}
+
+/* ---- Lenis smooth scroll ---- */
+html.lenis,
+html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1; transform: none; }
+}
+
+@layer components {
+  /* The GH pathway card icons turn slowly and forever. 18s is deliberately far
+     past "noticeable": at anything quicker four spinning glyphs pull the eye off
+     the copy they are labelling. */
+  .nv-ghspin { animation: nv-ghspin 18s linear infinite; }
+
+  @keyframes nv-ghspin {
+    to { transform: rotate(360deg); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nv-ghspin { animation: none !important; }
+}
+
+@layer components {
+  /* The orbit pills on the sexual-health stage. Long and slow so it reads as
+     drifting rather than bobbing, and each pill is offset in SexualHealthSections
+     so the four never travel together. */
+  .nv-drift { animation: nv-drift 6.4s ease-in-out infinite; }
+
+  @keyframes nv-drift {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-14px); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nv-drift { animation: none !important; }
+}

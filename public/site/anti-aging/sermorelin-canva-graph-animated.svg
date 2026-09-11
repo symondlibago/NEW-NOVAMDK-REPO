@@ -1,0 +1,193 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="624"
+  height="224"
+  viewBox="-12 -12 624 224"
+  preserveAspectRatio="xMidYMid meet"
+  role="img"
+  aria-label="Sermorelin decline graph"
+>
+  <defs>
+    <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f3dfb2" stop-opacity="0.30"/>
+      <stop offset="58%" stop-color="#f3dfb2" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#f3dfb2" stop-opacity="0.02"/>
+    </linearGradient>
+
+    <style>
+      .area {
+        opacity: 0;
+        animation: areaIn 0.8s cubic-bezier(.22,.61,.18,1) 0.18s forwards;
+      }
+
+      /* The curve carries vector-effect="non-scaling-stroke", so dash lengths
+         resolve in SCREEN pixels while the path is 632 USER units scaled by the
+         card width. Any fixed number therefore cuts the line off at a ratio that
+         moves with the viewport, which is what halved it. pathLength="1" puts
+         the dash in normalised path space, where 1 is exactly the whole curve at
+         every size. */
+      .curve {
+        opacity: 0;
+        animation: curveIn 0.85s cubic-bezier(.22,.61,.18,1) 0.12s forwards;
+      }
+
+      .drop {
+        opacity: 0;
+        animation: dropIn 0.45s ease-out forwards;
+      }
+
+      .drop:nth-child(1) { animation-delay: .35s; }
+      .drop:nth-child(2) { animation-delay: .54s; }
+      .drop:nth-child(3) { animation-delay: .73s; }
+      .drop:nth-child(4) { animation-delay: .92s; }
+      .drop:nth-child(5) { animation-delay: 1.11s; }
+      .drop:nth-child(6) { animation-delay: 1.30s; }
+
+      /* Two animations on one element: popDot is the entry and owns `transform`,
+         dotGlow is the repeating highlight and owns `r`, `fill-opacity` and
+         `filter`. Different properties, so they never fight, and each gets its
+         own delay from the paired animation-delay list below.
+
+         The highlight matches the Semaglutide rail: one dot lit at a time,
+         moving on every 3s. Six dots means an 18s lap, and each dot's glow
+         delay is 3s later than the one before it. GLOW_LEAD (1.6s) holds the
+         first light until the entry sequence has finished landing. */
+      .dot {
+        transform-box: fill-box;
+        transform-origin: center;
+        transform: scale(0);
+        animation:
+          popDot 0.46s cubic-bezier(.2,1.55,.5,1) forwards,
+          dotGlow 18s linear infinite;
+      }
+
+      .dot:nth-child(1) { animation-delay: .28s,  1.6s; }
+      .dot:nth-child(2) { animation-delay: .47s,  4.6s; }
+      .dot:nth-child(3) { animation-delay: .66s,  7.6s; }
+      .dot:nth-child(4) { animation-delay: .85s, 10.6s; }
+      .dot:nth-child(5) { animation-delay: 1.04s, 13.6s; }
+      .dot:nth-child(6) { animation-delay: 1.23s, 16.6s; }
+
+      @keyframes curveIn {
+        to { opacity: 1; }
+      }
+
+      @keyframes dropIn {
+        to { opacity: 1; }
+      }
+
+      @keyframes popDot {
+        0%   { transform: scale(0); }
+        68%  { transform: scale(1.16); }
+        100% { transform: scale(1); }
+      }
+
+      /* 18s lap: lit through the first 3s (0 to ~17%), dim for the rest, with a
+         half-second ramp either side so it reads as a swell rather than a
+         switch. `r` is animated instead of a scale because popDot already owns
+         this element's transform. */
+      @keyframes dotGlow {
+        0% {
+          r: 6.15px;
+          fill-opacity: 0.78;
+          filter: drop-shadow(0 0 0 rgba(255, 232, 177, 0));
+        }
+        3% {
+          r: 8.5px;
+          fill-opacity: 1;
+          filter: drop-shadow(0 0 7px rgba(255, 232, 177, 0.75));
+        }
+        14% {
+          r: 8.5px;
+          fill-opacity: 1;
+          filter: drop-shadow(0 0 7px rgba(255, 232, 177, 0.75));
+        }
+        17%, 100% {
+          r: 6.15px;
+          fill-opacity: 0.78;
+          filter: drop-shadow(0 0 0 rgba(255, 232, 177, 0));
+        }
+      }
+
+      @keyframes areaIn {
+        to { opacity: 1; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .area,
+        .curve,
+        .drop,
+        .dot {
+          animation: none !important;
+          opacity: 1;
+          transform: none;
+          r: 6.15px;
+          fill-opacity: 0.78;
+          filter: none;
+        }
+      }
+    </style>
+  </defs>
+
+  <path
+    class="area"
+    d="M 8 62 C 44 22, 76 14, 102 14 C 140 14, 186 40, 222 62 C 268 90, 312 104, 348 112 C 396 124, 442 142, 474 150 C 516 162, 562 178, 594 184 L 594 200 L 8 200 Z"
+    fill="url(#area)"
+  />
+
+  <g
+    fill="none"
+    stroke="#a97e3f"
+    stroke-opacity="0.66"
+    stroke-width="1.35"
+    vector-effect="non-scaling-stroke"
+  >
+    <path class="drop" d="M8 62V200"/>
+    <path class="drop" d="M102 14V200"/>
+    <path class="drop" d="M222 62V200"/>
+    <path class="drop" d="M348 112V200"/>
+    <path class="drop" d="M474 150V200"/>
+    <path class="drop" d="M594 184V200"/>
+  </g>
+
+  <path
+    class="curve"
+    pathLength="1"
+    d="M 8 62 C 44 22, 76 14, 102 14 C 140 14, 186 40, 222 62 C 268 90, 312 104, 348 112 C 396 124, 442 142, 474 150 C 516 162, 562 178, 594 184"
+    fill="none"
+    stroke="#a97e3f"
+    stroke-opacity="0.74"
+    stroke-width="4.4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    vector-effect="non-scaling-stroke"
+  />
+
+  <path
+    class="curve"
+    pathLength="1"
+    d="M 8 62 C 44 22, 76 14, 102 14 C 140 14, 186 40, 222 62 C 268 90, 312 104, 348 112 C 396 124, 442 142, 474 150 C 516 162, 562 178, 594 184"
+    fill="none"
+    stroke="#edd8aa"
+    stroke-opacity="0.96"
+    stroke-width="2.1"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    vector-effect="non-scaling-stroke"
+  />
+
+  <g
+    fill="#e7d2a7"
+    fill-opacity="0.78"
+    stroke="#ad8245"
+    stroke-width="3"
+    vector-effect="non-scaling-stroke"
+  >
+    <circle class="dot" cx="8" cy="62" r="6.15"/>
+    <circle class="dot" cx="102" cy="14" r="6.15"/>
+    <circle class="dot" cx="222" cy="62" r="6.15"/>
+    <circle class="dot" cx="348" cy="112" r="6.15"/>
+    <circle class="dot" cx="474" cy="150" r="6.15"/>
+    <circle class="dot" cx="594" cy="184" r="6.15"/>
+  </g>
+</svg>
