@@ -1,11 +1,12 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { motion as Motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Seo from "../components/Seo";
 import Navbar from "../components/Nav/Navbar";
 import Footer from "../components/Nav/Footer";
 import Reveal from "../components/ui/Reveal";
-import { getPosts, formatDate, tagLabel } from "../lib/blog";
+import { getPosts, formatDate, CATEGORIES, inCategory, categoryOf } from "../lib/blog";
 
 /**
  * The journal index (2026-09-11 redesign).
@@ -29,39 +30,6 @@ const EYEBROW = "#8a7550";
 
 /* How many articles the page opens with: the featured one plus its stack. */
 const LEAD_COUNT = 4;
-
-/* The site's five categories, in nav order, and the same five offered by the
-   Category field in GoHighLevel. Fixed rather than derived from whatever tags
-   the posts happen to carry: the categories are the taxonomy, and a post that
-   does not sit in one of them is a post that needs its category set, not a new
-   chip on the page. */
-const CATEGORIES = [
-  { label: "Weight Loss", slug: "weight-loss" },
-  { label: "Longevity", slug: "longevity" },
-  { label: "Skin Health", slug: "skin-health" },
-  { label: "Sexual Health", slug: "sexual-health" },
-  { label: "Recovery & Wellness", slug: "recovery-wellness" },
-];
-
-/* GHL hands the category back as a display name on some posts and a slug on
-   others, so both sides are flattened before they are compared. */
-const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-
-/* The third comparison routes the tag through tagLabel first, so whatever a
-   card displays is what its chip filters on. Without it a post tagged
-   "unisex-anti-aging-rx" showed LONGEVITY on the card and then vanished when
-   the Longevity chip was pressed. */
-function matches(post, cat) {
-  return (post.tags || []).some(
-    (t) => norm(t) === norm(cat.label) || norm(t) === norm(cat.slug) || norm(tagLabel(t)) === norm(cat.label)
-  );
-}
-
-/** The category a post belongs to, or its raw tag tidied up if it has none. */
-function categoryOf(post) {
-  const hit = CATEGORIES.find((c) => matches(post, c));
-  return hit ? hit.label : tagLabel(post.tags?.[0]);
-}
 
 /* The publish date, and nothing else. The comp's "N min read · Medically
    reviewed" is gone: the read time was an estimate off the word count, and
@@ -162,7 +130,7 @@ export default function BlogPage() {
   const [expanded, setExpanded] = React.useState(false);
 
   const cat = CATEGORIES.find((c) => c.slug === active);
-  const shown = cat ? posts.filter((p) => matches(p, cat)) : posts;
+  const shown = cat ? posts.filter((p) => inCategory(p, cat)) : posts;
   const [lead, ...rest] = shown;
   const stack = rest.slice(0, LEAD_COUNT - 1);
   const overflow = rest.slice(LEAD_COUNT - 1);
@@ -252,19 +220,30 @@ export default function BlogPage() {
             {[{ label: "All", slug: "all" }, ...CATEGORIES].map((c) => {
               const on = active === c.slug;
               return (
+                /* One shared fill carried between chips by its layoutId, so the
+                   selection slides along the row rather than blinking across. */
                 <button
                   key={c.slug}
                   type="button"
                   onClick={() => pick(c.slug)}
                   aria-pressed={on}
-                  className="rounded-full border px-5 py-2 text-[0.82rem] font-medium transition-colors duration-300"
-                  style={
-                    on
-                      ? { background: "#3f3524", borderColor: "#3f3524", color: GROUND }
-                      : { background: "transparent", borderColor: LINE, color: BODY }
-                  }
+                  className="relative rounded-full border px-5 py-2 text-[0.82rem] font-medium transition-colors duration-300"
+                  style={{
+                    background: "transparent",
+                    borderColor: on ? "transparent" : LINE,
+                    color: on ? GROUND : BODY,
+                  }}
                 >
-                  {c.label}
+                  {on && (
+                    <Motion.span
+                      aria-hidden="true"
+                      layoutId="nv-blog-chip"
+                      className="absolute inset-0 rounded-full"
+                      style={{ background: "#3f3524" }}
+                      transition={{ type: "spring", stiffness: 320, damping: 30 }}
+                    />
+                  )}
+                  <span className="relative">{c.label}</span>
                 </button>
               );
             })}

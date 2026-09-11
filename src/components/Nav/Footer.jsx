@@ -23,7 +23,10 @@ export default function Footer() {
     // footer still reads as a separate base without brightening.
     <footer className="mt-auto w-full border-t border-line-strong bg-surface-2 pb-10 pt-16 text-muted md:pt-24">
       <div className="mx-auto max-w-[1340px] px-6 md:px-10">
-        <div className="mb-12 grid grid-cols-2 gap-x-6 gap-y-9 md:mb-20 md:grid-cols-4 md:gap-10 lg:gap-16">
+        {/* The gap under this block was sized when the brand column ended at
+            the social row. The seal made that column taller, so the same 80px
+            now reads as a hole above the divider. */}
+        <div className="mb-8 grid grid-cols-2 gap-x-6 gap-y-9 md:mb-10 md:grid-cols-4 md:gap-10 lg:gap-16">
           <div className="col-span-2 lg:col-span-1 md:pr-8">
             {/* The white pill existed to lift a dark logo off a dark panel — on a
                 light base it's just a floating box, so the mark sits direct. */}
@@ -37,6 +40,28 @@ export default function Footer() {
               <a href="https://www.tiktok.com/@novamdk" target="_blank" rel="noopener noreferrer" aria-label="TikTok" className={social}><TikTokIcon size={18} /></a>
               <a href="https://x.com/novamdk" target="_blank" rel="noopener noreferrer" aria-label="X" className={social}><Twitter size={18} strokeWidth={1.5} /></a>
             </div>
+
+            {/* LegitScript certification, 2026-09. Served from LegitScript's own
+                host rather than copied into /public on purpose: the seal is
+                live proof of a current certification, so if ours ever lapses
+                the mark has to be able to change or disappear without a deploy.
+                Left at its native 73x79 and never scaled — LegitScript asks for
+                that because the mark stops being readable when it shrinks. */}
+            <a
+              href="https://www.legitscript.com/websites/?checker_keywords=novamdk.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Verify LegitScript Approval for www.novamdk.com"
+              className="mt-7 inline-block transition-opacity hover:opacity-80"
+            >
+              <img
+                src="https://static.legitscript.com/seals/52045841.png"
+                alt="LegitScript Certified. Verify approval for www.novamdk.com"
+                width="94"
+                height="100"
+                loading="lazy"
+              />
+            </a>
           </div>
 
           <div>

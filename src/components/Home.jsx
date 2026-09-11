@@ -8,9 +8,7 @@ import StartingPoint from "./home/StartingPoint";
 import MattersToYou from "./home/MattersToYou";
 import HowItWorks from "./home/HowItWorks";
 import MoreWays from "./home/MoreWays";
-/* Blog band parked on 2026-09-11 at the client's request. Uncomment this and
-   the <Articles /> below to bring it back; the component is untouched. */
-// import Articles from "./home/Articles";
+import Articles from "./home/Articles";
 
 /* useKioskVariant and the HeroStage card grid it drove went with the
    2026-09-11 hero redesign. The new hero is one full-bleed clip and reads the
@@ -33,7 +31,7 @@ export default function Home() {
 
       <HowItWorks />
       <MoreWays />
-      {/* <Articles /> */}
+      <Articles />
 
       {/* ===== FAQ ===== */}
       <Suspense fallback={<div className="grid h-[200px] place-items-center bg-bg text-muted">Loading…</div>}>

@@ -338,9 +338,14 @@ export async function markOpportunityPaid(opportunityId) {
     throw new Error(`GHL pipeline "${pipelineName}" has no "${PAID_STAGE_NAME}" stage.`);
   }
 
+  /* Stage and status are separate things in GHL, and the dashboard's conversion
+     rate counts status === "won" — the stage a card sits in doesn't feed it.
+     Moving to Paid without this left every paid visit as the "open" it was
+     created with, which is why the dashboard read 0% against a board full of
+     paid cards. Payment is the conversion; anything after it is fulfilment. */
   const data = await ghlFetch(`/opportunities/${opportunityId}`, {
     method: "PUT",
-    body: { pipelineStageId: paid.id },
+    body: { pipelineStageId: paid.id, status: "won" },
   });
   return data?.opportunity || null;
 }

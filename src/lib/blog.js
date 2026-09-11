@@ -77,6 +77,40 @@ const TAG_LABELS = {
   "benefits-holistic-wellness": "Holistic Wellness",
 };
 
+/* The site's five categories, in nav order, and the same five offered by the
+   Category field in GoHighLevel. Fixed rather than derived from whatever tags
+   the posts happen to carry: the categories are the taxonomy, and a post that
+   does not sit in one of them is a post that needs its category set, not a new
+   chip on the page. Lives here so the blog index and the home band filter by
+   one definition instead of two drifting copies. */
+export const CATEGORIES = [
+  { label: "Weight Loss", slug: "weight-loss" },
+  { label: "Longevity", slug: "longevity" },
+  { label: "Skin Health", slug: "skin-health" },
+  { label: "Sexual Health", slug: "sexual-health" },
+  { label: "Recovery & Wellness", slug: "recovery-wellness" },
+];
+
+/* GHL hands the category back as a display name on some posts and a slug on
+   others, so both sides are flattened before they are compared. */
+const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/** Whether a post belongs to a category. The tagLabel comparison is what keeps
+    a card's visible category and its chip in agreement: without it a post
+    tagged "unisex-anti-aging-rx" reads LONGEVITY and then vanishes when the
+    Longevity chip is pressed. */
+export function inCategory(post, cat) {
+  return (post.tags || []).some(
+    (t) => norm(t) === norm(cat.label) || norm(t) === norm(cat.slug) || norm(tagLabel(t)) === norm(cat.label)
+  );
+}
+
+/** The category a post belongs to, or its raw tag tidied up if it has none. */
+export function categoryOf(post) {
+  const hit = CATEGORIES.find((c) => inCategory(post, c));
+  return hit ? hit.label : tagLabel(post.tags?.[0]);
+}
+
 /** Display label for a raw tag. */
 export function tagLabel(tag) {
   if (!tag) return "";
