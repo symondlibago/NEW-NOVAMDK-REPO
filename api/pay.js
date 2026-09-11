@@ -22,6 +22,24 @@ const DESCRIPTION = "NovaMDK telehealth treatment";
 
 const clean = (v, max) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
+/* Live card testing without repricing anything a patient can see.
+ *
+ * Both vars have to be set and it only ever affects the single id named, so
+ * leaving them behind by accident can misprice one product rather than the
+ * whole catalogue. The product page still renders the real price, because this
+ * never touches the catalogue. Unset NMI_TEST_PID to turn it off. */
+const TEST_PID = process.env.NMI_TEST_PID || null;
+const TEST_AMOUNT = Number(process.env.NMI_TEST_AMOUNT || 0);
+
+function amountFor(pid, item) {
+  if (!TEST_PID || String(pid) !== String(TEST_PID) || !(TEST_AMOUNT > 0)) return item.amount;
+  console.warn(
+    `NMI TEST PRICING ACTIVE: product ${pid} charged $${TEST_AMOUNT.toFixed(2)} instead of ` +
+      `$${item.amount.toFixed(2)}. Unset NMI_TEST_PID once testing is done.`
+  );
+  return TEST_AMOUNT;
+}
+
 /* GHL writes must never turn a successful charge into a failure the patient
  * sees: the money has already moved by the time these run. */
 async function syncTag(contactId, { failed }) {
@@ -64,11 +82,13 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: "unknown_product" });
   }
 
+  const amount = amountFor(pid, item);
+
   const form = new URLSearchParams({
     security_key: SECURITY_KEY,
     type: "sale",
     payment_token: token,
-    amount: item.amount.toFixed(2),
+    amount: amount.toFixed(2),
     currency: "USD",
     order_description: DESCRIPTION,
   });
@@ -109,9 +129,9 @@ export default async function handler(req, res) {
 
   if (code === "1") {
     // Amount and id only: the product name stays out of the logs.
-    console.info(`NMI sale approved: txn ${transactionId}, product ${pid}, $${item.amount.toFixed(2)}`);
+    console.info(`NMI sale approved: txn ${transactionId}, product ${pid}, $${amount.toFixed(2)}`);
     await syncTag(clean(contact_id, 60), { failed: false });
-    return res.status(200).json({ ok: true, transactionId, amount: item.amount });
+    return res.status(200).json({ ok: true, transactionId, amount });
   }
 
   const declined = code === "2";
