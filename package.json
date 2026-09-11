@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/ghl-blog-sync.mjs --soft && node scripts/generate-sitemap.mjs && vite build && node scripts/prerender.mjs",
+    "build": "node scripts/ghl-blog-sync.mjs --soft && node scripts/generate-sitemap.mjs && node scripts/generate-prices.mjs && vite build && node scripts/prerender.mjs",
     "sitemap": "node scripts/generate-sitemap.mjs",
+    "prices": "node scripts/generate-prices.mjs",
     "sync:blog": "node scripts/ghl-blog-sync.mjs",
     "lint": "eslint .",
     "preview": "vite preview"

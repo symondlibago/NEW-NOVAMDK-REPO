@@ -10,6 +10,55 @@ const MDI_ORIGIN = "https://patient.novamdk.com";
 const PAYMENT_TRIGGER_EVENTS = ["finish"];
 const PAYMENT_TRIGGER_STEPS = ["identification", "thank-you"];
 
+/* ------------------------------- checkout -------------------------------- */
+/* PayTechTrust is an NMI white-label. Collect.js renders the three card fields
+ * as iframes served by the gateway, so the number, expiry and CVC never enter
+ * this page's DOM — we only ever handle the single-use token it hands back.
+ * This key is public by design: it can tokenize a card but not charge one. The
+ * key that can charge lives server side as NMI_SECURITY_KEY. */
+const TOKENIZATION_KEY = import.meta.env.VITE_NMI_TOKENIZATION_KEY;
+const COLLECT_SRC = "https://paytechtrust.transactiongateway.com/token/Collect.js";
+
+const CARD_FIELD_CSS = {
+  width: "100%",
+  height: "46px",
+  padding: "0 14px",
+  "box-sizing": "border-box",
+  border: "1px solid #cfd8d3",
+  "border-radius": "12px",
+  background: "#fff",
+  color: "#1a2420",
+  "font-size": "15px",
+  "font-family": "inherit",
+};
+
+/* Matches CARD_FIELD_CSS above so our two inputs sit level with the gateway's
+   three iframes. */
+const CARD_INPUT =
+  "h-11.5 w-full rounded-xl border border-line-strong bg-surface px-3.5 text-[0.94rem] text-ink placeholder:text-muted focus:border-primary focus:outline-none";
+
+let collectPromise = null;
+function loadCollectJs() {
+  if (collectPromise) return collectPromise;
+  collectPromise = new Promise((resolve, reject) => {
+    if (window.CollectJS) return resolve(window.CollectJS);
+    const s = document.createElement("script");
+    s.src = COLLECT_SRC;
+    s.async = true;
+    // Collect.js reads its key off its own script tag as it boots, so this has
+    // to be set before the element is appended.
+    s.dataset.tokenizationKey = TOKENIZATION_KEY;
+    s.onload = () =>
+      window.CollectJS ? resolve(window.CollectJS) : reject(new Error("loaded without CollectJS"));
+    s.onerror = () => {
+      collectPromise = null; // let a later attempt retry rather than latching the failure
+      reject(new Error("script blocked or offline"));
+    };
+    document.head.appendChild(s);
+  });
+  return collectPromise;
+}
+
 const stored = (key) => {
   try {
     return sessionStorage.getItem(key);
@@ -297,6 +346,9 @@ export default function IntakePage() {
         <PaymentGateModal
           productName={productName || product?.name || "Your treatment"}
           price={product?.price || "$0"}
+          /* Only the id travels: /api/pay looks the amount up from the
+             catalogue rather than trusting what the browser displays. */
+          pid={pid}
           onPaid={() => {
             setPaid(true);
             setPayOpen(false);
@@ -307,14 +359,126 @@ export default function IntakePage() {
   );
 }
 
-function PaymentGateModal({ productName, price, onPaid }) {
-  const [status, setStatus] = useState("idle"); // idle | processing | error | done
+function PaymentGateModal({ productName, price, pid, onPaid }) {
+  // loading | ready | processing | done | dead
+  const [status, setStatus] = useState("loading");
+  const [message, setMessage] = useState("");
+  const [name, setName] = useState("");
+  const [zip, setZip] = useState("");
+  /* startPaymentRequest() answers through a configure-time callback rather than
+     a promise, so the resolver is parked here for the callback to pick up. */
+  const resolver = useRef(null);
+  const configured = useRef(false);
+
+  useEffect(() => {
+    if (!TOKENIZATION_KEY) {
+      console.error("VITE_NMI_TOKENIZATION_KEY is not set — the card form cannot load.");
+      setStatus("dead");
+      return;
+    }
+    // StrictMode runs effects twice in dev; configuring twice remounts the
+    // gateway's iframes underneath us.
+    if (configured.current) return;
+    configured.current = true;
+
+    let alive = true;
+    const settle = (token) => {
+      const resolve = resolver.current;
+      resolver.current = null;
+      if (resolve) resolve(token);
+    };
+
+    loadCollectJs()
+      .then((CollectJS) => {
+        if (!alive) return;
+        CollectJS.configure({
+          variant: "inline",
+          // Left off deliberately: it copies our page CSS into the gateway's
+          // iframes, and the styles below are explicit instead.
+          styleSniffer: false,
+          fields: {
+            ccnumber: { selector: "#nv-cc-number", placeholder: "Card number" },
+            ccexp: { selector: "#nv-cc-exp", placeholder: "MM / YY" },
+            cvv: { selector: "#nv-cc-cvv", placeholder: "CVC" },
+          },
+          customCss: CARD_FIELD_CSS,
+          focusCss: { "border-color": "var(--nv-primary, #1f7a5a)", outline: "none" },
+          invalidCss: { "border-color": "#dc2626" },
+          validCss: { "border-color": "#cfd8d3" },
+          placeholderCss: { color: "#8a938f" },
+          fieldsAvailableCallback: () => alive && setStatus("ready"),
+          timeoutDuration: 15000,
+          timeoutCallback: () => settle(null),
+          callback: (response) => settle(response?.token || null),
+        });
+      })
+      .catch((e) => {
+        if (!alive) return;
+        console.error("Collect.js failed to load:", e.message);
+        setStatus("dead");
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const tokenize = () =>
+    new Promise((resolve) => {
+      resolver.current = resolve;
+      window.CollectJS.startPaymentRequest();
+    });
 
   const pay = async () => {
+    if (status !== "ready") return;
+    if (!name.trim() || !zip.trim()) {
+      setMessage("Please add the name and ZIP code on the card.");
+      return;
+    }
+    setMessage("");
     setStatus("processing");
-    await new Promise((r) => setTimeout(r, 1600)); // fake card charge
-    setStatus("done");
-    setTimeout(onPaid, 1400);
+
+    /* The card itself never reaches us: Collect.js swaps what's in its iframes
+       for a single-use token, and only that token is posted. A spent token
+       can't be replayed, so a retry simply mints a fresh one. */
+    const token = await tokenize();
+    if (!token) {
+      setStatus("ready");
+      setMessage("Please check your card details and try again.");
+      return;
+    }
+
+    const [first, ...rest] = name.trim().split(/\s+/);
+    try {
+      const r = await fetch("/api/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          payment_token: token,
+          pid,
+          contact_id: stored("ghl_contact"),
+          opportunity_id: stored("ghl_opportunity"),
+          billing: { first_name: first, last_name: rest.join(" "), zip: zip.trim() },
+        }),
+      }).then((res) => res.json());
+
+      if (r?.ok) {
+        setStatus("done");
+        setTimeout(onPaid, 1400);
+        return;
+      }
+
+      setStatus("ready");
+      setMessage(
+        r?.declined
+          ? r.message || "That card was declined. Please try another card."
+          : "We couldn't take payment just now. Please try again."
+      );
+    } catch (e) {
+      console.error("Payment request failed:", e.message);
+      setStatus("ready");
+      setMessage("We couldn't reach our payment provider. Please try again.");
+    }
   };
 
   return (
@@ -331,7 +495,7 @@ function PaymentGateModal({ productName, price, onPaid }) {
             <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
               <CreditCard size={22} />
             </span>
-            <h2 className="mt-4 text-[1.25rem] font-bold">One last step — payment</h2>
+            <h2 className="mt-4 text-[1.25rem] font-bold">One last step: payment</h2>
             <p className="mt-1.5 text-[0.9rem] text-muted">
               Complete your payment to finish your intake and send your visit to a provider.
             </p>
@@ -341,34 +505,75 @@ function PaymentGateModal({ productName, price, onPaid }) {
               <span className="shrink-0 text-[1.05rem] font-bold">{price}</span>
             </div>
 
-            {status === "error" && (
-              <p className="mt-3 text-[0.8rem] font-medium text-red-600">
-                We couldn't confirm your visit just now — please try again.
+            {status === "dead" ? (
+              <p className="mt-5 text-[0.85rem] font-medium text-red-600">
+                We couldn't load the secure card form. Please refresh the page, or contact
+                support@novamdk.com and we'll take your payment another way.
               </p>
+            ) : (
+              <>
+                <div className="mt-5 space-y-3 text-left">
+                  {/* Collect.js mounts a gateway-hosted iframe into each of these,
+                      which is why they're plain ids and not inputs. */}
+                  <div id="nv-cc-number" className="h-11.5" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div id="nv-cc-exp" className="h-11.5" />
+                    <div id="nv-cc-cvv" className="h-11.5" />
+                  </div>
+
+                  {/* Ours, not the gateway's: AVS checks the name and ZIP on the
+                      card, which is often not the patient's own address. */}
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    autoComplete="cc-name"
+                    placeholder="Name on card"
+                    className={CARD_INPUT}
+                  />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={zip}
+                    onChange={(e) => setZip(e.target.value)}
+                    autoComplete="billing postal-code"
+                    placeholder="Billing ZIP code"
+                    className={CARD_INPUT}
+                  />
+                </div>
+
+                {message && (
+                  <p className="mt-3 text-left text-[0.8rem] font-medium text-red-600">{message}</p>
+                )}
+
+                <button
+                  onClick={pay}
+                  disabled={status !== "ready"}
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-[1rem] font-semibold text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow disabled:opacity-70 disabled:hover:translate-y-0"
+                >
+                  {status === "loading" && (
+                    <>
+                      <Loader2 size={17} className="animate-spin" /> Loading secure form…
+                    </>
+                  )}
+                  {status === "processing" && (
+                    <>
+                      <Loader2 size={17} className="animate-spin" /> Processing…
+                    </>
+                  )}
+                  {status === "ready" && (
+                    <>
+                      <Lock size={16} /> Pay {price}
+                    </>
+                  )}
+                </button>
+
+                <p className="mt-4 flex items-center justify-center gap-1.5 text-[0.78rem] font-medium text-muted">
+                  <ShieldCheck size={14} className="text-primary" /> Encrypted and HIPAA-secure
+                  checkout
+                </p>
+              </>
             )}
-
-            <button
-              onClick={pay}
-              disabled={status === "processing"}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-[1rem] font-semibold text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow disabled:opacity-70 disabled:hover:translate-y-0"
-            >
-              {status === "processing" ? (
-                <>
-                  <Loader2 size={17} className="animate-spin" /> Processing…
-                </>
-              ) : (
-                <>
-                  <Lock size={16} /> {status === "error" ? "Try again" : `Pay ${price}`}
-                </>
-              )}
-            </button>
-
-            <p className="mt-3 text-[0.75rem] text-muted">
-              Placeholder checkout — no card is charged yet.
-            </p>
-            <p className="mt-4 flex items-center justify-center gap-1.5 text-[0.78rem] font-medium text-muted">
-              <ShieldCheck size={14} className="text-primary" /> Encrypted &amp; HIPAA-secure checkout
-            </p>
           </>
         )}
       </div>

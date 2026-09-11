@@ -12,7 +12,7 @@ export const DEFAULT_TITLE = "Nova MDK | Premium Telehealth & Longevity";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-function extractProducts() {
+export function extractProducts({ includeHidden = false } = {}) {
   const src = readFileSync(join(root, "src/components/data/products.jsx"), "utf8");
   const idMatches = [...src.matchAll(/^\s{4}id:\s*(\d+),/gm)];
   if (idMatches.length === 0) {
@@ -24,26 +24,31 @@ function extractProducts() {
   const arrayEnd = src.indexOf("\n];", lastIndex);
   const limit = arrayEnd === -1 ? src.length : arrayEnd;
 
-  const products = idMatches
-    .map((m, i) => {
-      const end = i + 1 < idMatches.length ? idMatches[i + 1].index : limit;
-      const block = src.slice(m.index, end);
-      return {
-        id: Number(m[1]),
-        name: field(block, "name"),
-        subtitle: field(block, "subtitle"),
-        categoryName: field(block, "categoryName"),
-        categorySlug: field(block, "categorySlug"),
-        img: field(block, "img"),
-        brandName: field(block, "brandName"),
-        price: field(block, "price"),
-        slug: field(block, "slug"),
-        hidden: flag(block, "hidden"),
-      };
-    })
-    // `hidden: true` products redirect to their category, so listing them would
-    // hand Google a sitemap full of redirects.
-    .filter((p) => !p.hidden);
+  const all = idMatches.map((m, i) => {
+    const end = i + 1 < idMatches.length ? idMatches[i + 1].index : limit;
+    const block = src.slice(m.index, end);
+    return {
+      id: Number(m[1]),
+      name: field(block, "name"),
+      subtitle: field(block, "subtitle"),
+      categoryName: field(block, "categoryName"),
+      categorySlug: field(block, "categorySlug"),
+      img: field(block, "img"),
+      brandName: field(block, "brandName"),
+      price: field(block, "price"),
+      slug: field(block, "slug"),
+      hidden: flag(block, "hidden"),
+    };
+  });
+
+  /* Pricing wants the whole catalogue, hidden rows included: an unlinked
+     product is still reachable by id, so api/pay.js has to be able to price
+     one. The SEO path below keeps its original filtering. */
+  if (includeHidden) return all;
+
+  // `hidden: true` products redirect to their category, so listing them would
+  // hand Google a sitemap full of redirects.
+  const products = all.filter((p) => !p.hidden);
   // Guard against slug collisions — two products must never share a URL.
   const seen = new Map();
   for (const p of products) {

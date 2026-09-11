@@ -199,6 +199,16 @@ export async function tagContact(contactId, tags = []) {
   return wanted;
 }
 
+/* The mirror of the above, for a tag a later event makes untrue. Only
+ * `payment-failed` uses this today: a declined card that goes through on the
+ * second attempt must not leave the contact sitting in a recovery workflow. */
+export async function untagContact(contactId, tags = []) {
+  const wanted = tags.filter(Boolean);
+  if (!contactId || !wanted.length) return null;
+  await ghlFetch(`/contacts/${contactId}/tags`, { method: "DELETE", body: { tags: wanted } });
+  return wanted;
+}
+
 /* Bare keys throughout. GHL's UI shows these wrapped as
  * `{{contact.some_key}}` / `{{opportunity.some_key}}` because that's the merge
  * syntax for emails and forms, but the API only accepts the unprefixed key. */
