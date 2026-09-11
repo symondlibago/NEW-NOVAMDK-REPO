@@ -11,6 +11,13 @@ export const FIELD = {
   PRODUCT_LINE: "product_line",
   INTAKE_STAGE: "intake_stage",
   INTAKE_STARTED_DATE: "intake_started_date",
+  /* ---- optional marketing opt-in, recorded as four parts so the choice can
+     be defended later: what they said, when, where they were asked, and which
+     wording they were shown ---- */
+  EMAIL_MARKETING_CONSENT: "email_marketing_consent",
+  EMAIL_MARKETING_CONSENT_DATE: "email_marketing_consent_date",
+  EMAIL_MARKETING_CONSENT_SOURCE: "email_marketing_consent_source",
+  EMAIL_MARKETING_CONSENT_VERSION: "email_marketing_consent_version",
   // MDI's permanent id for the person. One per patient, never changes, so the
   // Contact is the only place it belongs.
   MDI_PATIENT_ID: "mdi_patient_id",
@@ -87,6 +94,39 @@ export const clinicStamp = (d = new Date()) =>
     minute: "2-digit",
     timeZoneName: "short",
   }).format(d);
+
+/* Sortable rather than friendly: "2026-09-11 10:32 PDT". A consent record gets
+ * read in date order far more often than it gets read aloud, and this is the
+ * shape the client asked for. */
+export const consentStamp = (d = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: CLINIC_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZoneName: "short",
+  }).formatToParts(d);
+  const at = (type) => parts.find((p) => p.type === type)?.value || "";
+  return `${at("year")}-${at("month")}-${at("day")} ${at("hour")}:${at("minute")} ${at("timeZoneName")}`;
+};
+
+/* Written only when the browser actually reported a choice. An absent or
+ * malformed payload leaves all four fields untouched rather than guessing, so a
+ * blank column always means "never asked" and never "asked and we lost it". */
+const MARKETING_SOURCE_FALLBACK = "website_intake";
+const marketingFields = (m) => {
+  if (!m || typeof m.consent !== "boolean") return {};
+  const at = new Date(m.at || Date.now());
+  return {
+    [FIELD.EMAIL_MARKETING_CONSENT]: m.consent ? "yes" : "no",
+    [FIELD.EMAIL_MARKETING_CONSENT_DATE]: consentStamp(Number.isNaN(at.getTime()) ? new Date() : at),
+    [FIELD.EMAIL_MARKETING_CONSENT_SOURCE]: clean(m.source) || MARKETING_SOURCE_FALLBACK,
+    [FIELD.EMAIL_MARKETING_CONSENT_VERSION]: clean(m.version),
+  };
+};
 
 async function ghlFetch(path, { method = "GET", body } = {}) {
   const res = await fetch(`${BASE}${path}`, {
@@ -187,7 +227,7 @@ export async function updateOpportunityFields(opportunityId, fields = {}, { name
   return data?.opportunity || null;
 }
 
-export async function upsertContact({ patient = {}, treatment, tags = [], source, mdiPatientId, productLine, intakeStage } = {}) {
+export async function upsertContact({ patient = {}, treatment, tags = [], source, mdiPatientId, productLine, intakeStage, marketing } = {}) {
   const email = clean(patient.email);
   const phone = toE164(patient.phone_number);
   if (!email && !phone) throw new Error("A GHL contact needs at least an email or a phone number.");
@@ -207,6 +247,7 @@ export async function upsertContact({ patient = {}, treatment, tags = [], source
   // Reset on every visit: the stage describes the newest intake, not a lifetime
   // high-water mark. The per-visit history stays on the opportunities.
   addField(FIELD.INTAKE_STAGE, intakeStageOf(intakeStage));
+  for (const [key, value] of Object.entries(marketingFields(marketing))) addField(key, value);
 
   const body = {
     locationId: LOCATION_ID,

@@ -80,6 +80,8 @@ const DEFAULT_QUESTIONNAIRE_ID = "";
    difference is thrown off by leap years and by the browser's timezone, and
    someone turning 18 today must pass. */
 const MIN_AGE = 18;
+
+const withoutMarketing = ({ marketing, ...rest }) => rest;
 function isAdult(iso) {
   const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
   if (!parts) return false;
@@ -195,7 +197,10 @@ export default function ProductPage() {
         body: JSON.stringify({
           questionnaire_id: active.questionnaireId || DEFAULT_QUESTIONNAIRE_ID,
           case_offering_id: active.caseOfferingId || undefined,
-          patient: patient?.email ? patient : null,
+          // Marketing preference stripped here rather than riding along with
+          // the patient file: MDI holds the clinical record, not our CRM's
+          // promotional settings.
+          patient: patient?.email ? withoutMarketing(patient) : null,
           consent: patient?.consent || null,
         }),
       });
@@ -226,6 +231,7 @@ export default function ProductPage() {
           // The category as the site names it. The server drops it when GHL's
           // dropdown has no matching option rather than failing the write.
           productLine: active.categoryName,
+          marketing: patient?.marketing || undefined,
           // Prices are display strings ("$249"), so strip to a number for the
           // opportunity's value — GHL rejects anything non-numeric.
           value: Number(String(active.price).replace(/[^0-9.]/g, "")) || undefined,
@@ -239,7 +245,13 @@ export default function ProductPage() {
           note: `Started ${treatmentLabel(active)}.` +
             (scannedFrom ? ` Scanned at ${sourceLabel(scannedFrom)}.` : "") +
             (patient?.consent?.accepted_at
-              ? ` Accepted telehealth consent and terms at ${patient.consent.accepted_at}.`
+              ? ` Agreed to the Privacy Policy, Terms & Conditions and Telehealth Consent at ${patient.consent.accepted_at}.`
+              : "") +
+            /* Notes append and timestamp themselves, so this is the audit trail:
+               the four contact fields only ever hold the newest answer, while
+               every choice a patient has made survives here. */
+            (typeof patient?.marketing?.consent === "boolean"
+              ? ` ${patient.marketing.consent ? "Opted in to" : "Declined"} marketing email (${patient.marketing.version}).`
               : ""),
         }).then((r) => {
           // The contact id rides along so the intake page can tag this same
@@ -770,19 +782,42 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
   });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const setVal = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
-  const [consent, setConsent] = useState({ telehealth: false, terms: false });
+  /* Bump the version whenever the sentence below changes. The stored version is
+     the only way to prove which wording a given patient actually agreed to, so
+     the two must never move independently. */
+  const MARKETING_CONSENT_VERSION = "v1";
+  const MARKETING_CONSENT_COPY =
+    "Send me occasional educational content, product updates, and promotional offers from NovaMDK. I can unsubscribe at any time.";
+
+  /* One required box covering all three documents, plus an optional marketing
+     opt-in that must never stand between a patient and care. */
+  const [consent, setConsent] = useState({ required: false, marketing: false });
   const [consentAt, setConsentAt] = useState("");
   const toggleConsent = (k) => () => setConsent((c) => ({ ...c, [k]: !c[k] }));
-  const consentValid = consent.telehealth && consent.terms;
+  const consentValid = consent.required;
+
+  /* MDI's shape is unchanged: it stores the two flags separately and the single
+     box now covers both, so existing patient files keep reading the same way. */
   const consentRecord = (at) => ({
-    telehealth_informed_consent: consent.telehealth,
-    terms_and_privacy: consent.terms,
+    telehealth_informed_consent: consent.required,
+    terms_and_privacy: consent.required,
     accepted_at: at || consentAt,
     documents: {
-      telehealth_consent: "/legal/telehealth-consent",
+      privacy_policy: "/legal/privacy-policy",
       terms_and_conditions: "/legal/terms-and-conditions",
-      notice_of_privacy_practices: "/legal/hipaa-notice-of-privacy-practices",
+      telehealth_consent: "/legal/telehealth-consent",
     },
+  });
+
+  /* Deliberately separate from consentRecord: this is a NovaMDK marketing
+     preference, not clinical consent, and it never travels to MDI. An unticked
+     box is recorded as an explicit "no" rather than left blank, so a decline is
+     distinguishable from never having been asked. */
+  const marketingRecord = (at) => ({
+    consent: consent.marketing,
+    at: at || consentAt,
+    source: "website_intake",
+    version: MARKETING_CONSENT_VERSION,
   });
 
   const emailValid = /^\S+@\S+\.\S+$/.test(form.email.trim());
@@ -816,7 +851,11 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
       if (!emailValid || !consentValid) return;
       const at = new Date().toISOString();
       setConsentAt(at);
-      const res = await onSubmit({ email: form.email.trim(), consent: consentRecord(at) });
+      const res = await onSubmit({
+        email: form.email.trim(),
+        consent: consentRecord(at),
+        marketing: marketingRecord(at),
+      });
       if (res?.needProfile) setStep(1);
       return;
     }
@@ -843,6 +882,7 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
         state_name: form.state,
       },
       consent: consentRecord(), // agreed at step 0; stored on the patient file
+      marketing: marketingRecord(), // agreed at step 0; CRM only, never MDI
     });
   };
 
@@ -930,16 +970,15 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
                 className={inputCls}
               />
               <div className="mt-1 flex flex-col gap-2.5">
-                <ConsentCheck checked={consent.telehealth} onToggle={toggleConsent("telehealth")}>
-                  I consent to receive care via telehealth and agree to the{" "}
+                <ConsentCheck checked={consent.required} onToggle={toggleConsent("required")}>
+                  I agree to the{" "}
+                  <ConsentLink href="/legal/privacy-policy">Privacy Policy</ConsentLink>,{" "}
+                  <ConsentLink href="/legal/terms-and-conditions">Terms &amp; Conditions</ConsentLink>, and{" "}
                   <ConsentLink href="/legal/telehealth-consent">Telehealth Consent</ConsentLink>.
                 </ConsentCheck>
-                <ConsentCheck checked={consent.terms} onToggle={toggleConsent("terms")}>
-                  I agree to the{" "}
-                  <ConsentLink href="/legal/terms-and-conditions">Terms &amp; Conditions</ConsentLink>{" "}
-                  and{" "}
-                  <ConsentLink href="/legal/hipaa-notice-of-privacy-practices">Notice of Privacy Practices</ConsentLink>,
-                  and authorize Nova MDK to process my health information to provide care.
+                {/* Optional. Never gates Continue, and starts unticked. */}
+                <ConsentCheck checked={consent.marketing} onToggle={toggleConsent("marketing")}>
+                  {MARKETING_CONSENT_COPY}
                 </ConsentCheck>
               </div>
             </>
@@ -1052,8 +1091,9 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
   );
 }
 
-/* A required-consent checkbox row. Legal links open in a new tab so tapping one
-   never navigates the patient out of the modal mid-consent. */
+/* A consent checkbox row, used for both the required agreement and the optional
+   marketing opt-in. Legal links open in a new tab so tapping one never
+   navigates the patient out of the modal mid-consent. */
 function ConsentCheck({ checked, onToggle, children }) {
   return (
     <button

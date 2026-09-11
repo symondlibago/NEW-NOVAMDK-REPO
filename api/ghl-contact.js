@@ -13,13 +13,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { patient, treatment, tags, source, note, value, kioskLocation, mdiPatientId, productLine } = req.body || {};
+    const { patient, treatment, tags, source, note, value, kioskLocation, mdiPatientId, productLine, marketing } = req.body || {};
     /* This call is the hand-off: the contact and its opportunity are created a
        beat before the questionnaire opens, so the intake genuinely has not
        started yet. Anyone who never gets further stays parked here, which is
        the drop-off the funnel is meant to show. */
     const stage = INTAKE_STAGE.NOT_STARTED;
-    const contact = await upsertContact({ patient, treatment, tags, source, mdiPatientId, productLine, intakeStage: stage });
+    const contact = await upsertContact({ patient, treatment, tags, source, mdiPatientId, productLine, intakeStage: stage, marketing });
     // Returned to the client so the payment step can move this exact
     // opportunity to Paid, rather than guessing at it by contact later.
     let opportunityId = null;
