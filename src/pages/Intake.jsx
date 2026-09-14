@@ -359,7 +359,7 @@ export default function IntakePage() {
       {payOpen && !paid && (
         <PaymentGateModal
           productName={productName || product?.name || "Your treatment"}
-          price={product?.price || "$0"}
+          product={product}
           /* Only the id travels: /api/pay looks the amount up from the
              catalogue rather than trusting what the browser displays. */
           pid={pid}
@@ -373,10 +373,30 @@ export default function IntakePage() {
   );
 }
 
-function PaymentGateModal({ productName, price, pid, onPaid }) {
+function PaymentGateModal({ productName, product, pid, onPaid }) {
   // loading | ready | processing | done | dead
   const [status, setStatus] = useState("loading");
   const [message, setMessage] = useState("");
+  /* The order summary comes from the server, not the bundled catalogue, so the
+     shipping line and total shown are exactly what /api/pay will charge. */
+  const [quote, setQuote] = useState(null);
+  const [quoteFailed, setQuoteFailed] = useState(false);
+  const [imgBroken, setImgBroken] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/pay?pid=${encodeURIComponent(pid ?? "")}`)
+      .then((r) => r.json())
+      .then((q) => {
+        if (!alive) return;
+        if (q?.ok) setQuote(q);
+        else setQuoteFailed(true);
+      })
+      .catch(() => alive && setQuoteFailed(true));
+    return () => {
+      alive = false;
+    };
+  }, [pid]);
   const [name, setName] = useState("");
   const [zip, setZip] = useState("");
   /* startPaymentRequest() answers through a configure-time callback rather than
@@ -515,40 +535,112 @@ function PaymentGateModal({ productName, price, pid, onPaid }) {
     }
   };
 
+  // Whole dollars stay whole ("$169"); anything with cents shows them ("$0.01").
+  const usd = (n) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
+  const sectionLabel = "font-mono text-[11px] font-medium uppercase tracking-[0.13em] text-muted";
+  const canPay = status === "ready" && Boolean(quote);
+
   return (
-    <div className="fixed inset-0 z-120 grid place-items-center bg-ink/65 p-6 backdrop-blur-sm">
-      <div className="w-full max-w-110 rounded-3xl border border-line bg-surface p-6 text-center nv-shadow-lg md:p-8">
+    <div className="fixed inset-0 z-120 flex items-end justify-center bg-ink/65 backdrop-blur-sm md:items-center md:p-6">
+      <div className="flex max-h-full w-full max-w-lg flex-col overflow-hidden bg-surface nv-shadow-lg md:rounded-3xl md:border md:border-line">
         {status === "done" ? (
-          <div className="flex flex-col items-center gap-3 py-4">
+          <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
             <CheckCircle2 size={44} className="text-primary" />
             <h2 className="text-[1.25rem] font-bold">Payment received</h2>
             <p className="text-[0.9rem] text-muted">Your visit is on its way to a provider…</p>
           </div>
         ) : (
           <>
-            <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
-              <CreditCard size={22} />
-            </span>
-            <h2 className="mt-4 text-[1.25rem] font-bold">One last step: payment</h2>
-            <p className="mt-1.5 text-[0.9rem] text-muted">
-              Complete your payment to finish your intake and send your visit to a provider.
-            </p>
+            <div className="flex-1 overflow-y-auto px-6 pb-6 pt-7 md:px-8">
+              <p className={sectionLabel}>Checkout</p>
+              <h2 className="mt-2 text-[1.45rem] font-bold leading-tight">
+                Last step. Add your payment details
+              </h2>
 
-            <div className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-line bg-bg px-4 py-3.5 text-left">
-              <span className="text-[0.88rem] font-medium leading-snug">{productName}</span>
-              <span className="shrink-0 text-[1.05rem] font-bold">{price}</span>
-            </div>
+              {/* What they're paying for, before anything asks for a card. */}
+              <div className="mt-5 flex items-center gap-4 rounded-2xl border border-line bg-bg p-4">
+                <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-2">
+                  {product?.img && !imgBroken ? (
+                    <img
+                      src={product.img}
+                      alt=""
+                      onError={() => setImgBroken(true)}
+                      className="h-full w-full object-contain p-1.5"
+                    />
+                  ) : (
+                    <CreditCard size={22} className="text-muted" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  {product?.categoryName && (
+                    <span className="inline-block rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                      {product.categoryName}
+                    </span>
+                  )}
+                  <p className="mt-1.5 text-[0.95rem] font-semibold leading-snug">{productName}</p>
+                  {product?.dosageForm && (
+                    <p className="mt-0.5 text-[0.8rem] text-muted">{product.dosageForm}</p>
+                  )}
+                </div>
+              </div>
 
-            {status === "dead" ? (
-              <p className="mt-5 text-[0.85rem] font-medium text-red-600">
-                We couldn't load the secure card form. Please refresh the page, or contact
-                support@novamdk.com and we'll take your payment another way.
-              </p>
-            ) : (
-              <>
-                <div className="mt-5 space-y-3 text-left">
+              {/* One plan for now; the 3-month option and any discount are still
+                  being decided, so neither is shown. Deliberately no dose here:
+                  that's the provider's call and stays out of public copy. */}
+              <p className={`${sectionLabel} mt-7`}>Your plan</p>
+              <div className="mt-2.5 flex items-center justify-between gap-4 rounded-2xl border-2 border-primary px-4 py-3.5">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-4.5 w-4.5 place-items-center rounded-full border-2 border-primary">
+                    <span className="h-2 w-2 rounded-full bg-primary" />
+                  </span>
+                  <div>
+                    <p className="text-[0.95rem] font-semibold">1 month plan</p>
+                    {quote?.shipping > 0 && (
+                      <span className="mt-1 inline-block rounded-md bg-bg px-2 py-0.5 text-[0.72rem] text-muted">
+                        {usd(quote.shipping)} shipping fee
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span className="text-[1.05rem] font-bold">{quote ? usd(quote.amount) : "…"}</span>
+              </div>
+
+              <p className={`${sectionLabel} mt-7`}>Order summary</p>
+              {quoteFailed ? (
+                <p className="mt-2.5 text-[0.85rem] font-medium text-red-600">
+                  We couldn't load your order total. Please refresh the page.
+                </p>
+              ) : (
+                <dl className="mt-2.5 space-y-2.5 text-[0.9rem]">
+                  <div className="flex justify-between gap-4">
+                    <dt className="min-w-0 text-muted">{productName}</dt>
+                    <dd className="shrink-0 font-medium">{quote ? usd(quote.amount) : "…"}</dd>
+                  </div>
+                  {quote?.shipping > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted">Shipping fee</dt>
+                      <dd className="shrink-0 font-medium">{usd(quote.shipping)}</dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4 border-t border-line pt-3 text-[1.05rem]">
+                    <dt className="font-bold">Due today</dt>
+                    <dd className="shrink-0 font-bold text-primary">{quote ? usd(quote.total) : "…"}</dd>
+                  </div>
+                </dl>
+              )}
+
+              <p className={`${sectionLabel} mt-7`}>Payment details</p>
+              {status === "dead" ? (
+                <p className="mt-2.5 text-[0.85rem] font-medium text-red-600">
+                  We couldn't load the secure card form. Please refresh the page, or contact
+                  support@novamdk.com and we'll take your payment another way.
+                </p>
+              ) : (
+                <div className="mt-2.5 space-y-3">
                   {/* Collect.js mounts a gateway-hosted iframe into each of these,
-                      which is why they're plain ids and not inputs. */}
+                      which is why they're plain ids and not inputs. They render
+                      from the first paint, before the quote arrives, because
+                      Collect.js needs the selectors to exist when it configures. */}
                   <div id="nv-cc-number" className="h-11.5" />
                   <div className="grid grid-cols-2 gap-3">
                     <div id="nv-cc-exp" className="h-11.5" />
@@ -575,38 +667,43 @@ function PaymentGateModal({ productName, price, pid, onPaid }) {
                     className={CARD_INPUT}
                   />
                 </div>
+              )}
 
-                {message && (
-                  <p className="mt-3 text-left text-[0.8rem] font-medium text-red-600">{message}</p>
-                )}
+              {message && <p className="mt-3 text-[0.8rem] font-medium text-red-600">{message}</p>}
+            </div>
 
+            {/* Pinned, so the total and the button stay in reach however far the
+                summary above has to scroll on a small screen. */}
+            {status !== "dead" && (
+              <div className="border-t border-line bg-surface px-6 py-4 md:px-8">
                 <button
                   onClick={pay}
-                  disabled={status !== "ready"}
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-[1rem] font-semibold text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow disabled:opacity-70 disabled:hover:translate-y-0"
+                  disabled={!canPay}
+                  className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-[1rem] font-semibold text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow disabled:opacity-70 disabled:hover:translate-y-0"
                 >
-                  {status === "loading" && (
+                  {status === "processing" ? (
+                    <>
+                      <Loader2 size={17} className="animate-spin" /> Processing…
+                    </>
+                  ) : canPay ? (
+                    <>
+                      <Lock size={16} /> Pay {usd(quote.total)}
+                    </>
+                  ) : quoteFailed ? (
+                    // Never a spinner that can't finish: without a total there is
+                    // nothing honest to charge, so say so instead of "loading".
+                    <>Total unavailable</>
+                  ) : (
                     <>
                       <Loader2 size={17} className="animate-spin" /> Loading secure form…
                     </>
                   )}
-                  {status === "processing" && (
-                    <>
-                      <Loader2 size={17} className="animate-spin" /> Processing…
-                    </>
-                  )}
-                  {status === "ready" && (
-                    <>
-                      <Lock size={16} /> Pay {price}
-                    </>
-                  )}
                 </button>
-
-                <p className="mt-4 flex items-center justify-center gap-1.5 text-[0.78rem] font-medium text-muted">
+                <p className="mt-3 flex items-center justify-center gap-1.5 text-[0.75rem] font-medium text-muted">
                   <ShieldCheck size={14} className="text-primary" /> Encrypted and HIPAA-secure
                   checkout
                 </p>
-              </>
+              </div>
             )}
           </>
         )}

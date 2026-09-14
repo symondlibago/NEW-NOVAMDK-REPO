@@ -2,7 +2,8 @@ import { PRICES } from "./_prices.js";
 import { blocked } from "./_guard.js";
 import { ghlConfigured, tagContact, untagContact, markOpportunityPaid } from "./_ghl.js";
 
-/* Charges a card through the NMI gateway (PayTechTrust is an NMI white-label).
+/* Charges a card through the NMI gateway (PayTechTrust is an NMI white-label),
+ * and on GET, quotes what that charge will be.
  *
  * The browser never sees a card number: Collect.js renders the card fields as
  * gateway-hosted iframes and hands back a single-use `payment_token`, which is
@@ -21,23 +22,48 @@ const FAILED_TAG = "payment-failed";
 const DESCRIPTION = "NovaMDK telehealth treatment";
 
 const clean = (v, max) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+const cents = (n) => Math.round(n * 100) / 100;
+const money = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? cents(n) : null;
+};
+
+/* Flat per order. An env var rather than a catalogue field so it can change
+ * without a rebuild; unset means no shipping line and nothing charged for it. */
+const SHIPPING_FEE = money(process.env.SHIPPING_FEE) ?? 0;
 
 /* Live card testing without repricing anything a patient can see.
  *
- * Both vars have to be set and it only ever affects the single id named, so
- * leaving them behind by accident can misprice one product rather than the
- * whole catalogue. The product page still renders the real price, because this
- * never touches the catalogue. Unset NMI_TEST_PID to turn it off. */
+ * NMI_TEST_PID names the one product affected, so leaving these behind by
+ * accident can misprice one product rather than the whole catalogue. The quote
+ * the modal displays always uses real prices; only the charge is overridden.
+ * Unset NMI_TEST_PID to turn every override off. */
 const TEST_PID = process.env.NMI_TEST_PID || null;
-const TEST_AMOUNT = Number(process.env.NMI_TEST_AMOUNT || 0);
+const TEST_AMOUNT = money(process.env.NMI_TEST_AMOUNT);
+const TEST_SHIPPING = money(process.env.NMI_TEST_SHIPPING);
 
-function amountFor(pid, item) {
-  if (!TEST_PID || String(pid) !== String(TEST_PID) || !(TEST_AMOUNT > 0)) return item.amount;
+/* What the patient is shown. Real prices only, whatever test overrides exist. */
+function quoteFor(pid) {
+  const item = PRICES[String(pid)];
+  if (!item) return null;
+  return { amount: item.amount, shipping: SHIPPING_FEE, total: cents(item.amount + SHIPPING_FEE) };
+}
+
+/* What the card is actually charged. */
+function chargeFor(pid) {
+  const quote = quoteFor(pid);
+  if (!quote) return null;
+  if (!TEST_PID || String(pid) !== String(TEST_PID)) return quote;
+
+  const amount = TEST_AMOUNT > 0 ? TEST_AMOUNT : quote.amount;
+  const shipping = TEST_SHIPPING ?? quote.shipping;
+  const charge = { amount, shipping, total: cents(amount + shipping) };
   console.warn(
-    `NMI TEST PRICING ACTIVE: product ${pid} charged $${TEST_AMOUNT.toFixed(2)} instead of ` +
-      `$${item.amount.toFixed(2)}. Unset NMI_TEST_PID once testing is done.`
+    `NMI TEST PRICING ACTIVE: product ${pid} charged $${charge.total.toFixed(2)} ` +
+      `($${amount.toFixed(2)} + $${shipping.toFixed(2)} shipping) instead of $${quote.total.toFixed(2)}. ` +
+      `Unset NMI_TEST_PID once testing is done.`
   );
-  return TEST_AMOUNT;
+  return charge;
 }
 
 /* GHL writes must never turn a successful charge into a failure the patient
@@ -78,6 +104,17 @@ async function markPaid(opportunityId, transactionId) {
 }
 
 export default async function handler(req, res) {
+  /* The modal's order summary is rendered from this rather than from the
+     catalogue in the bundle, so the shipping line it shows is always the one
+     POST will charge. Answered on the same function to stay clear of the Hobby
+     plan's function limit. */
+  if (req.method === "GET") {
+    if (blocked(req, res)) return;
+    const quote = quoteFor(req.query?.pid);
+    if (!quote) return res.status(400).json({ ok: false, error: "unknown_product" });
+    return res.status(200).json({ ok: true, ...quote });
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
@@ -101,19 +138,20 @@ export default async function handler(req, res) {
   /* The price is looked up here and never read off the request. The amount the
      modal displays is decoration; trusting it would let anyone pay $1 for a
      $1,350 treatment. An id we can't price is refused outright. */
-  const item = PRICES[String(pid)];
-  if (!item) {
+  const charge = chargeFor(pid);
+  if (!charge) {
     console.error(`Refused payment for unpriced product id "${pid}"`);
     return res.status(400).json({ ok: false, error: "unknown_product" });
   }
-
-  const amount = amountFor(pid, item);
 
   const form = new URLSearchParams({
     security_key: SECURITY_KEY,
     type: "sale",
     payment_token: token,
-    amount: amount.toFixed(2),
+    // NMI's `amount` is the grand total; `shipping` breaks that total down in
+    // the gateway's own reports without being added a second time.
+    amount: charge.total.toFixed(2),
+    shipping: charge.shipping.toFixed(2),
     currency: "USD",
     order_description: DESCRIPTION,
   });
@@ -153,14 +191,17 @@ export default async function handler(req, res) {
   const transactionId = result.get("transactionid") || null;
 
   if (code === "1") {
-    // Amount and id only: the product name stays out of the logs.
-    console.info(`NMI sale approved: txn ${transactionId}, product ${pid}, $${amount.toFixed(2)}`);
+    // Amounts and id only: the product name stays out of the logs.
+    console.info(
+      `NMI sale approved: txn ${transactionId}, product ${pid}, $${charge.total.toFixed(2)} ` +
+        `(incl. $${charge.shipping.toFixed(2)} shipping)`
+    );
     // Independent of each other, and neither may fail the patient's checkout.
     await Promise.allSettled([
       syncTag(clean(contact_id, 60), { failed: false }),
       markPaid(orderId, transactionId),
     ]);
-    return res.status(200).json({ ok: true, transactionId, amount });
+    return res.status(200).json({ ok: true, transactionId, amount: charge.total });
   }
 
   const declined = code === "2";
