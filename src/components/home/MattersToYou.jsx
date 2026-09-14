@@ -483,7 +483,7 @@ export default function MattersToYou() {
         alt=""
         aria-hidden="true"
         loading="lazy"
-        className="absolute inset-0 -z-20 h-full w-full object-cover object-[50%_28%]"
+        className="absolute inset-0 -z-20 h-full w-full object-cover object-[58%_28%]"
       />
 
       <style>{`

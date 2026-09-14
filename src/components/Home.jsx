@@ -13,8 +13,9 @@ import Articles from "./home/Articles";
 /* useKioskVariant and the HeroStage card grid it drove went with the
    2026-09-11 hero redesign. The new hero is one full-bleed clip and reads the
    same on a phone, a desktop and the 1080x1920 kiosk, so there is no longer a
-   per-kiosk layout to pick. HeroStage.jsx is still on disk if a variant is
-   ever wanted back. */
+   per-kiosk layout to pick. HeroStage.jsx and HomeHero.jsx were deleted in
+   the 2026-09-14 asset cleanup; git history has them if a variant is ever
+   wanted back. */
 /* The three photo tiles this section used to be moved into HowItWorks.jsx as
    one glass panel over a single photo (2026-09-11). Same three steps, same
    copy; the per-step links became one "Get Started" per the comp. */

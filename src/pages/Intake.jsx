@@ -146,36 +146,45 @@ const statusOf = (data) =>
 /* Same fire-and-forget contract as the milestones above. The encounter ids are
    for the CRM's benefit alone, so a patient mid-questionnaire must never see a
    failure to record them. */
-function recordEncounter({ encounterId, status, additional, treatment, value, productLine }) {
-  const contactId = stored("ghl_contact");
-  // No contact means the hand-off never wrote one, and there is nothing in the
-  // CRM for this encounter to hang off. Unlike the milestone above this needs
-  // no wait: submitting a questionnaire takes minutes, so the contact has long
-  // since landed by the time MDI gets here.
-  if (!contactId) return;
+async function recordEncounter({ encounterId, status, additional, treatment, value, productLine }) {
+  /* Every exit below logs. This path used to fail silently in three places,
+     which left a submitted encounter with no trace of whether MDI never sent
+     it, the tab had no contact, or the server refused the write. */
+  const contactId = await contactIdSoon();
+  if (!contactId) {
+    console.error(`GHL encounter ${encounterId} not recorded: this tab has no contact id.`);
+    return;
+  }
 
   // Only needed if this encounter has to open its own opportunity, but it costs
   // nothing to send and keeps the kiosk funnel intact when it does.
   const scannedFrom = readScanSource();
   const originLabel = scannedFrom ? sourceLabel(scannedFrom) : "NovaMDK website";
 
-  fetch("/api/ghl-encounter", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contact_id: contactId,
-      opportunity_id: stored("ghl_opportunity"),
-      encounter_id: encounterId,
-      status,
-      additional,
-      treatment,
-      value,
-      productLine,
-      source: originLabel,
-      kioskLocation: scannedFrom ? originLabel : undefined,
-      release_token: stored("mdi_release_token"),
-    }),
-  }).catch((e) => console.error("GHL encounter write failed:", e.message));
+  try {
+    const r = await fetch("/api/ghl-encounter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contact_id: contactId,
+        opportunity_id: stored("ghl_opportunity"),
+        encounter_id: encounterId,
+        status,
+        additional,
+        treatment,
+        value,
+        productLine,
+        source: originLabel,
+        kioskLocation: scannedFrom ? originLabel : undefined,
+        release_token: stored("mdi_release_token"),
+      }),
+    });
+    // fetch only rejects on a network failure; a 403 from an expired release
+    // token resolves normally, and was being ignored.
+    if (!r.ok) console.error(`GHL encounter ${encounterId} rejected by the server (${r.status}).`);
+  } catch (e) {
+    console.error(`GHL encounter ${encounterId} write failed:`, e.message);
+  }
 }
 
 /* Embedded MDIntegrations patient intake — the questionnaire runs in an iframe */
@@ -229,6 +238,9 @@ export default function IntakePage() {
 
       if (msg.event === "encounter_created" && msg.data) {
         const encounterId = msg.data.encounter_id || null;
+        // Production-visible on purpose, and id only: the one line that proves
+        // MDI actually told this tab the questionnaire was submitted.
+        console.info(`[MDI] encounter_created received: ${encounterId ?? "(no encounter_id in payload)"}`);
         setCaseId(encounterId);
         try {
           sessionStorage.setItem("mdi_encounter", JSON.stringify(msg.data));

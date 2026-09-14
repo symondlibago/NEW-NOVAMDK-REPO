@@ -45,6 +45,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "contact_id and encounter_id are required" });
   }
 
+  // Proof of arrival. Without it, "no log line" can't distinguish an event MDI
+  // never sent from one this function silently dropped.
+  console.info(`GHL encounter received: ${encounterId} for contact ${contactId}`);
+
   if (!ghlConfigured()) {
     console.warn("GHL env vars missing — skipping encounter write.");
     return res.status(200).json({ ok: false, skipped: "not_configured" });
