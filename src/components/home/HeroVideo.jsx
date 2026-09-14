@@ -9,23 +9,6 @@ const CTA = "#AA8B5D";
 
 /*
 |--------------------------------------------------------------------------
-| HEADLINE GRADIENTS
-|--------------------------------------------------------------------------
-*/
-const INK = "#6d5934";
-const TAN = "#c3a97d";
-
-
-const RAMP = {
-  backgroundImage: `linear-gradient(90deg, ${INK} 0%, ${TAN} 100%)`,
-  backgroundClip: "text",
-  WebkitBackgroundClip: "text",
-  color: "transparent",
-  WebkitTextFillColor: "transparent",
-};
-
-/*
-|--------------------------------------------------------------------------
 | COMPONENT
 |--------------------------------------------------------------------------
 */
@@ -37,12 +20,18 @@ export default function HeroVideo() {
       {/* =========================================================
           BACKGROUND VIDEO
       ========================================================== */}
+      {/* 2026-09-15 clip. The master came as 41MB of 4K AV1, which most
+          iPhones and pre-M3 Macs cannot decode at all, so it would have been a
+          blank hero there. This is a re-encode of it to 4K H.264 (CRF 20,
+          audio track dropped, faststart): 20.7MB, and VMAF 97.3 against the
+          master, which is visually identical. H.264 plays everywhere. */}
       <video
-        src="/video/right-vid.mp4"
+        src="/video/hero.mp4"
         autoPlay
         loop
         muted
         playsInline
+        preload="auto"
         aria-hidden="true"
         className="
           absolute
@@ -131,45 +120,14 @@ export default function HeroVideo() {
             font-extrabold
             leading-[1.08]
             tracking-[-0.035em]
+            text-white
           "
+          /* White over the clip at the client's request (2026-09-15). The
+             soft shade keeps it legible on the bright frames of the video. */
+          style={{ textShadow: "0 2px 24px rgba(0,0,0,0.28)" }}
         >
-
-          {/* FIRST LINE */}
-          <span className="block">
-
-            {/* Modern */}
-            <span
-              className="inline-block"
-              style={{ color: INK }}
-            >
-              Modern
-            </span>
-
-            {" "}
-
-            {/* Healthcare, — carries the ramp */}
-            <span
-              className="inline-block"
-              style={RAMP}
-            >
-              Healthcare,
-            </span>
-
-          </span>
-
-          {/* SECOND LINE */}
-          <span className="block">
-
-            {/* Second line stays flat ink — the ramp belongs to one tail word
-                per heading, not to every line. */}
-            <span
-              className="inline-block"
-              style={{ color: INK }}
-            >
-              Built Around You
-            </span>
-
-          </span>
+          <span className="block">Modern Healthcare,</span>
+          <span className="block">Built Around You</span>
 
         </Motion.h1>
 

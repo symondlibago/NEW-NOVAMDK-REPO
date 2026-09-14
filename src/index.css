@@ -42,8 +42,8 @@
 
 /* ---- Runtime defaults (Slate & Stone · Grotesk · Medium). JS overrides these. ---- */
 :root {
-  --nv-bg: #F1F1ED;
-  --nv-surface: #FBFBF8;
+  --nv-bg: #FFFFFF;
+  --nv-surface: #FFFFFF;
   --nv-surface-2: #F4F4EE;
   --nv-ink: #233039;
   --nv-ink-panel: #2B3742;
@@ -214,6 +214,12 @@
     border: 2px solid var(--nv-surface);
   }
   .nv-scroll-brand::-webkit-scrollbar-thumb:hover { background: var(--nv-primary); }
+
+  /* The marquee's own fill (see components/ui/Marquee.jsx), so a button can sit
+     in the same muted gold on every palette instead of the full-strength
+     primary. A class rather than an inline style so :hover still applies. */
+  .nv-fill-marquee { background: color-mix(in oklab, var(--nv-accent) 72%, var(--nv-surface)); }
+  .nv-fill-marquee:hover { background: color-mix(in oklab, var(--nv-accent) 86%, var(--nv-surface)); }
 
   /* Wider, grabbable scrollbar for tall panels (Design Studio). */
   .nv-scroll-lg { scrollbar-width: auto; scrollbar-color: var(--nv-muted) var(--nv-surface-2); }

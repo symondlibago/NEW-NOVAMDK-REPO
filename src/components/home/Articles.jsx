@@ -14,7 +14,7 @@ import { formatDate, latestPosts, categoryOf, CATEGORIES, inCategory } from "../
  * on both.
  */
 
-const GROUND = "#faf5ec";
+const GROUND = "#ffffff";
 const BAND = "#dcbe8f";
 const HEADING = "#725826";
 const TITLE = "#463a24";

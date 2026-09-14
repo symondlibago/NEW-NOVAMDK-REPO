@@ -18,36 +18,38 @@ const INK = "#4a4336";
 const MUTED = "#6f6555";
 const LINE = "#e0d6c2";
 
-/* "Questions," is flat 725826 and "Answered" carries the ramp, straight off
-   the two fills on that text layer. */
-const RAMP = {
-  backgroundImage: "linear-gradient(90deg, #DAB774 8%, #735A2A 100%)",
-  backgroundClip: "text",
-  WebkitBackgroundClip: "text",
-  color: "transparent",
-  WebkitTextFillColor: "transparent",
-};
+/* "Your Care," in the dark gold, "Made Simple" in the lighter one, per the
+   2026-09-15 copy update. */
+const DARK_GOLD = "#725826";
+const LIGHT_GOLD = "#b39258";
 
+/* Compliance-forward copy supplied by the client (2026-09-15). Kept verbatim:
+   the wording around provider independence and "not guaranteed" is the
+   point, so it should not be tightened for length. */
 const FAQS = [
   {
-    q: "How does the online visit work?",
-    a: "Answer a few questions about your health and goals. A licensed provider reviews them, and you only pay if you're prescribed.",
+    q: "How does online care work?",
+    a: "Start by completing a secure health intake. An independent, licensed medical provider will review your information and determine whether treatment is medically appropriate. Additional information or a virtual consultation may be required before a prescription is issued.",
   },
   {
-    q: "Is everything prescribed by a US physician?",
-    a: "Yes. A licensed US physician reviews and prescribes every treatment, and a regulated US pharmacy fills it.",
+    q: "Who reviews my treatment?",
+    a: "Your care is reviewed by an independent, state-licensed medical provider authorized to practice in your state. Prescriptions are only issued when the provider determines treatment is clinically appropriate.",
   },
   {
-    q: "What can I get treated for?",
-    a: "Weight and metabolism, longevity, recovery, skin, sexual health, and our full peptide line.",
+    q: "What types of care are available?",
+    a: "NovaMDK provides access to virtual care across Weight Management, Longevity, Recovery & Wellness, and Sexual Wellness. Treatment options vary based on medical history, provider evaluation, state availability, and clinical eligibility.",
   },
   {
-    q: "How will my treatment arrive?",
-    a: "If prescribed, your treatment is shipped discreetly by a licensed pharmacy, usually within a few business days of approval.",
+    q: "How are prescriptions filled and delivered?",
+    a: "When prescribed, medications are fulfilled by licensed U.S. pharmacies and shipped directly to the address provided. Pharmacy availability, formulation, packaging, and shipping times may vary by treatment and location.",
   },
   {
-    q: "Can I pause or cancel anytime?",
-    a: "Yes, no lock-in. One message is enough to pause, change, or cancel.",
+    q: "Is a prescription guaranteed?",
+    a: "No. Completing an intake or making an applicable service payment does not guarantee that a prescription will be issued. Treatment decisions are made independently by the licensed medical provider based on individual clinical needs.",
+  },
+  {
+    q: "Can I pause or cancel my plan?",
+    a: "Eligible recurring plans may be paused or canceled according to the terms of the membership or treatment plan. Cancellation does not affect charges or pharmacy orders that have already been processed.",
   },
 ];
 
@@ -60,13 +62,20 @@ export default function FAQ() {
         <Reveal y={26} duration={0.9} className="text-center">
           {/* 64/60 with 1px of tracking in the file. */}
           <h2 className="nv-weight-keep font-display text-[clamp(2.1rem,4.6vw,4rem)] font-extrabold leading-[0.94] tracking-[0.01em]">
-            <span className="block" style={{ color: "#725826" }}>
-              Questions,
+            <span className="block" style={{ color: DARK_GOLD }}>
+              Your Care,
             </span>
-            <span className="block" style={RAMP}>
-              Answered
+            <span className="block" style={{ color: LIGHT_GOLD }}>
+              Made Simple
             </span>
           </h2>
+          <p
+            className="mx-auto mt-5 max-w-[46ch] text-[clamp(0.95rem,1.2vw,1.05rem)] leading-relaxed"
+            style={{ color: MUTED }}
+          >
+            Straightforward answers about how online care, provider review, prescriptions, and
+            delivery work.
+          </p>
         </Reveal>
 
         <div className="mt-[clamp(1.75rem,3.5vw,2.75rem)]">
@@ -119,7 +128,7 @@ export default function FAQ() {
                       className="overflow-hidden"
                     >
                       <p
-                        className="max-w-[62ch] pb-6 pr-10 text-[0.95rem] leading-[1.75]"
+                        className="pb-6 text-[0.95rem] leading-[1.75]"
                         style={{ color: MUTED }}
                       >
                         {faq.a}

@@ -737,7 +737,7 @@ function PaymentGateModal({ productName, product, pid, submitted, onPaid }) {
                 <button
                   onClick={pay}
                   disabled={!canPay}
-                  className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-center text-[1rem] font-semibold leading-snug text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow disabled:opacity-70 disabled:hover:translate-y-0"
+                  className="nv-fill-marquee flex w-full items-center justify-center gap-2 rounded-full px-7 py-4 text-center text-[1rem] font-semibold leading-snug text-ink transition-all hover:-translate-y-0.5 nv-shadow disabled:opacity-70 disabled:hover:translate-y-0"
                 >
                   {status === "processing" ? (
                     <>

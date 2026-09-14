@@ -6,8 +6,10 @@ export const PALETTES = [
     swatch: ["#A97D24", "#C3963C", "#EFE2CE", "#E6D9C4", "#F5EDE1"],
 
     vars: {
-      "--nv-bg": "#F5EDE1",
-      "--nv-surface": "#FDFAF5",
+      /* White page and navbar at the client's request (2026-09-15). Was
+         #F5EDE1 / #FDFAF5, which read as cream against the new sections. */
+      "--nv-bg": "#FFFFFF",
+      "--nv-surface": "#FFFFFF",
       "--nv-surface-2": "#EFE2CE",
       "--nv-ink": "#1B1712",
       "--nv-ink-panel": "#17130D",

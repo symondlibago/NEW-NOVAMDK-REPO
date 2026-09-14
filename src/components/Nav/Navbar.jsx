@@ -237,7 +237,7 @@ export default function Navbar() {
           crosses dead space and never closes it. */}
       <header
         onMouseLeave={isKiosk ? undefined : closePanel}
-        className="sticky top-0 z-50 border-b border-line bg-bg/80 backdrop-blur-xl"
+        className="sticky top-0 z-50 border-b border-line bg-bg/95 backdrop-blur-xl"
       >
         <nav className="mx-auto flex min-h-[68px] max-w-[1340px] items-center justify-between gap-4 px-5 md:px-10">
           <Link to="/" aria-label="Nova MDK home" onClick={closePanel}>

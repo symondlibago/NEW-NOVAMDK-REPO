@@ -207,12 +207,53 @@ function Chip({ children }) {
   );
 }
 
+/* Most catalogue renders sit in a square canvas with the product filling about
+   82% of its height, so even drawn at the full box height the bottle floats in
+   a band of empty frame. Those are scaled up into it. Tight crops (glutathione,
+   253x542) already fill their file edge to edge and are left alone, or they
+   would spill over the chips and buttons. Judged from the loaded file's own
+   ratio rather than a list, so new art is handled without touching this, and
+   unscaled until the file has loaded, so a failure lands on the safe side.
+   The padding the box used to carry went into the box itself (py-6 to py-2,
+   with the height up by the same 32px), so the card is exactly as tall. */
+function ProductArt({ src }) {
+  const ref = React.useRef(null);
+  const [padded, setPadded] = React.useState(false);
+
+  React.useEffect(() => {
+    const img = ref.current;
+    if (!img) return undefined;
+    const judge = () =>
+      setPadded(img.naturalWidth > 0 && img.naturalHeight / img.naturalWidth < 1.5);
+    if (img.complete) judge();
+    img.addEventListener("load", judge);
+    return () => img.removeEventListener("load", judge);
+  }, [src]);
+
+  return (
+    <img
+      ref={ref}
+      src={src}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      /* Shorter on a short laptop window (1366x768 and the like), so the
+         whole rail still lands inside one screen. */
+      className={`pointer-events-none h-60 w-full object-contain lg:h-68 [@media(max-height:820px)]:lg:h-52 ${
+        padded ? "scale-[1.2]" : ""
+      }`}
+    />
+  );
+}
+
 export default function StartingPoint() {
   const trackRef = useDragScroll();
 
   return (
-    <section className="w-full overflow-hidden bg-[#f5efe4]">
-      <div className="mx-auto max-w-[1340px] px-5 py-[clamp(2.5rem,6vw,4.5rem)] md:px-10">
+    /* From md the band fills one screen under the sticky header and centres
+       the rail in it (2026-09-15). White ground to match the page. */
+    <section className="flex w-full flex-col justify-center overflow-hidden bg-white md:min-h-[calc(100svh-69px)]">
+      <div className="mx-auto w-full max-w-[1340px] px-5 pb-[clamp(1.5rem,3vw,2.25rem)] pt-[clamp(2rem,4vw,3rem)] md:px-10">
         <Reveal>
           <h2 className="nv-weight-keep font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-extrabold leading-[1.1] tracking-tight">
             <span className="block" style={{ color: "#b39258" }}>
@@ -233,11 +274,13 @@ export default function StartingPoint() {
           drag from highlighting card text. */}
       <div
         ref={trackRef}
-        className="no-scrollbar flex cursor-grab select-none gap-4 overflow-x-auto overscroll-x-contain px-5 pb-[clamp(2.5rem,6vw,4.5rem)] md:px-10"
+        /* pt/pb leave the cards' shadow room: an overflow-x container clips
+           vertically too. */
+        className="no-scrollbar flex cursor-grab select-none gap-5 overflow-x-auto overscroll-x-contain px-5 pb-[clamp(2rem,4vw,3rem)] pt-2 md:px-10"
       >
         {/* Lead card */}
         <div
-          className={`relative flex w-[18.5rem] shrink-0 flex-col justify-center p-6 text-white sm:w-[21rem] ${CARD_R}`}
+          className={`relative flex w-80 shrink-0 flex-col justify-center p-7 text-white sm:w-96 lg:w-104 ${CARD_R}`}
           style={{ background: LEAD }}
         >
           {/* The button is taken out of flow, so the copy centres against the
@@ -245,60 +288,56 @@ export default function StartingPoint() {
               In flow it was always pushed above the true centre by the button's
               own height, however the free space was distributed. */}
           <div>
-            <h3 className="font-display text-[1.5rem] font-extrabold leading-tight">
+            <h3 className="font-display text-[clamp(1.6rem,2.2vw,2rem)] font-extrabold leading-tight">
               Explore
               <br />
               Treatments
             </h3>
-            <p className="mt-3 max-w-[28ch] text-[0.8rem] leading-relaxed text-white/85">
+            <p className="mt-3 max-w-[30ch] text-[0.92rem] leading-relaxed text-white/85">
               Browse care options across weight management, sexual health, longevity, skin health,
               and more
             </p>
           </div>
           <Link
             to="/treatments"
-            className="group absolute inset-x-6 bottom-6 inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-[0.8rem] font-semibold text-[#6d5934] transition-transform duration-300 hover:-translate-y-0.5"
+            className="group absolute inset-x-7 bottom-7 inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 text-[0.92rem] font-semibold text-[#6d5934] transition-transform duration-300 hover:-translate-y-0.5"
           >
             View All Options
-            <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-1" />
+            <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-1" />
           </Link>
         </div>
 
         {CARDS.map((p) => (
+          /* On the white ground a white card needs its own edge: a hairline
+             and a soft warm shadow. */
           <div
             key={p.id}
-            className={`flex w-[18.5rem] shrink-0 flex-col bg-white p-5 sm:w-[21rem] ${CARD_R}`}
+            className={`flex w-80 shrink-0 flex-col border border-[#ece3d3] bg-white p-6 shadow-[0_6px_24px_rgba(90,70,30,0.07)] sm:w-96 lg:w-104 ${CARD_R}`}
           >
-            <h3 className="font-display text-[1.35rem] font-extrabold leading-tight text-[#a5854f]">
+            <h3 className="font-display text-[clamp(1.4rem,1.9vw,1.65rem)] font-extrabold leading-tight text-[#a5854f]">
               {displayTitle(p)}
             </h3>
-            <div className="mt-2.5 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               <Chip>{p.categoryName}</Chip>
               {p.priceSuffix !== "" && <Chip>Subscription</Chip>}
             </div>
 
             {/* grow so every card's buttons sit on the same line whatever the
                 title wraps to. */}
-            <div className="grid grow place-items-center py-5">
-              <img
-                src={p.img}
-                alt=""
-                aria-hidden="true"
-                loading="lazy"
-                className="h-44 w-full object-contain"
-              />
+            <div className="grid grow place-items-center py-2">
+              <ProductArt src={p.img} />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <Link
                 to={`/start`}
-                className="flex-1 rounded-full bg-[#c9ab7c] px-4 py-2.5 text-center text-[0.78rem] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#b8975e]"
+                className="flex-1 rounded-full bg-[#c9ab7c] px-4 py-3 text-center text-[0.88rem] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#b8975e]"
               >
                 Get Started
               </Link>
               <Link
                 to={productPath(p)}
-                className="flex-1 rounded-full border border-[#d9cdb8] px-4 py-2.5 text-center text-[0.78rem] font-semibold text-[#6d5934] transition-colors hover:bg-[#f5efe4]"
+                className="flex-1 rounded-full border border-[#d9cdb8] px-4 py-3 text-center text-[0.88rem] font-semibold text-[#6d5934] transition-colors hover:bg-[#f5efe4]"
               >
                 View Details
               </Link>

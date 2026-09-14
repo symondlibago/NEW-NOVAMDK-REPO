@@ -134,8 +134,15 @@ export default function ImproveGoals() {
   }, []);
 
   return (
-    <section className="relative w-full overflow-hidden" style={{ background: GROUND }}>
-      <div className="mx-auto max-w-[1340px] px-5 pt-[clamp(1.75rem,3.5vw,2.75rem)] md:px-10">
+    /* From md the band is at least one screen tall under the sticky header
+       (68px bar plus its 1px rule). At least, not exactly: pinning it to the
+       screen height shrank the figure on shorter windows, and the client
+       wants the original size kept (2026-09-15). */
+    <section
+      className="relative w-full overflow-hidden md:flex md:min-h-[calc(100svh-69px)] md:flex-col"
+      style={{ background: GROUND }}
+    >
+      <div className="mx-auto w-full max-w-335 px-5 pt-[clamp(1.75rem,3.5vw,2.75rem)] md:flex md:min-h-0 md:flex-1 md:flex-col md:px-10">
         <Reveal>
           <h2
             className="nv-weight-keep font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-extrabold leading-[1.1] tracking-tight"
@@ -148,10 +155,14 @@ export default function ImproveGoals() {
 
         {/* ---- the stage. Pills sit in front of the cut-out so the glass has
                 something to frost; below md they never overlap it at all.
-                The ratio sets the figure's size, so it stays at 1440/720. The
-                section was shortened by cutting the padding around this stage,
-                not by squeezing the stage itself. ---- */}
-        <div className="relative mt-2 hidden aspect-16/9 w-full md:block lg:aspect-1440/720">
+                It takes whatever height the heading leaves, and the figure is
+                sized off that height, so the figure scales with the screen
+                rather than the band growing to fit a fixed-ratio figure. ---- */}
+        {/* The min heights are the stage's original ratios (16/9, then
+            1440/720 from lg) worked out against the container's width, so the
+            figure is never smaller than it was before the fit-to-screen pass;
+            flex-1 only ever adds height on a screen taller than that. */}
+        <div className="relative mt-2 hidden w-full flex-1 md:block md:min-h-[calc((min(100vw,1340px)-80px)*0.5625)] lg:min-h-[calc((min(100vw,1340px)-80px)*0.5)]">
           <img
             src="/site/improve-hero.avif"
             alt=""

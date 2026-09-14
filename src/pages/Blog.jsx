@@ -19,7 +19,7 @@ import { getPosts, formatDate, CATEGORIES, inCategory, categoryOf } from "../lib
 
 const SITE_URL = "https://www.novamdk.com";
 
-const GROUND = "#f8f3ea";
+const GROUND = "#ffffff";
 const CARD = "#fdfbf7";
 const LINE = "#e3d9c6";
 const INK = "#24201a";

@@ -56,16 +56,23 @@ const RIM = {
    image had to be big enough to carry it and its edges showed as a pasted
    rectangle over the gradient. As a radial it covers the whole band and there
    is no edge to hide, so the phone can be cropped to just the phone. */
+/* 2026-09-15: the copy went white at the client's request, and white type
+   cannot sit on the comp's original ground, which started fully transparent
+   (so, on the now-white page, white) and bloomed to near-white behind the
+   heading. The band is tan from its top edge instead, and the bloom is pulled
+   down behind the phone and toned back so it lifts the mockup without
+   washing out the cards in front of it. */
 const GROUND = [
-  "radial-gradient(46% 52% at 50% 44%, rgba(255,250,238,0.95) 0%, rgba(255,245,224,0.55) 46%, rgba(255,240,210,0) 78%)",
-  /* The tan arrives by 84% rather than at the very bottom edge, so the ground
-     behind the cards is solid enough for their copy to read against. */
-  "linear-gradient(180deg, rgba(217,217,217,0) 0%, rgba(223,181,120,0.55) 52%, #dfb578 84%, #dfb578 100%)",
+  "radial-gradient(38% 44% at 50% 58%, rgba(255,246,226,0.5) 0%, rgba(255,240,210,0.2) 52%, rgba(255,240,210,0) 80%)",
+  "linear-gradient(180deg, #cfac78 0%, #dab47b 55%, #c89d60 100%)",
 ].join(", ");
 
-const HEADING = "#725826";
-const TITLE = "#6f5527";
-const BODY = "#7d6539";
+const HEADING = "#ffffff";
+const TITLE = "#ffffff";
+const BODY = "rgba(255,255,255,0.9)";
+/* A low warm shade under the white, just enough to hold its edge where the
+   bloom is brightest. */
+const SHADE = "0 1px 14px rgba(90,62,24,0.3)";
 
 const SLOT_MS = 4000;
 const FADE_MS = 320;
@@ -76,10 +83,12 @@ const GLIDE = "900ms cubic-bezier(0.22,1,0.36,1)";
    animating width and height instead reflows the copy mid-flight, which reads
    as the cards resizing rather than moving. 0.86 lands the sides on the comp's
    356x172 against the middle's 408x200. */
+/* Flank opacity went 0.58 to 0.72 with the white copy (2026-09-15): white at
+   58% over tan read as a smudge rather than as text held back. */
 const WIDE = [
-  { left: "14.4%", scale: 0.86, opacity: 0.58, z: 10 },
+  { left: "14.4%", scale: 0.86, opacity: 0.72, z: 10 },
   { left: "50%", scale: 1, opacity: 1, z: 20 },
-  { left: "85.6%", scale: 0.86, opacity: 0.58, z: 10 },
+  { left: "85.6%", scale: 0.86, opacity: 0.72, z: 10 },
 ];
 
 /* A phone cannot hold three of these side by side, so the flanking stations
@@ -124,14 +133,14 @@ function useWide() {
 function GlassCard({ card, style }) {
   return (
     <article
-      className="absolute top-[70%] flex h-50 w-[86vw] max-w-102 flex-col justify-center rounded-2xl px-7 py-6"
+      className="absolute top-[70%] flex h-56 w-[86vw] max-w-116 flex-col justify-center rounded-3xl px-8 py-7 lg:h-60 lg:max-w-124 [@media(max-height:820px)]:lg:h-52"
       style={{ ...CARD, ...style }}
     >
-      <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-2xl" style={RIM} />
+      <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-3xl" style={RIM} />
 
       <h3
-        className="relative font-display text-[1.7rem] font-bold leading-[1.2]"
-        style={{ color: TITLE }}
+        className="relative font-display text-[clamp(1.6rem,2.2vw,2rem)] font-bold leading-[1.2]"
+        style={{ color: TITLE, textShadow: SHADE }}
       >
         {card.top}
         {card.bottom && (
@@ -141,7 +150,7 @@ function GlassCard({ card, style }) {
           </>
         )}
       </h3>
-      <p className="relative mt-3 text-[0.95rem] leading-relaxed" style={{ color: BODY }}>
+      <p className="relative mt-3 text-[1.02rem] leading-relaxed" style={{ color: BODY, textShadow: SHADE }}>
         {card.body}
       </p>
     </article>
@@ -182,16 +191,24 @@ export default function MoreWays() {
   }, []);
 
   return (
-    <section className="relative w-full overflow-hidden" style={{ background: GROUND }}>
-      <div className="mx-auto max-w-330 px-5 pb-[clamp(1.5rem,3vw,2.5rem)] pt-[clamp(2rem,4vw,3rem)] md:px-10">
+    /* From md the band fills one screen under the sticky header (68px bar
+       plus its 1px rule) and the stage takes whatever the heading leaves. */
+    <section
+      className="relative w-full overflow-hidden md:flex md:min-h-[calc(100svh-69px)] md:flex-col"
+      style={{ background: GROUND }}
+    >
+      <div className="mx-auto flex w-full max-w-330 flex-col px-5 pb-[clamp(1.5rem,3vw,2.5rem)] pt-[clamp(2rem,4vw,3rem)] md:flex-1 md:px-10">
         <Reveal className="text-center">
-          <span className="text-[0.75rem] font-semibold uppercase tracking-[0.2em]" style={{ color: BODY }}>
+          <span
+            className="text-[0.8rem] font-semibold uppercase tracking-[0.2em]"
+            style={{ color: BODY, textShadow: SHADE }}
+          >
             Why NovaMDK
           </span>
           {/* 64/62 with 1px of tracking in the file. */}
           <h2
-            className="nv-weight-keep mt-4 font-display text-[clamp(2rem,4.4vw,4rem)] font-extrabold leading-[0.97] tracking-[0.01em]"
-            style={{ color: HEADING }}
+            className="nv-weight-keep mt-4 font-display text-[clamp(2.2rem,4.8vw,4.4rem)] font-extrabold leading-[0.97] tracking-[0.01em]"
+            style={{ color: HEADING, textShadow: SHADE }}
           >
             <span className="block">More Ways To</span>
             <span className="block">Care For You</span>
@@ -199,8 +216,9 @@ export default function MoreWays() {
         </Reveal>
 
         {/* ---- the stage. The phone is the backdrop the glass has to frost,
-                so it sits behind and fades out where the cards take over. ---- */}
-        <div className="relative mt-[clamp(1rem,2.5vw,2rem)] h-[clamp(320px,28vw,400px)]">
+                so it sits behind and fades out where the cards take over.
+                A floor keeps it from collapsing on a short window. ---- */}
+        <div className="relative mt-[clamp(1rem,2.5vw,2rem)] h-[clamp(360px,34vw,480px)] md:h-auto md:min-h-96 md:flex-1">
           {/* Only a vertical fade now. With the backdrop out of the file there
               are no side edges left to hide, so the phone runs at the comp's
               367 rather than being sized to carry its own glow. */}
@@ -209,7 +227,7 @@ export default function MoreWays() {
             alt=""
             aria-hidden="true"
             loading="lazy"
-            className="absolute left-1/2 top-0 w-[clamp(230px,26vw,367px)] max-w-none -translate-x-1/2"
+            className="absolute left-1/2 top-0 w-[clamp(250px,30vw,440px)] max-w-none -translate-x-1/2"
             style={{
               WebkitMaskImage: "linear-gradient(180deg, #000 0%, #000 24%, transparent 42%)",
               maskImage: "linear-gradient(180deg, #000 0%, #000 24%, transparent 42%)",
