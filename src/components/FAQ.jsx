@@ -69,13 +69,6 @@ export default function FAQ() {
               Made Simple
             </span>
           </h2>
-          <p
-            className="mx-auto mt-5 max-w-[46ch] text-[clamp(0.95rem,1.2vw,1.05rem)] leading-relaxed"
-            style={{ color: MUTED }}
-          >
-            Straightforward answers about how online care, provider review, prescriptions, and
-            delivery work.
-          </p>
         </Reveal>
 
         <div className="mt-[clamp(1.75rem,3.5vw,2.75rem)]">
