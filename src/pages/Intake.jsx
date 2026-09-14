@@ -195,6 +195,7 @@ export default function IntakePage() {
   const [payOpen, setPayOpen] = useState(false);
   const [paid, setPaid] = useState(false);
   const [caseId, setCaseId] = useState(null);
+  const [thanksClosed, setThanksClosed] = useState(false);
   const intakeTagged = useRef(false);
   /* Holds the last encounter id sent rather than a boolean: MDI re-emits
      encounter_created when the patient navigates back, and the id is what tells
@@ -363,17 +364,52 @@ export default function IntakePage() {
           /* Only the id travels: /api/pay looks the amount up from the
              catalogue rather than trusting what the browser displays. */
           pid={pid}
+          submitted={Boolean(caseId)}
           onPaid={() => {
             setPaid(true);
             setPayOpen(false);
           }}
         />
       )}
+
+      {/* "Submitted for provider review" is only true once both halves exist:
+          the card cleared, and MDI emitted encounter_created. Payment can come
+          first (it opens at the identification step), so this waits for
+          whichever of the two lands second. */}
+      {paid && caseId && !thanksClosed && <ProviderReviewThanks onClose={() => setThanksClosed(true)} />}
     </main>
   );
 }
 
-function PaymentGateModal({ productName, product, pid, onPaid }) {
+function ProviderReviewThanks({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-120 grid place-items-center bg-ink/65 p-6 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="nv-thanks-title"
+        className="w-full max-w-md rounded-3xl border border-line bg-surface px-6 py-10 text-center nv-shadow-lg md:px-8"
+      >
+        <CheckCircle2 size={48} className="mx-auto text-primary" />
+        <h2 id="nv-thanks-title" className="mt-4 text-[1.35rem] font-bold">
+          Thank you!
+        </h2>
+        <p className="mt-2 text-[0.95rem] leading-relaxed text-muted">
+          Your request has been submitted for provider review. We'll notify you once your provider
+          has reviewed your request.
+        </p>
+        <button
+          onClick={onClose}
+          className="mt-7 w-full rounded-full bg-primary px-7 py-3.5 text-[1rem] font-semibold text-on-primary transition-colors hover:bg-primary-deep nv-shadow"
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PaymentGateModal({ productName, product, pid, submitted, onPaid }) {
   // loading | ready | processing | done | dead
   const [status, setStatus] = useState("loading");
   const [message, setMessage] = useState("");
@@ -397,7 +433,8 @@ function PaymentGateModal({ productName, product, pid, onPaid }) {
       alive = false;
     };
   }, [pid]);
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [zip, setZip] = useState("");
   /* startPaymentRequest() answers through a configure-time callback rather than
      a promise, so the resolver is parked here for the callback to pick up. */
@@ -472,8 +509,8 @@ function PaymentGateModal({ productName, product, pid, onPaid }) {
 
   const pay = async () => {
     if (status !== "ready") return;
-    if (!name.trim() || !zip.trim()) {
-      setMessage("Please add the name and ZIP code on the card.");
+    if (!firstName.trim() || !lastName.trim() || !zip.trim()) {
+      setMessage("Please add the first name, last name and ZIP code on the card.");
       return;
     }
     setMessage("");
@@ -502,7 +539,6 @@ function PaymentGateModal({ productName, product, pid, onPaid }) {
       return;
     }
 
-    const [first, ...rest] = name.trim().split(/\s+/);
     try {
       const r = await fetch("/api/pay", {
         method: "POST",
@@ -512,13 +548,15 @@ function PaymentGateModal({ productName, product, pid, onPaid }) {
           pid,
           contact_id: stored("ghl_contact"),
           opportunity_id: stored("ghl_opportunity"),
-          billing: { first_name: first, last_name: rest.join(" "), zip: zip.trim() },
+          billing: { first_name: firstName.trim(), last_name: lastName.trim(), zip: zip.trim() },
         }),
       }).then((res) => res.json());
 
       if (r?.ok) {
         setStatus("done");
-        setTimeout(onPaid, 1400);
+        // Already submitted: hand straight over to the thank-you. Otherwise let
+        // "just a few more steps" register before the questionnaire returns.
+        setTimeout(onPaid, submitted ? 0 : 1800);
         return;
       }
 
@@ -547,28 +585,38 @@ function PaymentGateModal({ productName, product, pid, onPaid }) {
           <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
             <CheckCircle2 size={44} className="text-primary" />
             <h2 className="text-[1.25rem] font-bold">Payment received</h2>
-            <p className="text-[0.9rem] text-muted">Your visit is on its way to a provider…</p>
+            {!submitted && (
+              <p className="text-[0.9rem] text-muted">
+                Just a few more steps, then your request goes to a provider for review.
+              </p>
+            )}
           </div>
         ) : (
           <>
-            <div className="flex-1 overflow-y-auto px-6 pb-6 pt-7 md:px-8">
+            {/* data-lenis-prevent: the site's Lenis smooth scroll swallows wheel
+                and touch events, so without it this panel could only be scrolled
+                by dragging the scrollbar. */}
+            <div
+              data-lenis-prevent
+              className="nv-scroll-brand min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6 pt-7 md:px-8"
+            >
               <p className={sectionLabel}>Checkout</p>
               <h2 className="mt-2 text-[1.45rem] font-bold leading-tight">
                 Last step. Add your payment details
               </h2>
 
               {/* What they're paying for, before anything asks for a card. */}
-              <div className="mt-5 flex items-center gap-4 rounded-2xl border border-line bg-bg p-4">
-                <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-2">
+              <div className="mt-5 flex items-center gap-5 rounded-2xl border border-line p-4">
+                <div className="grid h-28 w-28 shrink-0 place-items-center">
                   {product?.img && !imgBroken ? (
                     <img
                       src={product.img}
                       alt=""
                       onError={() => setImgBroken(true)}
-                      className="h-full w-full object-contain p-1.5"
+                      className="h-full w-full object-contain drop-shadow-md"
                     />
                   ) : (
-                    <CreditCard size={22} className="text-muted" />
+                    <CreditCard size={28} className="text-muted" />
                   )}
                 </div>
                 <div className="min-w-0">
@@ -649,14 +697,24 @@ function PaymentGateModal({ productName, product, pid, onPaid }) {
 
                   {/* Ours, not the gateway's: AVS checks the name and ZIP on the
                       card, which is often not the patient's own address. */}
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    autoComplete="cc-name"
-                    placeholder="Name on card"
-                    className={CARD_INPUT}
-                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      autoComplete="cc-given-name"
+                      placeholder="First name"
+                      className={CARD_INPUT}
+                    />
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      autoComplete="cc-family-name"
+                      placeholder="Last name"
+                      className={CARD_INPUT}
+                    />
+                  </div>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -679,15 +737,18 @@ function PaymentGateModal({ productName, product, pid, onPaid }) {
                 <button
                   onClick={pay}
                   disabled={!canPay}
-                  className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-[1rem] font-semibold text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow disabled:opacity-70 disabled:hover:translate-y-0"
+                  className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-center text-[1rem] font-semibold leading-snug text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow disabled:opacity-70 disabled:hover:translate-y-0"
                 >
                   {status === "processing" ? (
                     <>
                       <Loader2 size={17} className="animate-spin" /> Processing…
                     </>
                   ) : canPay ? (
+                    // The amount stays on the button: this click charges the card
+                    // now, so the label can't read as a free submission.
                     <>
-                      <Lock size={16} /> Pay {usd(quote.total)}
+                      <Lock size={16} className="shrink-0" /> Pay {usd(quote.total)} & Submit for Provider
+                      Review
                     </>
                   ) : quoteFailed ? (
                     // Never a spinner that can't finish: without a total there is

@@ -200,6 +200,21 @@
   .nv-scroll::-webkit-scrollbar-thumb { background: var(--nv-line-strong); border-radius: 999px; }
   .nv-scroll::-webkit-scrollbar-track { background: transparent; }
 
+  /* Checkout modal: the brand gold at low strength, darkening on hover, on a
+     track that matches the panel so it reads as part of the card. */
+  .nv-scroll-brand {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--nv-primary) 45%, transparent) transparent;
+  }
+  .nv-scroll-brand::-webkit-scrollbar { width: 8px; }
+  .nv-scroll-brand::-webkit-scrollbar-track { background: transparent; margin: 12px 0; }
+  .nv-scroll-brand::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--nv-primary) 45%, transparent);
+    border-radius: 999px;
+    border: 2px solid var(--nv-surface);
+  }
+  .nv-scroll-brand::-webkit-scrollbar-thumb:hover { background: var(--nv-primary); }
+
   /* Wider, grabbable scrollbar for tall panels (Design Studio). */
   .nv-scroll-lg { scrollbar-width: auto; scrollbar-color: var(--nv-muted) var(--nv-surface-2); }
   .nv-scroll-lg::-webkit-scrollbar { width: 12px; height: 12px; }
