@@ -94,3 +94,9 @@ export function treatmentFor(questionnaireId, treatmentName = null) {
     known: true,
   };
 }
+
+/* Every product an intake could have been started for. Several share one
+ * questionnaire at different prices (the NAD+ Injection rungs, for instance),
+ * which is why a resumed intake can't always be priced without asking. */
+export const productsForQuestionnaire = (questionnaireId) =>
+  questionnaireId ? sellable.filter((p) => p.questionnaireId === questionnaireId) : [];

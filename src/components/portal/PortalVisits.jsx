@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { AlertCircle, ChevronLeft, ChevronRight, FileClock, FileText, Pill, Stethoscope, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { portalData } from "../../lib/portal";
+import ResumeIntakeButton from "./ResumeIntakeButton";
 
 const STATUS = {
   new: { label: "Submitted", tone: "muted" },
@@ -324,12 +325,12 @@ function DraftRow({ draft }) {
         </p>
       </div>
       {resumable ? (
-        <a
-          href={draft.resume_url}
-          className="shrink-0 rounded-full bg-primary px-4 py-2 text-[0.85rem] font-semibold text-on-primary transition-colors hover:bg-primary-deep"
+        <ResumeIntakeButton
+          draftId={draft.id}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[0.85rem] font-semibold text-on-primary transition-colors hover:bg-primary-deep disabled:opacity-70"
         >
           Resume
-        </a>
+        </ResumeIntakeButton>
       ) : (
         <Link
           to="/treatments"

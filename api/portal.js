@@ -1,4 +1,4 @@
-import { blocked } from './_guard.js';
+import { blocked, signReleaseToken } from './_guard.js';
 import { mdi, mdiUpload, mdiConfigured, listOf } from './_mdi.js';
 import { readSession, sessionsEnabled } from './_session.js';
 
@@ -362,6 +362,35 @@ export default async function handler(req, res) {
         (a, b) => new Date(b.created_at) - new Date(a.created_at)
       );
       return res.status(200).json({ cases, visits });
+    }
+
+    /* Resuming a half-finished intake has to come back through /intake rather
+       than MDI's onboarding_url: that page has no checkout, so a patient could
+       submit, never pay, and leave a held case nothing would ever release. The
+       release token is minted here, at click time, because tokens last 45
+       minutes and a portal tab can sit open far longer than that. */
+    if (resource === 'resume') {
+      const voucherId = String(req.body?.voucher_id || '');
+      if (!voucherId) return res.status(400).json({ error: 'voucher_id is required' });
+
+      const v = await mdi(`/patients/${id}/vouchers`);
+      if (!v.ok) {
+        console.error('Portal resume vouchers failed:', v.status);
+        return res.status(502).json({ error: 'Could not load that intake' });
+      }
+      // Found among this patient's own vouchers only, so a signed-in patient
+      // can't mint a release token against someone else's intake.
+      const voucher = listOf(v.data).find((x) => String(x.id) === voucherId);
+      const draft = voucher && !voucher.case_id ? shapeDraft(voucher) : null;
+      if (!draft?.resume_url) {
+        return res.status(410).json({ error: 'This intake can no longer be resumed' });
+      }
+      return res.status(200).json({
+        // The voucher id is the intake token, same as ProductPage uses.
+        token: voucher.id,
+        questionnaire_id: draft.questionnaire_id,
+        release_token: signReleaseToken(patientId),
+      });
     }
 
     if (resource === 'notifications') {

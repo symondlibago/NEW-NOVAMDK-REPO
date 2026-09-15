@@ -1,6 +1,15 @@
 import { PRICES } from "./_prices.js";
 import { blocked } from "./_guard.js";
-import { ghlConfigured, tagContact, untagContact, markOpportunityPaid } from "./_ghl.js";
+import {
+  ghlConfigured,
+  tagContact,
+  untagContact,
+  markOpportunityPaid,
+  updateContactFields,
+  updateOpportunityFields,
+  INTAKE_STAGE,
+  FIELD,
+} from "./_ghl.js";
 
 /* Charges a card through the NMI gateway (PayTechTrust is an NMI white-label),
  * and on GET, quotes what that charge will be.
@@ -103,6 +112,21 @@ async function markPaid(opportunityId, transactionId) {
   }
 }
 
+/* The other half of ghl-encounter's rule that "complete" means submitted and
+ * paid. When the questionnaire was submitted before the checkout opened, this
+ * approval is the second half to arrive, so the stage is written here. */
+async function markComplete(contactId, opportunityId, treatment) {
+  if (!ghlConfigured()) return;
+  const fields = { [FIELD.INTAKE_STAGE]: INTAKE_STAGE.COMPLETE };
+  const writes = await Promise.allSettled([
+    contactId ? updateContactFields(contactId, fields) : null,
+    opportunityId ? updateOpportunityFields(opportunityId, fields, { name: treatment }) : null,
+  ]);
+  for (const w of writes) {
+    if (w.status === "rejected") console.error("GHL intake_stage complete write failed:", w.reason?.message);
+  }
+}
+
 export default async function handler(req, res) {
   /* The modal's order summary is rendered from this rather than from the
      catalogue in the bundle, so the shipping line it shows is always the one
@@ -128,7 +152,8 @@ export default async function handler(req, res) {
     return res.status(503).json({ ok: false, error: "not_configured" });
   }
 
-  const { payment_token: paymentToken, pid, contact_id, opportunity_id, billing } = req.body || {};
+  const { payment_token: paymentToken, pid, contact_id, opportunity_id, billing, submitted, treatment } =
+    req.body || {};
 
   const token = clean(paymentToken, 200);
   if (!token) {
@@ -199,7 +224,10 @@ export default async function handler(req, res) {
     // Independent of each other, and neither may fail the patient's checkout.
     await Promise.allSettled([
       syncTag(clean(contact_id, 60), { failed: false }),
-      markPaid(orderId, transactionId),
+      // Sequenced rather than parallel: both write the same opportunity.
+      markPaid(orderId, transactionId).then(() =>
+        submitted === true ? markComplete(clean(contact_id, 60), orderId, clean(treatment, 120)) : null
+      ),
     ]);
     return res.status(200).json({ ok: true, transactionId, amount: charge.total });
   }

@@ -62,6 +62,11 @@ export default async function handler(req, res) {
      case is the opposite: this session already opened an opportunity at the
      email step, and the encounter belongs to that one. */
   const additional = req.body?.additional === true;
+  /* "complete" means submitted AND paid. The questionnaire often finishes before
+     the checkout opens, so an unpaid submission keeps its current stage and
+     /api/pay writes "complete" once the card clears. The intake-submitted tag
+     still lands either way, which is what shows the drop-off at payment. */
+  const paid = req.body?.paid === true;
 
   /* Settled independently. The contact mirror and the per-visit record are
      useful on their own, so one failing must not cost us the other. */
@@ -69,8 +74,7 @@ export default async function handler(req, res) {
     updateContactFields(contactId, {
       [FIELD.LATEST_MDI_ENCOUNTER_ID]: encounterId,
       [FIELD.LAST_MDI_UPDATE_DATE]: clinicStamp(),
-      // MDI has the questionnaire, so this visit got all the way through.
-      [FIELD.INTAKE_STAGE]: INTAKE_STAGE.COMPLETE,
+      ...(paid && { [FIELD.INTAKE_STAGE]: INTAKE_STAGE.COMPLETE }),
       ...(status && { [FIELD.MDI_ENCOUNTER_STATUS]: status }),
     }),
     opportunityId && !additional
@@ -78,7 +82,7 @@ export default async function handler(req, res) {
           opportunityId,
           {
             [FIELD.MDI_ENCOUNTER_ID]: encounterId,
-            [FIELD.INTAKE_STAGE]: INTAKE_STAGE.COMPLETE,
+            ...(paid && { [FIELD.INTAKE_STAGE]: INTAKE_STAGE.COMPLETE }),
           },
           { name: treatment }
         )
@@ -89,7 +93,7 @@ export default async function handler(req, res) {
           source: req.body?.source,
           kioskLocation: req.body?.kioskLocation,
           productLine: req.body?.productLine,
-          intakeStage: INTAKE_STAGE.COMPLETE,
+          intakeStage: paid ? INTAKE_STAGE.COMPLETE : INTAKE_STAGE.STARTED,
           mdiEncounterId: encounterId,
         }),
     // Additive, so it never disturbs the tags the lead arrived with.

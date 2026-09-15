@@ -146,7 +146,7 @@ const statusOf = (data) =>
 /* Same fire-and-forget contract as the milestones above. The encounter ids are
    for the CRM's benefit alone, so a patient mid-questionnaire must never see a
    failure to record them. */
-async function recordEncounter({ encounterId, status, additional, treatment, value, productLine }) {
+async function recordEncounter({ encounterId, status, additional, paid, treatment, value, productLine }) {
   /* Every exit below logs. This path used to fail silently in three places,
      which left a submitted encounter with no trace of whether MDI never sent
      it, the tab had no contact, or the server refused the write. */
@@ -171,6 +171,9 @@ async function recordEncounter({ encounterId, status, additional, treatment, val
         encounter_id: encounterId,
         status,
         additional,
+        // Whether the card already cleared; the server only marks the intake
+        // complete when both halves are done.
+        paid,
         treatment,
         value,
         productLine,
@@ -208,8 +211,16 @@ export default function IntakePage() {
 
   const token = params.get("token");
   const productName = params.get("product") || "";
-  const pid = params.get("pid");
+  const urlPid = params.get("pid");
   const payDemo = params.get("paydemo") === "1";
+
+  /* A portal-resumed intake arrives with ?qid= instead of ?pid= when its
+     questionnaire is shared by products at different prices. The checkout then
+     asks which plan, and that choice stands in for the pid. */
+  const qid = params.get("qid");
+  const choices = urlPid || !qid ? [] : productsData.filter((p) => !p.hidden && p.questionnaireId === qid);
+  const [chosenPid, setChosenPid] = useState(null);
+  const pid = urlPid || chosenPid || (choices.length === 1 ? String(choices[0].id) : null);
 
   const product = pid ? productsData.find((p) => String(p.id) === String(pid)) : null;
 
@@ -257,6 +268,7 @@ export default function IntakePage() {
             encounterId,
             status: statusOf(msg.data),
             additional,
+            paid,
             treatment: treatmentLabel(product),
             productLine: product?.categoryName,
             // Prices are display strings ("$249"); GHL rejects anything
@@ -359,11 +371,14 @@ export default function IntakePage() {
 
       {payOpen && !paid && (
         <PaymentGateModal
-          productName={productName || product?.name || "Your treatment"}
+          productName={product?.name || productName || "Your treatment"}
           product={product}
           /* Only the id travels: /api/pay looks the amount up from the
              catalogue rather than trusting what the browser displays. */
           pid={pid}
+          choices={choices}
+          onChoose={setChosenPid}
+          treatment={treatmentLabel(product)}
           submitted={Boolean(caseId)}
           onPaid={() => {
             setPaid(true);
@@ -409,7 +424,7 @@ function ProviderReviewThanks({ onClose }) {
   );
 }
 
-function PaymentGateModal({ productName, product, pid, submitted, onPaid }) {
+function PaymentGateModal({ productName, product, pid, choices = [], onChoose, treatment, submitted, onPaid }) {
   // loading | ready | processing | done | dead
   const [status, setStatus] = useState("loading");
   const [message, setMessage] = useState("");
@@ -420,8 +435,16 @@ function PaymentGateModal({ productName, product, pid, submitted, onPaid }) {
   const [imgBroken, setImgBroken] = useState(false);
 
   useEffect(() => {
+    // A quote for the previous plan must never be payable while the new one
+    // loads, and with no plan chosen yet there is nothing to quote.
+    setQuote(null);
+    setQuoteFailed(false);
+    if (!pid) {
+      if (!choices.length) setQuoteFailed(true);
+      return;
+    }
     let alive = true;
-    fetch(`/api/pay?pid=${encodeURIComponent(pid ?? "")}`)
+    fetch(`/api/pay?pid=${encodeURIComponent(pid)}`)
       .then((r) => r.json())
       .then((q) => {
         if (!alive) return;
@@ -432,7 +455,7 @@ function PaymentGateModal({ productName, product, pid, submitted, onPaid }) {
     return () => {
       alive = false;
     };
-  }, [pid]);
+  }, [pid, choices.length]);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [zip, setZip] = useState("");
@@ -549,6 +572,10 @@ function PaymentGateModal({ productName, product, pid, submitted, onPaid }) {
           contact_id: stored("ghl_contact"),
           opportunity_id: stored("ghl_opportunity"),
           billing: { first_name: firstName.trim(), last_name: lastName.trim(), zip: zip.trim() },
+          // Lets the server write intake_stage "complete" if this payment is
+          // the second of the two halves to land.
+          submitted,
+          treatment,
         }),
       }).then((res) => res.json());
 
@@ -636,6 +663,37 @@ function PaymentGateModal({ productName, product, pid, submitted, onPaid }) {
                   being decided, so neither is shown. Deliberately no dose here:
                   that's the provider's call and stays out of public copy. */}
               <p className={`${sectionLabel} mt-7`}>Your plan</p>
+              {choices.length > 1 ? (
+                /* Radio cards rather than a select, so every plan's price is
+                   visible before choosing. These prices are the catalogue's
+                   labels; the amount charged still comes from the server quote. */
+                <div role="radiogroup" aria-label="Choose your plan" className="mt-2.5 space-y-2.5">
+                  {choices.map((p) => {
+                    const on = String(p.id) === String(pid);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        onClick={() => onChoose?.(String(p.id))}
+                        disabled={status === "processing"}
+                        className={`flex w-full items-center justify-between gap-4 rounded-2xl border-2 px-4 py-3.5 text-left transition-colors ${
+                          on ? "border-primary" : "border-line hover:border-primary/50"
+                        }`}
+                      >
+                        <span className="flex items-center gap-3">
+                          <span className="grid h-4.5 w-4.5 shrink-0 place-items-center rounded-full border-2 border-primary">
+                            {on && <span className="h-2 w-2 rounded-full bg-primary" />}
+                          </span>
+                          <span className="text-[0.95rem] font-semibold leading-snug">{p.name}</span>
+                        </span>
+                        <span className="shrink-0 text-[1.05rem] font-bold">{p.price}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
               <div className="mt-2.5 flex items-center justify-between gap-4 rounded-2xl border-2 border-primary px-4 py-3.5">
                 <div className="flex items-center gap-3">
                   <span className="grid h-4.5 w-4.5 place-items-center rounded-full border-2 border-primary">
@@ -652,6 +710,7 @@ function PaymentGateModal({ productName, product, pid, submitted, onPaid }) {
                 </div>
                 <span className="text-[1.05rem] font-bold">{quote ? usd(quote.amount) : "…"}</span>
               </div>
+              )}
 
               <p className={`${sectionLabel} mt-7`}>Order summary</p>
               {quoteFailed ? (
@@ -750,6 +809,8 @@ function PaymentGateModal({ productName, product, pid, submitted, onPaid }) {
                       <Lock size={16} className="shrink-0" /> Pay {usd(quote.total)} & Submit for Provider
                       Review
                     </>
+                  ) : !pid && choices.length > 1 ? (
+                    <>Choose a plan above</>
                   ) : quoteFailed ? (
                     // Never a spinner that can't finish: without a total there is
                     // nothing honest to charge, so say so instead of "loading".

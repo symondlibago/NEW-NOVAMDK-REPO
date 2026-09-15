@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { AlertCircle, ArrowRight, ChevronRight } from "lucide-react";
 import { portalData } from "../../lib/portal";
 import { treatmentFor } from "../../lib/portalCatalog";
+import ResumeIntakeButton from "./ResumeIntakeButton";
 
 const greeting = () => {
   const h = new Date().getHours();
@@ -126,12 +127,13 @@ export default function PortalHome({ onUnauthorized, onNavigate }) {
                         review it until it&rsquo;s submitted.
                       </p>
                     </div>
-                    <a
-                      href={d.resume_url}
-                      className="mt-5 inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-7 py-3 text-[0.9rem] font-semibold text-on-primary transition-colors hover:bg-primary-deep sm:mt-0 sm:w-auto"
+                    <ResumeIntakeButton
+                      draftId={d.id}
+                      onUnauthorized={onUnauthorized}
+                      className="mt-5 inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-7 py-3 text-[0.9rem] font-semibold text-on-primary transition-colors hover:bg-primary-deep disabled:opacity-70 sm:mt-0 sm:w-auto"
                     >
                       Finish intake <ArrowRight size={15} />
-                    </a>
+                    </ResumeIntakeButton>
                   </li>
                 );
               })}
