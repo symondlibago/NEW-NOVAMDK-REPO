@@ -715,7 +715,7 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
                     <p className="text-[0.95rem] font-semibold">1 month plan</p>
                     {quote?.shipping > 0 && (
                       <span className="mt-1 inline-block rounded-md bg-bg px-2 py-0.5 text-[0.72rem] text-muted">
-                        {usd(quote.shipping)} shipping fee
+                        {usd(quote.shipping)} telehealth consultation fee
                       </span>
                     )}
                   </div>
@@ -737,7 +737,7 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
                   </div>
                   {quote?.shipping > 0 && (
                     <div className="flex justify-between gap-4">
-                      <dt className="text-muted">Shipping fee</dt>
+                      <dt className="text-muted">Telehealth Consultation Fee</dt>
                       <dd className="shrink-0 font-medium">{usd(quote.shipping)}</dd>
                     </div>
                   )}
