@@ -646,13 +646,16 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
 
               {/* What they're paying for, before anything asks for a card. */}
               <div className="mt-5 flex items-center gap-5 rounded-2xl border border-line p-4">
-                <div className="grid h-28 w-28 shrink-0 place-items-center">
+                {/* Fixed size on the img itself: a percentage height inside a grid
+                    cell falls back to the picture's natural height, which pushed
+                    tall bottles out over the plan card. */}
+                <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden">
                   {product?.img && !imgBroken ? (
                     <img
                       src={product.img}
                       alt=""
                       onError={() => setImgBroken(true)}
-                      className="h-full w-full object-contain drop-shadow-md"
+                      className="h-28 w-28 object-contain drop-shadow-md"
                     />
                   ) : (
                     <CreditCard size={28} className="text-muted" />
