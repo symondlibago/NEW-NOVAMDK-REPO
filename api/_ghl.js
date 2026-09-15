@@ -360,6 +360,52 @@ export async function markOpportunityPaid(opportunityId) {
   return data?.opportunity || null;
 }
 
+/* Board columns the intake moves a visit through. Names rather than ids, like
+   Paid: they're resolved against the live pipeline, so renaming a column in GHL
+   only needs the matching env var. */
+export const STAGE = {
+  INTAKE_STARTED: process.env.GHL_INTAKE_STARTED_STAGE_NAME || "Intake Started",
+  INTAKE_SUBMITTED: process.env.GHL_INTAKE_SUBMITTED_STAGE_NAME || "Intake Submitted",
+};
+
+/* Forward only. The intake's events don't arrive in board order: a new patient
+ * pays at the ID screen and submits afterwards, so a plain move to Intake
+ * Submitted would drag an already-Paid card back down the board. The code moves
+ * cards itself because tag-triggered workflows can't: a tag a returning
+ * contact already carries never re-fires, so their new card never moved.
+ *
+ * Never throws. A missing column or a GHL hiccup should cost the board move,
+ * not the rest of the CRM write, and never the patient's intake. */
+export async function moveOpportunityForward(opportunityId, stageName) {
+  if (!opportunityId || !stageName) return null;
+  try {
+    const { stages, pipelineName } = await resolvePipeline();
+    // Board order: GHL sends a position per stage; array order is the fallback.
+    const ordered = stages
+      .map((s, i) => ({ ...s, order: typeof s.position === "number" ? s.position : i }))
+      .sort((a, b) => a.order - b.order);
+
+    const targetIndex = ordered.findIndex((s) => s.name?.toLowerCase() === stageName.toLowerCase());
+    if (targetIndex === -1) {
+      console.warn(`GHL pipeline "${pipelineName}" has no "${stageName}" stage, card not moved.`);
+      return null;
+    }
+
+    const current = (await ghlFetch(`/opportunities/${opportunityId}`))?.opportunity;
+    const currentIndex = ordered.findIndex((s) => s.id === current?.pipelineStageId);
+    if (current?.status === "won" || currentIndex >= targetIndex) return null;
+
+    const data = await ghlFetch(`/opportunities/${opportunityId}`, {
+      method: "PUT",
+      body: { pipelineStageId: ordered[targetIndex].id },
+    });
+    return data?.opportunity || null;
+  } catch (e) {
+    console.error(`GHL move to "${stageName}" failed for opportunity ${opportunityId}:`, e.message, e.details ?? "");
+    return null;
+  }
+}
+
 /* One opportunity per visit, hanging off the single patient contact — this is
  * how repeat visits stay individually trackable without duplicating the person.
  * Deliberately separate from upsertContact: a patient who books twice is one

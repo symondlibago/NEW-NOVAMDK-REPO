@@ -3,6 +3,8 @@ import {
   updateContactFields,
   updateOpportunityFields,
   createVisitOpportunity,
+  moveOpportunityForward,
+  STAGE,
   tagContact,
   clinicStamp,
   INTAKE_STAGE,
@@ -77,6 +79,10 @@ export default async function handler(req, res) {
       ...(paid && { [FIELD.INTAKE_STAGE]: INTAKE_STAGE.COMPLETE }),
       ...(status && { [FIELD.MDI_ENCOUNTER_STATUS]: status }),
     }),
+    /* The card moves to Intake Submitted after its field write, forward only,
+       so a new patient who already paid at the ID screen stays in Paid. An
+       unpaid returning patient lands in Intake Submitted and stays there, which
+       is the drop-off at payment the board is meant to show. */
     opportunityId && !additional
       ? updateOpportunityFields(
           opportunityId,
@@ -86,6 +92,14 @@ export default async function handler(req, res) {
           },
           { name: treatment }
         )
+          .catch((e) => {
+            console.error("GHL encounter opportunity fields failed:", e.message, e.details ?? "");
+            return null;
+          })
+          .then(async (r) => {
+            await moveOpportunityForward(opportunityId, STAGE.INTAKE_SUBMITTED);
+            return r;
+          })
       : createVisitOpportunity({
           contactId,
           treatment,
@@ -95,6 +109,9 @@ export default async function handler(req, res) {
           productLine: req.body?.productLine,
           intakeStage: paid ? INTAKE_STAGE.COMPLETE : INTAKE_STAGE.STARTED,
           mdiEncounterId: encounterId,
+        }).then(async (r) => {
+          await moveOpportunityForward(idOf(r), STAGE.INTAKE_SUBMITTED);
+          return r;
         }),
     // Additive, so it never disturbs the tags the lead arrived with.
     tagContact(contactId, [SUBMITTED_TAG]),

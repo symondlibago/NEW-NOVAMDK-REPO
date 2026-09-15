@@ -8,7 +8,13 @@ import Seo from "../components/Seo";
 
 const MDI_ORIGIN = "https://patient.novamdk.com";
 const PAYMENT_TRIGGER_EVENTS = ["finish"];
-const PAYMENT_TRIGGER_STEPS = ["identification", "thank-you"];
+/* "submit" is MDI's final review screen and arrives before encounter_created
+   for every patient. It's the one that matters: returning patients skip
+   "identification" (their ID is already on file), so without it their checkout
+   only opened at "finish", after MDI already had the questionnaire. The popup
+   covers MDI's Submit button, so submission waits on payment. "thank-you" and
+   the "finish" event stay as a last-resort net for any flow missing both. */
+const PAYMENT_TRIGGER_STEPS = ["identification", "submit", "thank-you"];
 
 /* ------------------------------- checkout -------------------------------- */
 /* PayTechTrust is an NMI white-label. Collect.js renders the three card fields
@@ -229,6 +235,11 @@ export default function IntakePage() {
       if (event.origin !== MDI_ORIGIN) return;
       if (import.meta.env.DEV) console.log("[MDI message]", event.data);
       const msg = typeof event.data === "object" && event.data !== null ? event.data : {};
+      /* Temporary and production-visible: which events and screens MDI reports,
+         in order, so the checkout can be moved ahead of submission. Names only,
+         never the payload, which can carry questionnaire answers. */
+      const screen = msg.data?.step || msg.data?.route;
+      console.info(`[MDI] event: ${msg.event || "(none)"}${screen ? ` | screen: ${screen}` : ""}`);
 
       if ((msg.event === "start" || msg.event === "step") && !intakeTagged.current) {
         intakeTagged.current = true;
@@ -283,6 +294,7 @@ export default function IntakePage() {
         PAYMENT_TRIGGER_EVENTS.includes(msg.event) ||
         (msg.event === "step" && PAYMENT_TRIGGER_STEPS.includes(step))
       ) {
+        console.info(`[MDI] payment popup opened by event: ${msg.event}${step ? ` | screen: ${step}` : ""}`);
         setPayOpen(true);
       }
     };
@@ -614,7 +626,7 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
             <h2 className="text-[1.25rem] font-bold">Payment received</h2>
             {!submitted && (
               <p className="text-[0.9rem] text-muted">
-                Just a few more steps, then your request goes to a provider for review.
+                Finish any remaining screens and press Submit to send your request to a provider.
               </p>
             )}
           </div>

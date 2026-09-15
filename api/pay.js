@@ -134,7 +134,10 @@ export default async function handler(req, res) {
      plan's function limit. */
   if (req.method === "GET") {
     if (blocked(req, res)) return;
-    const quote = quoteFor(req.query?.pid);
+    // Vercel fills req.query; the local vite shim (vite.config.js) only passes
+    // the raw URL, which left every local checkout reading "Total unavailable".
+    const pid = req.query?.pid ?? new URL(req.url || "/", "http://localhost").searchParams.get("pid");
+    const quote = quoteFor(pid);
     if (!quote) return res.status(400).json({ ok: false, error: "unknown_product" });
     return res.status(200).json({ ok: true, ...quote });
   }

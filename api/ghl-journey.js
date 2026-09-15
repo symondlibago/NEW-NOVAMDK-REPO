@@ -3,6 +3,8 @@ import {
   tagContact,
   updateContactFields,
   updateOpportunityFields,
+  moveOpportunityForward,
+  STAGE,
   clinicStamp,
   INTAKE_STAGE,
   FIELD,
@@ -17,6 +19,8 @@ const MILESTONES = {
   "intake-started": {
     tags: ["intake-started"],
     stage: INTAKE_STAGE.STARTED,
+    // The board column, moved forward only (see moveOpportunityForward).
+    board: STAGE.INTAKE_STARTED,
     // Only meaningful on the contact: an opportunity already carries its own
     // creation timestamp, which is the same moment to within a second or two.
     stampField: FIELD.INTAKE_STARTED_DATE,
@@ -72,6 +76,15 @@ export default async function handler(req, res) {
           { [FIELD.INTAKE_STAGE]: milestone.stage },
           { name: req.body?.treatment }
         )
+          .catch((e) => {
+            console.error("GHL journey opportunity fields failed:", e.message, e.details ?? "");
+            return null;
+          })
+          // After the field write rather than beside it: both PUT the same record.
+          .then(async (r) => {
+            if (milestone.board) await moveOpportunityForward(opportunityId, milestone.board);
+            return r;
+          })
       : Promise.resolve(null),
   ];
 
