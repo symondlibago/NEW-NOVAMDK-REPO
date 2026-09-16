@@ -466,7 +466,14 @@ export async function moveOpportunityForward(opportunityId, stageName) {
 
     const current = (await ghlFetch(`/opportunities/${opportunityId}`))?.opportunity;
     const currentIndex = ordered.findIndex((s) => s.id === current?.pipelineStageId);
-    if (current?.status === "won" || currentIndex >= targetIndex) return null;
+    /* Backwards is the only thing forbidden. A won card may still move forward:
+       on this board Paid sits after Approved, but patients pay during intake and
+       a clinician reviews days later, so almost every card is already Paid (and
+       won) by the time the provider decision arrives. Refusing to move won cards
+       left Pharmacy Processing, Shipped and Completed permanently empty for the
+       cards that actually get that far. Moving the stage doesn't touch `status`,
+       so won revenue stays won. */
+    if (currentIndex >= targetIndex) return null;
 
     const data = await ghlFetch(`/opportunities/${opportunityId}`, {
       method: "PUT",

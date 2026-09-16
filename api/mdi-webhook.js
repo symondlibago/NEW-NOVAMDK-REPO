@@ -32,10 +32,10 @@ const AUTH = process.env.MDI_WEBHOOK_AUTH || null;
 const CASE_EVENTS = {
   case_created: { status: "created" },
   case_waiting: { status: "waiting", tag: "mdi-waiting" },
-  case_assigned_to_clinician: { status: "assigned", stage: "Provider Review" },
-  case_processing: { status: "processing", stage: "Pharmacy Processing" },
-  case_approved: { status: "approved", stage: "Approved" },
-  case_completed: { status: "completed", stage: "Completed" },
+  case_assigned_to_clinician: { status: "assigned", stage: "Provider Review", tag: "mdi-in-review" },
+  case_processing: { status: "processing", stage: "Pharmacy Processing", tag: "mdi-processing" },
+  case_approved: { status: "approved", stage: "Approved", tag: "mdi-approved" },
+  case_completed: { status: "completed", stage: "Completed", tag: "mdi-completed" },
   case_cancelled: { status: "cancelled", tag: "mdi-cancelled" },
   case_transferred_to_support: { status: "support", tag: "mdi-support" },
 };
@@ -169,8 +169,13 @@ export default async function handler(req, res) {
   const status = known.status || orderStatus;
   /* Shipped is the only order status worth a column of its own; the rest are
      pharmacy progress and stay in Pharmacy Processing. */
-  const stage =
-    known.stage || (orderStatus && /ship|fulfil/i.test(orderStatus) ? "Shipped" : null);
+  const shipped = Boolean(orderStatus && /ship|fulfil/i.test(orderStatus));
+  const stage = known.stage || (shipped ? "Shipped" : null);
+  /* Every status also lands as a tag. The column can only ever show one thing,
+     and on this board payment and the clinical decision sit in the same line, so
+     a paid card parked past Approved would otherwise hide whether a provider
+     had approved it. The tag makes it filterable whatever column it sits in. */
+  const tag = known.tag || (shipped ? "mdi-shipped" : null);
 
   try {
     const contact = await findContact(payload);
@@ -187,7 +192,7 @@ export default async function handler(req, res) {
         ...(status && { [FIELD.MDI_ENCOUNTER_STATUS]: status }),
         [FIELD.LAST_MDI_UPDATE_DATE]: clinicStamp(),
       }),
-      known.tag ? tagContact(contact.id, [known.tag]) : Promise.resolve(null),
+      tag ? tagContact(contact.id, [tag]) : Promise.resolve(null),
     ];
 
     if (stage) {
