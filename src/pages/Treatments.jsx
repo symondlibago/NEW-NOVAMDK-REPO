@@ -185,7 +185,7 @@ export default function TreatmentsPage() {
                   goal is chosen. */}
               <Link
                 to="/start"
-                onClick={() => track(EVENTS.QUIZ_STARTED, { source: "treatments-header" })}
+                onClick={() => track(EVENTS.QUIZ_STARTED, { click_source: "treatments-header" })}
                 className="group shrink-0 sm:pt-3"
               >
                 <span className="block text-[0.98rem] font-bold text-ink">Not sure where to start?</span>
@@ -204,7 +204,7 @@ export default function TreatmentsPage() {
             <CategoryGrid
               items={TREATMENT_CATS}
               onItemClick={(it) =>
-                track(EVENTS.CATEGORY_SELECTED, { treatment_category: it.goal, source: "treatments" })
+                track(EVENTS.CATEGORY_SELECTED, { treatment_category: it.goal, click_source: "treatments" })
               }
             />
           </section>  

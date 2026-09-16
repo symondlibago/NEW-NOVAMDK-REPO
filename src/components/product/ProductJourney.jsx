@@ -104,7 +104,7 @@ export default function ProductJourney({ product }) {
           </p>
           <Link
             to="/start"
-            onClick={() => track(EVENTS.QUIZ_STARTED, { source: "product-journey" })}
+            onClick={() => track(EVENTS.QUIZ_STARTED, { click_source: "product-journey" })}
             className="group mt-3 inline-flex items-center gap-2.5 text-[0.92rem] font-bold text-ink transition-colors hover:text-[#725826] md:self-end"
           >
             Take a quick assessment

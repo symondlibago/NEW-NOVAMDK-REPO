@@ -113,6 +113,25 @@ function kioskParams() {
   return id ? { kiosk_location_id: id } : {};
 }
 
+/* GA4 reads these parameter names as traffic attribution, whatever we mean by
+   them. A button label passed as `source` becomes a fake acquisition source and
+   lands in the client's "visitors by source" report next to google/organic:
+   that is where "hero-shelf" and "treatments" came from. Dropped here rather
+   than only at the call sites, so the next person to write `source:` gets a dev
+   warning instead of polluted attribution a month later. Use click_source. */
+const RESERVED = new Set(["source", "medium", "campaign", "term", "content", "gclid", "page_referrer"]);
+function strip(props) {
+  const out = {};
+  for (const [key, value] of Object.entries(props)) {
+    if (RESERVED.has(key)) {
+      if (DEBUG) console.warn(`[analytics] dropped reserved param "${key}" — rename it, e.g. click_source`);
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
 /** Record a curated event. Unknown event names are allowed but discouraged. */
 export function track(event, props = {}) {
   if (isPreview()) return;
@@ -123,7 +142,7 @@ export function track(event, props = {}) {
     if (DEBUG) console.debug("[analytics] suppressed on private route:", event);
     return;
   }
-  const payload = { ...kioskParams(), ...props };
+  const payload = strip({ ...kioskParams(), ...props });
   if (DEBUG) console.debug("[analytics]", event, payload);
   try {
     send(event, payload);
