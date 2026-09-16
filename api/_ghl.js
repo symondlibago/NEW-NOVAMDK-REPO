@@ -360,6 +360,42 @@ export async function markOpportunityPaid(opportunityId) {
   return data?.opportunity || null;
 }
 
+/** The board in display order, for the staff dashboard's funnel. */
+export async function pipelineBoard() {
+  const { pipelineId, stages, pipelineName } = await resolvePipeline();
+  const ordered = stages
+    .map((s, i) => ({ id: s.id, name: s.name, order: typeof s.position === "number" ? s.position : i }))
+    .sort((a, b) => a.order - b.order);
+  return { pipelineId, pipelineName, stages: ordered };
+}
+
+/* Every opportunity on one pipeline, for counting.
+
+   Deliberately paged and counted locally rather than asking GHL for a count per
+   stage: that would mean one request per column and betting on the exact spelling
+   of its filter parameters. At ~120 records this is two requests and no guesswork.
+   PAGE_CAP keeps a runaway location from turning a dashboard load into hundreds
+   of calls. */
+const OPPORTUNITY_PAGE = 100;
+const PAGE_CAP = 20;
+
+export async function listOpportunities(pipelineId) {
+  if (!pipelineId) return [];
+  const all = [];
+  let path =
+    `/opportunities/search?location_id=${LOCATION_ID}` +
+    `&pipeline_id=${encodeURIComponent(pipelineId)}&limit=${OPPORTUNITY_PAGE}`;
+
+  for (let page = 0; page < PAGE_CAP && path; page++) {
+    const data = await ghlFetch(path);
+    all.push(...(data?.opportunities || []));
+    const next = data?.meta?.nextPageUrl;
+    // nextPageUrl is absolute; ghlFetch wants a path.
+    path = next && all.length < (data?.meta?.total ?? 0) ? next.replace(BASE, "") : null;
+  }
+  return all;
+}
+
 /* Board columns the intake moves a visit through. Names rather than ids, like
    Paid: they're resolved against the live pipeline, so renaming a column in GHL
    only needs the matching env var. */

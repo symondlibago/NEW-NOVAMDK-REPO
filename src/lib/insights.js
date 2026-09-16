@@ -42,3 +42,7 @@ async function get(url) {
 
 export const insightsAuth = (body) => post("/api/insights-auth", body);
 export const insightsData = (days) => get(`/api/insights?days=${days}`);
+/* Pipeline and intake funnel. Separate call from the GA4 one on purpose: it has
+   no date window, and one source being slow or unconfigured must not hold up the
+   other. */
+export const insightsOps = () => get("/api/insights-ops");

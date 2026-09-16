@@ -175,6 +175,10 @@ const countsByName = (rows) =>
 const CACHE_MS = 5 * 60_000;
 const cache = new Map();
 
+// Said once per instance, not once per request: the page re-asks whenever the
+// date window changes, and thirteen identical lines bury real errors.
+let warnedMissing = false;
+
 export default async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method Not Allowed" });
@@ -189,7 +193,10 @@ export default async function handler(req, res) {
   }
 
   if (!ga4Configured()) {
-    console.warn("GA4 service account env vars missing — dashboard has no data source.");
+    if (!warnedMissing) {
+      warnedMissing = true;
+      console.warn("GA4 service account env vars missing — /api/insights has no data source.");
+    }
     return res.status(503).json({ error: "not_configured" });
   }
 
