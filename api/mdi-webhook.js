@@ -47,6 +47,44 @@ const ORDER_EVENTS = new Set([
   "order_tracking_number_changed",
 ]);
 
+/* How far along each status is, so the field can't be walked backwards.
+
+   MDI fires events in quick succession and repeats them: approving a case also
+   submits the prescription, so `case_approved` and `case_processing` arrive
+   three seconds apart, and clicking approve twice more afterwards sent
+   `case_approved` again. The last write would otherwise win and the field would
+   read "approved" while the card sat in Pharmacy Processing.
+
+   The column was already protected by moveOpportunityForward; this gives the
+   text field the same one-way rule. `cancelled` ranks highest because it is
+   terminal: nothing should overwrite it. An unranked status (an order status is
+   free text from the pharmacy) is written as-is, since we can't place it. */
+const STATUS_RANK = {
+  created: 1,
+  waiting: 2,
+  assigned: 3,
+  support: 3,
+  approved: 4,
+  processing: 5,
+  shipped: 6,
+  completed: 7,
+  cancelled: 8,
+};
+
+/** Whether `next` is at least as far along as what the contact already holds. */
+function advances(next, contact) {
+  const nextRank = STATUS_RANK[String(next).toLowerCase()];
+  if (!nextRank) return true; // unrankable, so not ours to judge
+
+  const current = (contact?.customFields || []).find(
+    (f) => f.id === SEARCH_FIELD_ID.MDI_ENCOUNTER_STATUS
+  );
+  const currentRank = STATUS_RANK[String(current?.value ?? current?.fieldValue ?? "").toLowerCase()];
+  if (!currentRank) return true; // nothing meaningful there yet
+
+  return nextRank >= currentRank;
+}
+
 /* Same guard as ghl-encounter: a status is a short workflow label, so anything
    longer isn't one and is dropped rather than risk carrying content across. */
 const STATUS_MAX = 60;
@@ -187,9 +225,17 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: false, skipped: "no_contact" });
     }
 
+    /* The tag and the date always land: a repeat or late event is still proof
+       the case reached that state, and the date is proof MDI is talking to us.
+       Only the single-value status field is held back from regressing. */
+    const keepStatus = status && advances(status, contact);
+    if (status && !keepStatus) {
+      console.info(`MDI webhook ${event}: kept the further-along status, not writing "${status}"`);
+    }
+
     const writes = [
       updateContactFields(contact.id, {
-        ...(status && { [FIELD.MDI_ENCOUNTER_STATUS]: status }),
+        ...(keepStatus && { [FIELD.MDI_ENCOUNTER_STATUS]: status }),
         [FIELD.LAST_MDI_UPDATE_DATE]: clinicStamp(),
       }),
       tag ? tagContact(contact.id, [tag]) : Promise.resolve(null),

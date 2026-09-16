@@ -404,6 +404,10 @@ export async function listOpportunities(pipelineId) {
 export const SEARCH_FIELD_ID = {
   MDI_PATIENT_ID: process.env.GHL_PATIENT_FIELD_ID || "7MvQaZ3R3i8ShJPSqjnF",
   LATEST_MDI_ENCOUNTER_ID: process.env.GHL_ENCOUNTER_FIELD_ID || "A78uoI08lkh2tbbQjYMU",
+  /* Read, not searched: /contacts/search returns customFields on each hit, so
+     the webhook can see the status it is about to overwrite without a second
+     call. */
+  MDI_ENCOUNTER_STATUS: process.env.GHL_STATUS_FIELD_ID || "ppPP4OXU4nNjBpbYLg1c",
 };
 
 /** The one contact carrying this value in the given custom field, or null. */
