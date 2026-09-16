@@ -1,3 +1,4 @@
+import { readScanSource, readKioskLocation } from "./kioskLocations";
 
 const isBrowser = typeof window !== "undefined";
 const DEBUG = !!(import.meta && import.meta.env && import.meta.env.DEV);
@@ -17,14 +18,69 @@ export const EVENTS = {
   KIOSK_SCAN: "kiosk_scan",               // a phone opened one of those QRs
 };
 
+export const GA_MEASUREMENT_ID = "G-4X11DW5WNW";
+
+/* Routes GA4 is not allowed to run on, per the client's Phase 1 instruction:
+   intake, patient portal, payment, ID verification and provider review. Those
+   last three have no routes of their own — they happen inside the MDI iframe on
+   /intake and inside /portal — so gating the two parents covers all five.
+
+   Prefix match rather than equality: /portal and anything beneath it counts. */
+const PRIVATE_PREFIXES = ["/intake", "/portal"];
+
+export function isPrivatePath(path) {
+  const p = typeof path === "string" && path ? path : isBrowser ? window.location.pathname : "/";
+  return PRIVATE_PREFIXES.some((prefix) => p === prefix || p.startsWith(`${prefix}/`));
+}
+
+/* GA4's own kill switch. The library is one script for the whole tab, so an SPA
+   hop from a product page into /intake would otherwise carry a loaded, live
+   tracker into the intake. This flag makes it drop everything, including its own
+   internal timing pings, for as long as the patient is on those pages. */
+function setDisabled(off) {
+  if (!isBrowser) return;
+  window[`ga-disable-${GA_MEASUREMENT_ID}`] = off;
+}
+
+/* Loaded on demand rather than from index.html, so a visit that starts on
+   /intake or /portal never fetches the tag at all. */
+let loading = false;
+function ensureLoaded() {
+  if (!isBrowser || loading) return;
+  loading = true;
+
+  window.dataLayer = window.dataLayer || [];
+  /* Defined before the library arrives: calls queue into dataLayer and are
+     replayed once it loads, so nothing fired on a fast first click is lost. */
+  if (typeof window.gtag !== "function") {
+    window.gtag = function gtag() {
+      window.dataLayer.push(arguments);
+    };
+  }
+
+  const tag = document.createElement("script");
+  tag.async = true;
+  tag.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
+  document.head.appendChild(tag);
+
+  window.gtag("js", new Date());
+  // Page views are sent by hand on route changes, never automatically.
+  window.gtag("config", GA_MEASUREMENT_ID, { send_page_view: false });
+}
+
+/** Called on every route change. Arms GA4 on public pages, silences it on the
+ *  private ones. */
+export function applyRouteConsent(path) {
+  if (!isBrowser) return false;
+  const priv = isPrivatePath(path);
+  setDisabled(priv);
+  if (!priv) ensureLoaded();
+  return !priv;
+}
+
 /**
- * Forward to Google Analytics 4 (G-4X11DW5WNW, loaded in index.html), and keep
- * the in-memory queue for local debugging.
- *
- * gtag is loaded async, so it may not exist yet on a fast first interaction.
- * `window.gtag` is defined synchronously by the inline snippet though — it just
- * buffers into dataLayer until the library arrives — so a guarded call is enough
- * and nothing is lost.
+ * Forward to Google Analytics 4 (G-4X11DW5WNW, loaded by ensureLoaded above),
+ * and keep the in-memory queue for local debugging.
  *
  * Nothing identifying goes out. Callers pass slugs, ids and category names; no
  * email, name, date of birth or free text from an intake ever reaches here, and
@@ -43,12 +99,34 @@ function isPreview() {
   return isBrowser && new URLSearchParams(window.location.search).has("preview");
 }
 
+/* Attached to every event rather than to the kiosk ones alone. Scans were
+   already countable per kiosk; what the client actually asked to see is where
+   those people then drop out, and that only works if the location travels with
+   the product view and the start_visit too.
+
+   The phone's banked scan comes first: on a patient's own device that is the
+   kiosk that sent them. readKioskLocation is the tablet's own placement, which
+   is what makes an on-screen QR attributable. */
+function kioskParams() {
+  if (!isBrowser) return {};
+  const id = readScanSource() || readKioskLocation();
+  return id ? { kiosk_location_id: id } : {};
+}
+
 /** Record a curated event. Unknown event names are allowed but discouraged. */
 export function track(event, props = {}) {
   if (isPreview()) return;
-  if (DEBUG) console.debug("[analytics]", event, props);
+  /* Checked against the live location, not a passed-in path: an event fired
+     from a component that happens to be mounted on /intake must stay silent
+     even though the caller knows nothing about routes. */
+  if (isPrivatePath()) {
+    if (DEBUG) console.debug("[analytics] suppressed on private route:", event);
+    return;
+  }
+  const payload = { ...kioskParams(), ...props };
+  if (DEBUG) console.debug("[analytics]", event, payload);
   try {
-    send(event, props);
+    send(event, payload);
   } catch {
     /* analytics must never break the app */
   }
@@ -63,6 +141,7 @@ export function track(event, props = {}) {
  */
 export function trackPageView(path) {
   if (isPreview()) return;
+  if (isPrivatePath(path)) return;
   const clean = isBrowser ? `${window.location.origin}${path}` : path;
   if (isBrowser && typeof window.gtag === "function") {
     window.gtag("event", "page_view", {

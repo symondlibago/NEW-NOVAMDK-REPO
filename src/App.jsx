@@ -3,7 +3,7 @@ import { useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import ThemeProvider from "./theme/ThemeContext";
 import ScrollToTop from "./components/Nav/ScrollToTop";
-import { trackPageView } from "./lib/analytics";
+import { trackPageView, applyRouteConsent } from "./lib/analytics";
 import SmoothScroll from "./components/SmoothScroll";
 import RouteTransition from "./components/transition/RouteTransition";
 import Platform from "./pages/Platform";
@@ -25,11 +25,13 @@ const BlogPostPage = lazy(() => import("./pages/BlogPost"));
 const LegalPage = lazy(() => import("./components/LegalPage"));
 const DesignStudio = lazy(() => import("./components/studio/DesignStudio"));
 
-// Fires a single page_view per route change (pathname only — no query noise).
+/* Fires a single page_view per route change (pathname only — no query noise),
+   and arms or silences GA4 first: the tag is only ever loaded on a public route,
+   and is switched off outright while the patient is on /intake or /portal. */
 function RouteAnalytics() {
   const { pathname } = useLocation();
   useEffect(() => {
-    trackPageView(pathname);
+    if (applyRouteConsent(pathname)) trackPageView(pathname);
   }, [pathname]);
   return null;
 }

@@ -125,9 +125,10 @@ export default function ProductPage() {
     /* The only place a scan can be counted. GHL never sees this one: nobody has
        identified themselves yet, and most people who scan never will. */
     track(EVENTS.KIOSK_SCAN, {
-      kiosk_location: from,
-      treatment: product?.name,
-      category: product?.categorySlug,
+      kiosk_location_id: from,
+      product_id: product?.id,
+      product_name: product?.name,
+      treatment_category: product?.categorySlug,
     });
 
     const next = new URLSearchParams(search);
@@ -138,7 +139,11 @@ export default function ProductPage() {
   // Record a product view (high-signal: which treatments get attention).
   useEffect(() => {
     if (product) {
-      track(EVENTS.PRODUCT_VIEWED, { id: product.id, name: product.name, category: product.categorySlug });
+      track(EVENTS.PRODUCT_VIEWED, {
+        product_id: product.id,
+        product_name: product.name,
+        treatment_category: product.categorySlug,
+      });
     }
   }, [product?.id]);
 
@@ -186,7 +191,11 @@ export default function ProductPage() {
      what kept Compliance.jsx from firing an unrelated disclaimer onto an Rx
      page. */
   const startVisit = async (patient) => {
-    track(EVENTS.START_VISIT, { id: active.id, name: active.name, category: active.categorySlug });
+    track(EVENTS.START_VISIT, {
+      product_id: active.id,
+      product_name: active.name,
+      treatment_category: active.categorySlug,
+    });
     setErr("");
     setLoading(true);
     try { sessionStorage.removeItem("ghl_opportunity"); } catch { /* private mode */ }
@@ -661,9 +670,10 @@ function KioskQrModal({ product, onClose, onContinueHere, loading = false, err =
   useEffect(() => {
     if (locId === undefined) return;
     track(EVENTS.KIOSK_QR_SHOWN, {
-      kiosk_location: locId || "unset",
-      treatment: product.name,
-      category: product.categorySlug,
+      kiosk_location_id: locId || "unset",
+      product_id: product.id,
+      product_name: product.name,
+      treatment_category: product.categorySlug,
     });
   }, [locId, product.id]);
 

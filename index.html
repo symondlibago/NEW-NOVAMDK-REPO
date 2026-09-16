@@ -3,14 +3,9 @@
   <head>
     <meta charset="UTF-8" />
 
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-4X11DW5WNW"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-4X11DW5WNW', { send_page_view: false });
-    </script>
+    <!-- Google tag (gtag.js) is NOT loaded here on purpose. It is injected by
+         src/lib/analytics.js on the first public route, so a visit that lands
+         straight on /intake or /portal never fetches it. See applyRouteConsent. -->
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

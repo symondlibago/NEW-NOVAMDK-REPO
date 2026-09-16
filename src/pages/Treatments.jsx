@@ -203,7 +203,9 @@ export default function TreatmentsPage() {
                 double-width first tile would break that back into three ragged rows. */}
             <CategoryGrid
               items={TREATMENT_CATS}
-              onItemClick={(it) => track(EVENTS.CATEGORY_SELECTED, { category: it.goal, source: "treatments" })}
+              onItemClick={(it) =>
+                track(EVENTS.CATEGORY_SELECTED, { treatment_category: it.goal, source: "treatments" })
+              }
             />
           </section>  
         </>
