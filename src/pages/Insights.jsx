@@ -147,6 +147,9 @@ export default function InsightsPage() {
   const [days, setDays] = useState(28);
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
+  /* Kept apart from `err`: "the key isn't set up" is a state of the plan, not a
+     fault, and a red banner over a working report trains people to ignore red. */
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -159,6 +162,7 @@ export default function InsightsPage() {
     (window) => {
       setLoading(true);
       setErr("");
+      setNotice("");
       insightsData(window)
         .then(setData)
         .catch((e) => {
@@ -166,12 +170,16 @@ export default function InsightsPage() {
             setState("out");
             return;
           }
+          if (e.message === "not_configured") {
+            setNotice(
+              "Summary panels are switched off until the Google key is added. The report below has the full traffic data."
+            );
+            return;
+          }
           setErr(
-            e.message === "not_configured"
-              ? "The summary panels aren't connected yet: they need the Google service account key. The report below works without it."
-              : e.message === "upstream_failed"
-                ? "Google Analytics didn't answer. Try again in a moment."
-                : e.message
+            e.message === "upstream_failed"
+              ? "Google Analytics didn't answer. Try again in a moment."
+              : e.message
           );
         })
         .finally(() => setLoading(false));
@@ -242,6 +250,12 @@ export default function InsightsPage() {
       {err && (
         <p className="mx-auto mt-6 max-w-[1180px] rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[0.87rem] font-medium text-red-700">
           {err}
+        </p>
+      )}
+
+      {notice && (
+        <p className="mx-auto mt-6 max-w-[1180px] rounded-xl border border-line bg-surface px-4 py-3 text-[0.85rem] text-muted">
+          {notice}
         </p>
       )}
 
