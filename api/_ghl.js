@@ -396,6 +396,43 @@ export async function listOpportunities(pipelineId) {
   return all;
 }
 
+/* Field ids, not keys, because searching demands ids: a filter written as
+   `customFields.<key>` is rejected with a 422. They're hardcoded like
+   TREATMENT_FIELD_ID above because GET /locations/:id/customFields answers 401
+   for this token, so they can't be resolved at runtime. Both were identified by
+   asking MDI which uuid was a patient and which was a case. */
+export const SEARCH_FIELD_ID = {
+  MDI_PATIENT_ID: process.env.GHL_PATIENT_FIELD_ID || "7MvQaZ3R3i8ShJPSqjnF",
+  LATEST_MDI_ENCOUNTER_ID: process.env.GHL_ENCOUNTER_FIELD_ID || "A78uoI08lkh2tbbQjYMU",
+};
+
+/** The one contact carrying this value in the given custom field, or null. */
+export async function findContactByCustomField(fieldId, value) {
+  if (!fieldId || !value) return null;
+  const data = await ghlFetch("/contacts/search", {
+    method: "POST",
+    body: {
+      locationId: LOCATION_ID,
+      pageLimit: 2,
+      filters: [{ field: `customFields.${fieldId}`, operator: "eq", value }],
+    },
+  });
+  return (data?.contacts || [])[0] || null;
+}
+
+/* Every opportunity belonging to one contact, newest first. `contact_id` is
+   snake_case on this endpoint; `contactId` is rejected with a 422. */
+export async function opportunitiesForContact(contactId) {
+  if (!contactId) return [];
+  const data = await ghlFetch(
+    `/opportunities/search?location_id=${LOCATION_ID}` +
+      `&contact_id=${encodeURIComponent(contactId)}&limit=50`
+  );
+  return (data?.opportunities || []).sort(
+    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+  );
+}
+
 /* Board columns the intake moves a visit through. Names rather than ids, like
    Paid: they're resolved against the live pipeline, so renaming a column in GHL
    only needs the matching env var. */
