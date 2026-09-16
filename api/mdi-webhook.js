@@ -10,6 +10,7 @@ import {
   SEARCH_FIELD_ID,
   FIELD,
 } from "./_ghl.js";
+import { mdi } from "./_mdi.js";
 
 /* Receives MDI's webhooks and mirrors the nonclinical status into GHL.
 
@@ -132,19 +133,46 @@ function signatureOk(raw, payload, header) {
 /* The contact is found by the case id first, which is the same value MDI calls
    the encounter id and the one we already store per visit. A voucher event
    arrives before any case exists, so it falls back to the patient id. */
+/* Case events carry `case_id` and nothing else identifying: no `patient_id`.
+   So a case whose id we never stored can't be matched directly, and that is the
+   ordinary situation for a returning patient. `latest_mdi_encounter_id` holds
+   one value, the encounter we saw at their last intake, so a follow-up
+   encounter created afterwards simply isn't in it.
+
+   MDI can close the gap: GET /cases/:id answers in about a second and carries
+   the patient. Only called on the miss path, so the common case stays one GHL
+   lookup. */
+async function patientIdForCase(caseId) {
+  const r = await mdi(`/cases/${encodeURIComponent(caseId)}`);
+  if (!r.ok) {
+    console.warn(`MDI case lookup for ${caseId} returned ${r.status}`);
+    return null;
+  }
+  const c = r.data?.data || r.data;
+  return c?.patient_id || c?.patient?.patient_id || c?.patient?.id || null;
+}
+
+/** @returns {Promise<{contact: object, stampCaseId: string|null}|null>} */
 async function findContact(payload) {
-  const caseId = payload.case_id || payload.encounter_id;
+  const caseId = payload.case_id || payload.encounter_id || null;
+
   if (caseId) {
-    const byCase = await findContactByCustomField(
-      SEARCH_FIELD_ID.LATEST_MDI_ENCOUNTER_ID,
-      caseId
-    );
-    if (byCase) return byCase;
+    const byCase = await findContactByCustomField(SEARCH_FIELD_ID.LATEST_MDI_ENCOUNTER_ID, caseId);
+    if (byCase) return { contact: byCase, stampCaseId: null };
   }
-  if (payload.patient_id) {
-    return findContactByCustomField(SEARCH_FIELD_ID.MDI_PATIENT_ID, payload.patient_id);
-  }
-  return null;
+
+  /* Voucher and patient events do carry patient_id; case events don't, so for
+     those we ask MDI. */
+  const patientId = payload.patient_id || (caseId ? await patientIdForCase(caseId) : null);
+  if (!patientId) return null;
+
+  const byPatient = await findContactByCustomField(SEARCH_FIELD_ID.MDI_PATIENT_ID, patientId);
+  if (!byPatient) return null;
+
+  /* Record the case id we just resolved the hard way, so the next event for
+     this same case matches on the first lookup instead of round-tripping to
+     MDI again. */
+  return { contact: byPatient, stampCaseId: caseId };
 }
 
 export default async function handler(req, res) {
@@ -216,7 +244,8 @@ export default async function handler(req, res) {
   const tag = known.tag || (shipped ? "mdi-shipped" : null);
 
   try {
-    const contact = await findContact(payload);
+    const found = await findContact(payload);
+    const contact = found?.contact || null;
     if (!contact?.id) {
       /* Still a 200: a case we have no contact for is usually a patient created
          directly in MDI rather than through the website, which is not an error
@@ -236,6 +265,7 @@ export default async function handler(req, res) {
     const writes = [
       updateContactFields(contact.id, {
         ...(keepStatus && { [FIELD.MDI_ENCOUNTER_STATUS]: status }),
+        ...(found.stampCaseId && { [FIELD.LATEST_MDI_ENCOUNTER_ID]: found.stampCaseId }),
         [FIELD.LAST_MDI_UPDATE_DATE]: clinicStamp(),
       }),
       tag ? tagContact(contact.id, [tag]) : Promise.resolve(null),
