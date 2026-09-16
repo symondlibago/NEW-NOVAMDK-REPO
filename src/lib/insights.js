@@ -40,9 +40,14 @@ async function get(url) {
   return data;
 }
 
-export const insightsAuth = (body) => post("/api/insights-auth", body);
-export const insightsData = (days) => get(`/api/insights?days=${days}`);
-/* Pipeline and intake funnel. Separate call from the GA4 one on purpose: it has
-   no date window, and one source being slow or unconfigured must not hold up the
+/* All three go to one endpoint, which is a deployment constraint rather than a
+   design choice: Vercel's Hobby plan caps a deployment at 12 serverless
+   functions and api/ had reached 13. POST carries the auth actions, GET carries
+   the data, and `resource` picks which data.
+
+   They stay separate calls from the page's point of view: the CRM panels have no
+   date window, and one source being slow or unconfigured must not hold up the
    other. */
-export const insightsOps = () => get("/api/insights-ops");
+export const insightsAuth = (body) => post("/api/insights", body);
+export const insightsData = (days) => get(`/api/insights?days=${days}`);
+export const insightsOps = () => get("/api/insights?resource=ops");

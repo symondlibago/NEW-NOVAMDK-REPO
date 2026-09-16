@@ -18,7 +18,7 @@ import Seo from "../components/Seo";
 import { insightsAuth, insightsData, insightsOps } from "../lib/insights";
 
 /* Staff analytics, reading GA4 through /api/insights and the CRM through
-   /api/insights-ops. Everything on this page is aggregate counts: no patient is
+   /api/insights?resource=ops. Everything on this page is aggregate counts: no patient is
    identifiable here, and nothing clinical is in either source to begin with. */
 
 const WINDOWS = [
