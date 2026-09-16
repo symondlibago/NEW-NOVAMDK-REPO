@@ -18,6 +18,7 @@ const Consult = lazy(() => import("./pages/Consult"));
 const ProductPage = lazy(() => import("./pages/ProductPage"));
 const IntakePage = lazy(() => import("./pages/Intake"));
 const PatientPortalPage = lazy(() => import("./pages/PatientPortal"));
+const InsightsPage = lazy(() => import("./pages/Insights"));
 const WeightLossCalculatorPage = lazy(() => import("./pages/WeightLossCalculator"));
 const SitemapPage = lazy(() => import("./pages/SitemapPage"));
 const BlogPage = lazy(() => import("./pages/Blog"));
@@ -87,6 +88,9 @@ function App() {
           <Route path="/product/:id" element={<ProductPage />} />
           <Route path="/intake" element={<IntakePage />} />
           <Route path="/portal" element={<PatientPortalPage />} />
+          {/* Staff analytics. Unlinked and noindexed, but the real lock is on
+              the API: hiding a React route protects nothing by itself. */}
+          <Route path="/insights" element={<InsightsPage />} />
           <Route path="/weight-loss-calculator" element={<WeightLossCalculatorPage />} />
           <Route path="/sitemap" element={<SitemapPage />} />
           <Route path="/blog" element={<BlogPage />} />

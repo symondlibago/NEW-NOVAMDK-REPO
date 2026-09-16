@@ -25,8 +25,11 @@ export const GA_MEASUREMENT_ID = "G-4X11DW5WNW";
    last three have no routes of their own — they happen inside the MDI iframe on
    /intake and inside /portal — so gating the two parents covers all five.
 
-   Prefix match rather than equality: /portal and anything beneath it counts. */
-const PRIVATE_PREFIXES = ["/intake", "/portal"];
+   Prefix match rather than equality: /portal and anything beneath it counts.
+
+   /insights is ours rather than a patient's, but it has no business inflating
+   the client's traffic numbers with staff reading the dashboard. */
+const PRIVATE_PREFIXES = ["/intake", "/portal", "/insights"];
 
 export function isPrivatePath(path) {
   const p = typeof path === "string" && path ? path : isBrowser ? window.location.pathname : "/";

@@ -3,5 +3,6 @@ Allow: /
 Disallow: /intake
 Disallow: /portal
 Disallow: /start
+Disallow: /insights
 
 Sitemap: https://www.novamdk.com/sitemap.xml
