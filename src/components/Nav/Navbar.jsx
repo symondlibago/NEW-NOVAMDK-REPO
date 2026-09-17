@@ -67,7 +67,9 @@ const TREATMENTS = Object.fromEntries(
    src at module scope so each file is measured once for the session. */
 const TIGHT_ART = new Map();
 
-function ProductThumb({ src }) {
+/* Shared by the desktop panel tile and the drawer row, so both size a
+   product off the same measurement. */
+function useTightArt(src) {
   const [tight, setTight] = useState(() => TIGHT_ART.get(src) ?? false);
 
   useEffect(() => {
@@ -87,6 +89,34 @@ function ProductThumb({ src }) {
       alive = false;
     };
   }, [src]);
+
+  return tight;
+}
+
+/* The drawer's row thumbnail. It used to draw every file at 110% to fill a
+   36px tile, which suited the padded renders but blew the tight crops
+   (nad-sublingual, glutathione, scream-cream) up past the tile edge, so those
+   rows showed a cropped close-up of a label while their neighbours showed a
+   whole bottle. The padded renders carry their product at about 82% of the
+   file's height, so they go in unscaled with a hairline of margin; a tight
+   crop fills its file edge to edge, so it gets 12% margin. Both land at about
+   76% of the tile height. Scaling the padded ones up clipped their caps. */
+function DrawerThumb({ src, alt }) {
+  const tight = useTightArt(src);
+  return (
+    <span className="relative block h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-surface-2">
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        className={`absolute inset-0 h-full w-full object-contain ${tight ? "p-[12%]" : "p-0.5"}`}
+      />
+    </span>
+  );
+}
+
+function ProductThumb({ src }) {
+  const tight = useTightArt(src);
 
   /* The image is absolutely positioned rather than laid out in the tile.
      As a centred grid item its height was auto, so `w-full` on a 390x984 file
@@ -186,9 +216,7 @@ function CategoryGroup({ cat, close, open, onToggle }) {
             <div className="flex flex-col gap-1 pt-3">
               {treatments.map((t) => (
                 <Link key={t.id} to={productPath(t)} onClick={close} className="flex items-center gap-3 rounded-xl px-3 py-2 text-[15px] text-muted transition-colors hover:bg-surface-2 hover:text-ink">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-surface-2">
-                    <img src={t.img} alt={t.name} loading="lazy" className="h-full w-full scale-[1.1] object-contain" />
-                  </span>
+                  <DrawerThumb src={t.img} alt={t.name} />
                   <span className="min-w-0 flex-1 truncate">{displayTitle(t)}</span>
                   <ArrowRight size={14} className="shrink-0 opacity-50" />
                 </Link>
