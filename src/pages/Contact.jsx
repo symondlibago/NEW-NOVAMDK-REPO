@@ -1,4 +1,8 @@
 import React, { useEffect, useId, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+
+// Aliased because this ESLint config doesn't count <motion.ul> as using `motion`.
+const MotionList = motion.ul;
 import {
   ArrowRight,
   Check,
@@ -65,7 +69,18 @@ function TopicPicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const wrap = useRef(null);
+  const reduceMotion = useReducedMotion();
   const current = TOPICS.find((t) => t.value === value) || TOPICS[0];
+
+  /* Grows down out of the button rather than appearing, and eases back on close.
+     People who ask their system for reduced motion get the fade alone. */
+  const lift = reduceMotion ? 0 : -6;
+  const listMotion = {
+    initial: { opacity: 0, y: lift, scale: reduceMotion ? 1 : 0.98 },
+    animate: { opacity: 1, y: 0, scale: 1 },
+    exit: { opacity: 0, y: lift * 0.6, scale: reduceMotion ? 1 : 0.98 },
+    transition: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -133,11 +148,14 @@ function TopicPicker({ value, onChange }) {
         />
       </button>
 
+      <AnimatePresence>
       {open && (
-        <ul
+        <MotionList
+          {...listMotion}
           id={`${id}-list`}
           role="listbox"
           aria-labelledby={`${id}-label`}
+          style={{ transformOrigin: "top center" }}
           className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-line bg-surface py-1.5 shadow-xl shadow-black/10"
         >
           {TOPICS.map((t, i) => {
@@ -162,8 +180,9 @@ function TopicPicker({ value, onChange }) {
               </li>
             );
           })}
-        </ul>
+        </MotionList>
       )}
+      </AnimatePresence>
     </div>
   );
 }
