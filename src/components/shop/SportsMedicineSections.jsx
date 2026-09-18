@@ -542,12 +542,14 @@ function LdnPanel() {
 
 /* ----------------------------- 6. closing band ----------------------------- */
 
+/* Full bleed, like the closing band on every other category page
+   (2026-09-19). */
 function ExploreBand({ startTo }) {
   return (
-    <div className="mx-auto max-w-[1520px] px-4 pb-[clamp(3rem,6vw,5rem)] pt-[clamp(3rem,7vw,5rem)] md:px-6">
+    <div className="w-full pt-[clamp(3rem,7vw,5rem)]">
       <Reveal>
         <div
-          className="relative flex min-h-[clamp(22rem,52vw,44rem)] items-end justify-center overflow-hidden rounded-[calc(30px*var(--nv-r-scale,1))] px-6 pb-[clamp(2.5rem,5vw,4rem)]"
+          className="relative flex min-h-[clamp(22rem,52vw,44rem)] items-end justify-center overflow-hidden px-6 pb-[clamp(2.5rem,5vw,4rem)]"
           style={{ background: "radial-gradient(circle at 50% 45%, #c8ab7e, #a2814a)" }}
         >
           <img

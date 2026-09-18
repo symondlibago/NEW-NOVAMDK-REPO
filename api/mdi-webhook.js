@@ -5,6 +5,7 @@ import {
   opportunitiesForContact,
   updateContactFields,
   moveOpportunityForward,
+  markOpportunityLost,
   tagContact,
   clinicStamp,
   SEARCH_FIELD_ID,
@@ -28,8 +29,17 @@ const AUTH = process.env.MDI_WEBHOOK_AUTH || null;
 
 /* Board columns. Names, resolved against the live pipeline by
    moveOpportunityForward, which is forward-only and never drags a won card
-   backwards. Cancelled and support deliberately move nothing: an exit is not a
-   step, and which column it belongs in is the client's call. */
+   backwards.
+
+   `lost` is the exception to that rule: a cancelled case closes the card through
+   markOpportunityLost instead, which ignores direction and sets the status as
+   well as the column. MDI has no "denied" event, so `case_cancelled` is the only
+   signal that a visit ended without treatment, and it covers both a provider
+   turning someone down and a patient pulling out. Enabled on the client's
+   instruction (2026-09-19) to stop denied visits sitting in Paid and counting as
+   won revenue; if the two need telling apart, that has to come from MDI.
+
+   Support still moves nothing: it's a detour, not an exit. */
 const CASE_EVENTS = {
   case_created: { status: "created" },
   case_waiting: { status: "waiting", tag: "mdi-waiting" },
@@ -37,7 +47,7 @@ const CASE_EVENTS = {
   case_processing: { status: "processing", stage: "Pharmacy Processing", tag: "mdi-processing" },
   case_approved: { status: "approved", stage: "Approved", tag: "mdi-approved" },
   case_completed: { status: "completed", stage: "Completed", tag: "mdi-completed" },
-  case_cancelled: { status: "cancelled", tag: "mdi-cancelled" },
+  case_cancelled: { status: "cancelled", tag: "mdi-cancelled", lost: true },
   case_transferred_to_support: { status: "support", tag: "mdi-support" },
 };
 
@@ -242,6 +252,8 @@ export default async function handler(req, res) {
      a paid card parked past Approved would otherwise hide whether a provider
      had approved it. The tag makes it filterable whatever column it sits in. */
   const tag = known.tag || (shipped ? "mdi-shipped" : null);
+  // Closes the card rather than advancing it, so it wins over `stage`.
+  const lost = Boolean(known.lost);
 
   try {
     const found = await findContact(payload);
@@ -271,14 +283,17 @@ export default async function handler(req, res) {
       tag ? tagContact(contact.id, [tag]) : Promise.resolve(null),
     ];
 
-    if (stage) {
+    if (stage || lost) {
       /* The newest opportunity is this visit's. moveOpportunityForward refuses
-         to go backwards or to touch a won card, so a repeat patient's older
-         visits can't be disturbed by a late event on a newer one. */
+         to go backwards, so a repeat patient's older visits can't be disturbed
+         by a late event on a newer one. A close is terminal and skips that rule,
+         but still only ever touches this one card. */
       writes.push(
-        opportunitiesForContact(contact.id).then((opps) =>
-          opps[0]?.id ? moveOpportunityForward(opps[0].id, stage) : null
-        )
+        opportunitiesForContact(contact.id).then((opps) => {
+          const id = opps[0]?.id;
+          if (!id) return null;
+          return lost ? markOpportunityLost(id) : moveOpportunityForward(id, stage);
+        })
       );
     }
 
@@ -293,7 +308,7 @@ export default async function handler(req, res) {
       ok: results.every((r) => r.status === "fulfilled"),
       event,
       contact_id: contact.id,
-      ...(stage && { moved_to: stage }),
+      ...(lost ? { closed_as: "lost" } : stage && { moved_to: stage }),
     });
   } catch (e) {
     /* Deliberately 200. A failure on our side shouldn't cost MDI 6 retries over

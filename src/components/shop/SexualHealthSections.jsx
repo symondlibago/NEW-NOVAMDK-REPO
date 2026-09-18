@@ -24,7 +24,11 @@ const FOCUS = [
   { label: "Confidence & Intimacy", img: "/site/sexual-health/focus-confidence.avif", fit: "object-center" },
 ];
 
-const CARD_R = "rounded-[calc(28px*var(--nv-r-scale,1))]";
+/* The three gold bands went full bleed on 2026-09-19, and a full-width card
+   cannot keep its corner radius: the corners cut into the page edge. Empty
+   rather than deleted at each use, so the three bands stay described by one
+   constant. */
+const CARD_R = "";
 const TILE_R = "rounded-[calc(20px*var(--nv-r-scale,1))]";
 
 function GlassPill({ children, tone = "light", on = false, className = "", ...rest }) {
@@ -56,11 +60,14 @@ function ConfidenceStage({ startTo }) {
   const [arcRef, arcIn] = useRunOnceInView("-80px");
 
   return (
-    <div className="mx-auto max-w-[1320px] px-5 pt-[clamp(2.5rem,6vw,4.5rem)] md:px-10">
+    <div className="w-full">
       <Reveal>
+        {/* The Canva design's own fill: a circular gradient c1a27a to 9a7843.
+            The pale vertical ramp this replaces (2026-09-19) was lighter than
+            the comp and left the white heading thin against it. */}
         <div
           className={`relative overflow-hidden px-5 pt-10 sm:px-10 sm:pt-14 ${CARD_R}`}
-          style={{ background: "linear-gradient(180deg, #d9c4a1 0%, #e3d2b4 42%, #ebdfc8 78%, #f0e7d5 100%)" }}
+          style={{ background: "radial-gradient(circle at 50% 50%, #c1a27a 0%, #9a7843 100%)" }}
         >
           <h2 className="nv-weight-keep mx-auto max-w-[18ch] text-center font-display text-[clamp(1.7rem,5.4vw,3rem)] font-extrabold leading-[1.12] text-white">
             Confidence <em className="italic">Starts</em> With Feeling Like Yourself
@@ -150,11 +157,10 @@ function TalkingBand() {
   };
 
   return (
-    /* Top padding, not bottom. This was written as a closing band, where the
-       space belonged underneath it; sitting second it needs the gap above
-       instead or it butts straight into the hero card. FocusRow below brings its
-       own top padding, so adding one here too would double the gap. */
-    <div className="mx-auto max-w-[1320px] px-5 pt-[clamp(2rem,5vw,3.5rem)] md:px-10">
+    /* The gap above is back (2026-09-19): butted straight against the hero, two
+       full-width photo bands read as one run-on block. FocusRow below brings
+       its own top padding, so this one only needs the space above it. */
+    <div className="w-full pt-[clamp(2rem,5vw,3.5rem)]">
       <Reveal>
         <div className={`relative flex min-h-[clamp(20rem,42vw,34rem)] items-center overflow-hidden ${CARD_R}`}>
           {/* The photograph is the whole card. Its left third is a plain wall, so
@@ -167,7 +173,9 @@ function TalkingBand() {
             className="pointer-events-none absolute inset-0 h-full w-full object-cover object-right"
           />
 
-          <div className="relative z-10 px-7 py-10 sm:px-12">
+          {/* The photograph runs the full width; the copy on it does not
+              (2026-09-19). */}
+          <div className="relative z-10 mx-auto w-full max-w-[1180px] px-7 py-10 sm:px-12">
             <h2 className="nv-weight-keep font-display text-[clamp(1.5rem,3.4vw,2.7rem)] font-extrabold leading-[1.16] text-white">
               When something feels different,
               <br />
@@ -239,10 +247,12 @@ function FocusRow() {
 
 function ExploreBand({ startTo }) {
   return (
-    <div className="mx-auto max-w-[1320px] px-5 pb-[clamp(3rem,6vw,5rem)] md:px-10">
+    /* Taller, with the couple drawn bigger inside it, and run to the foot of
+       the page (2026-09-19). */
+    <div className="w-full">
       <Reveal>
         <div
-          className={`relative flex min-h-[clamp(21rem,48vw,33rem)] items-end justify-center overflow-hidden px-6 pb-[clamp(2rem,4.5vw,3.5rem)] ${CARD_R}`}
+          className={`relative flex min-h-[clamp(26rem,58vw,44rem)] items-end justify-center overflow-hidden px-6 pb-[clamp(2rem,4.5vw,3.5rem)] ${CARD_R}`}
           style={{
             background:
               "linear-gradient(180deg, #ad8f56 0%, #b59660 38%, #c9ad78 72%, #dcc08d 100%)",
@@ -253,7 +263,7 @@ function ExploreBand({ startTo }) {
             alt=""
             aria-hidden="true"
             loading="lazy"
-            className="nv-bandfade pointer-events-none absolute bottom-0 left-1/2 h-[88%] w-auto max-w-none -translate-x-1/2 object-contain object-bottom"
+            className="nv-bandfade pointer-events-none absolute bottom-0 left-1/2 h-[96%] w-auto max-w-none -translate-x-1/2 object-contain object-bottom"
           />
 
           <div className="relative z-10 text-center">

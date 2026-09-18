@@ -163,10 +163,10 @@ function FormulaPanel({ startTo }) {
   }, []);
 
   return (
-    <div className={`mx-auto max-w-[1180px] ${PART_PAD} ${PART_TOP}`}>
+    <div className={`w-full ${PART_TOP}`}>
       <Reveal>
         <div
-          className={`relative overflow-hidden px-4 pb-6 pt-7 sm:px-9 sm:pb-8 sm:pt-12 md:px-12 md:pb-0 md:pt-14 lg:px-16 ${CARD_R}`}
+          className="relative overflow-hidden px-4 pb-6 pt-7 sm:px-9 sm:pb-8 sm:pt-12 md:px-12 md:pb-0 md:pt-14 lg:px-16"
           style={{ background: BRASS }}
         >
           {/* The comp lifts the ground behind the cut-out; without it the
@@ -180,7 +180,8 @@ function FormulaPanel({ startTo }) {
             }}
           />
 
-          <div className="relative">
+          {/* The band is full bleed; its contents are not (2026-09-19). */}
+          <div className="relative mx-auto w-full max-w-[1180px]">
             {/* The comp breaks after the comma. Below md the line is too long
                 to hold, so the break only applies once there is room for it. */}
             <h2 className={`${TITLE} max-w-[26ch] text-[clamp(1.3rem,3.6vw,2.7rem)]`} style={{ color: CREAM }}>

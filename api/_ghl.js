@@ -360,6 +360,44 @@ export async function markOpportunityPaid(opportunityId) {
   return data?.opportunity || null;
 }
 
+/* A visit that ended without treatment.
+ *
+ * Deliberately not moveOpportunityForward: that one is forward-only, and an exit
+ * is not a step along the board. A cancelled case ends the visit wherever it had
+ * reached, including past Paid.
+ *
+ * The status matters more than the column here. Every revenue and conversion
+ * report in GHL reads status alone, so a cancelled visit left as "won" keeps
+ * counting money the patient was never charged for, or was refunded. The column
+ * is set too when it exists, because that is where staff look.
+ *
+ * Never throws, same reasoning as moveOpportunityForward: losing the board write
+ * must not cost the status field, the tag or MDI's delivery.
+ */
+const DENIED_STAGE_NAME = process.env.GHL_DENIED_STAGE_NAME || "Denied";
+
+export async function markOpportunityLost(opportunityId) {
+  if (!opportunityId) return null;
+  try {
+    const { stages, pipelineName } = await resolvePipeline();
+    const denied = stages.find((s) => s.name?.toLowerCase() === DENIED_STAGE_NAME.toLowerCase());
+    if (!denied) {
+      console.warn(
+        `GHL pipeline "${pipelineName}" has no "${DENIED_STAGE_NAME}" stage, so the card keeps its column and only its status is set.`
+      );
+    }
+
+    const data = await ghlFetch(`/opportunities/${opportunityId}`, {
+      method: "PUT",
+      body: { status: "lost", ...(denied && { pipelineStageId: denied.id }) },
+    });
+    return data?.opportunity || null;
+  } catch (e) {
+    console.error("GHL mark-lost failed:", e.message, e.details ?? "");
+    return null;
+  }
+}
+
 /** The board in display order, for the staff dashboard's funnel. */
 export async function pipelineBoard() {
   const { pipelineId, stages, pipelineName } = await resolvePipeline();

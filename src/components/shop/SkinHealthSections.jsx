@@ -27,11 +27,14 @@ const TRUST = [
   { img: "/site/skin-health/trust-delivery.avif", label: "Online care. Home delivery, if prescribed" },
 ];
 
+/* Full bleed (2026-09-19): no side margin and no card radius, so the sky shot
+   and the panel under it run the whole width of the page. The copy inside
+   keeps its own padding. */
 function HeroCard({ startTo }) {
   return (
-    <div className="mx-auto max-w-[1320px] px-4 pt-[clamp(1.5rem,3vw,2.5rem)] md:px-10">
+    <div className="w-full">
       <Reveal as="div">
-        <div className={`overflow-hidden ${CARD_R}`}>
+        <div className="overflow-hidden">
           <div className="relative flex min-h-[clamp(20rem,64vw,30rem)] items-center justify-center px-5 py-12 sm:px-10">
             <img
               src="/site/skin-health/hero-sky.avif"
@@ -67,10 +70,13 @@ function HeroCard({ startTo }) {
               </Link>
             </div>
           </div>
+          {/* The panel's ground is full bleed; the copy and the reel on it are
+              not (2026-09-19). */}
           <div
-            className="grid gap-8 px-6 py-9 sm:px-10 sm:py-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12"
+            className="px-6 py-9 sm:px-10 sm:py-12"
             style={{ background: PANEL }}
           >
+            <div className="mx-auto grid w-full max-w-[1180px] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12">
             <div>
               {/* Solid deep brown, with the ramp on "so much" alone. It stays
                   on one line, so clipping the fill to an inline span is safe. */}
@@ -97,6 +103,7 @@ function HeroCard({ startTo }) {
             </div>
 
             <TrustReel />
+            </div>
           </div>
         </div>
       </Reveal>
@@ -200,12 +207,15 @@ function CheckDot() {
 
 /* ---------------------------- 2. the gold band ---------------------------- */
 
+/* Full bleed, same as the hero card above it, and butted straight against it:
+   with both bands running edge to edge the gap between them read as a white
+   stripe across the page (2026-09-19). */
 function BeyondRoutine({ startTo }) {
   return (
-    <div className="mx-auto max-w-[1320px] px-4 pt-[clamp(2.5rem,6vw,4.5rem)] md:px-10">
+    <div className="w-full">
       <Reveal as="div">
         <div
-          className={`relative overflow-hidden ${CARD_R}`}
+          className="relative overflow-hidden"
           style={{ background: "radial-gradient(circle at 50% 50%, #c1a27a 0%, #9a7843 100%)" }}
         >
           <div className="relative flex flex-col items-center gap-8 px-6 pb-0 pt-10 text-center sm:px-10 lg:min-h-[clamp(26rem,52vw,43rem)] lg:flex-row lg:items-end lg:gap-0 lg:pt-0 lg:text-left">
@@ -415,12 +425,14 @@ function Guided() {
 
 /* ----------------------------- 5. closing band ---------------------------- */
 
+/* Full bleed (2026-09-19), and it runs to the foot of the page: a bottom
+   margin under a full-width band leaves a white strip above the footer. */
 function ExploreBand({ startTo }) {
   return (
-    <div className="mx-auto max-w-[1320px] px-4 pb-[clamp(3rem,6vw,5rem)] pt-[clamp(3rem,7vw,5.5rem)] md:px-10">
+    <div className="w-full pt-[clamp(3rem,7vw,5.5rem)]">
       <Reveal>
         <div
-          className={`relative flex min-h-[clamp(22rem,52vw,40rem)] items-end justify-center overflow-hidden px-6 pb-[clamp(2rem,4.5vw,3.5rem)] ${CARD_R}`}
+          className="relative flex min-h-[clamp(22rem,52vw,40rem)] items-end justify-center overflow-hidden px-6 pb-[clamp(2rem,4.5vw,3.5rem)]"
           style={{ background: "radial-gradient(circle at 52% 44%, #c3a670 0%, #a2854b 100%)" }}
         >
           <img

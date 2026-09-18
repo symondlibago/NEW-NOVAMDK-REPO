@@ -406,13 +406,17 @@ const ENDORPHINS = ["Pain signaling", "Mood", "Immune signaling", "Inflammatory 
 
 function EndorphinsBand({ startTo }) {
   return (
-    <div className="mx-auto max-w-[1180px] px-5 pb-[clamp(3rem,6vw,5rem)] md:px-10">
+    /* Full bleed (2026-09-19), like the other gold bands across the site. */
+    <div className="w-full pb-[clamp(3rem,6vw,5rem)]">
       <Reveal>
         <div
-          className={`relative overflow-hidden px-6 pb-0 pt-8 sm:px-10 sm:pt-10 lg:h-[clamp(34rem,38vw,36.5rem)] lg:px-14 ${CARD_R}`}
+          className="relative overflow-hidden px-6 pb-0 pt-8 sm:px-10 sm:pt-10 lg:h-[clamp(38rem,46vw,44rem)] lg:px-14"
           style={{ background: BRASS }}
         >
-          <div className="grid items-end gap-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,0.66fr)] lg:gap-10">
+          {/* The band is full bleed; its contents are not (2026-09-19). The
+              figure is positioned against the band itself, so she still runs
+              to its right edge. */}
+          <div className="mx-auto grid w-full max-w-[1180px] items-end gap-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,0.66fr)] lg:gap-10">
             <div className="pb-8 sm:pb-10 lg:flex lg:h-full lg:flex-col lg:items-start">
               <h2
                 /* 16ch dropped "good" onto a line of its own. The break is set
@@ -439,9 +443,10 @@ function EndorphinsBand({ startTo }) {
               >
                 Get Started
               </Link>
-              {/* lg:mb-10 lifts the ladder off the card's bottom edge: with
-                  mt-auto alone it sat flush against it. */}
-              <ul className="mt-[clamp(1.5rem,3vw,2.25rem)] flex flex-col gap-3.5 sm:relative sm:block sm:h-[clamp(10.75rem,12vw,11.5rem)] sm:mt-[clamp(1.75rem,2.4vw,2.25rem)] lg:mt-auto lg:mb-14 lg:w-full">
+              {/* Follows the button rather than being pushed to the foot of the
+                  card (2026-09-19): full bleed made the card tall enough that
+                  mt-auto dropped the ladder below the fold on a laptop. */}
+              <ul className="mt-[clamp(1.5rem,3vw,2.25rem)] flex flex-col gap-3.5 sm:relative sm:block sm:h-[clamp(10.75rem,12vw,11.5rem)] sm:mt-[clamp(1.75rem,2.4vw,2.25rem)] lg:mt-[clamp(1.75rem,3.5vw,3rem)] lg:mb-10 lg:w-full">
                 {ENDORPHINS.map((e, i) => (
                   <li key={e} className="contents sm:block">
                     {/* Each word waits for its own rule to finish drawing, so the
@@ -504,13 +509,18 @@ function EndorphinsBand({ startTo }) {
             </div>
 
             {/* The cut-out sits on the brass with no frame, as the comp has it. */}
-            <div className="relative flex items-end justify-center self-end lg:justify-end">
+            {/* lg:static hands the figure below to the card for positioning.
+                Sizing her through the grid cell could not work: the row is
+                items-end, so the cell is content-sized and h-full on the image
+                had nothing to resolve against — she came out 1186px tall in a
+                662px card and hung out of the bottom (2026-09-19). */}
+            <div className="relative flex items-end justify-center self-end lg:static">
               <img
                 src="/site/sports-medicine/ldn-endorphins.avif"
                 alt=""
                 aria-hidden="true"
                 loading="lazy"
-                className="block h-auto w-[62%] max-w-[17rem] object-contain object-bottom sm:w-[42%] lg:w-full lg:max-w-none"
+                className="block h-auto w-[62%] max-w-[17rem] object-contain object-bottom sm:w-[42%] lg:absolute lg:bottom-0 lg:right-[clamp(1rem,3vw,4rem)] lg:h-[94%] lg:w-auto lg:max-w-none"
               />
             </div>
           </div>

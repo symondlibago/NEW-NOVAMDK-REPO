@@ -73,14 +73,16 @@ function SignalBand({ startTo }) {
   );
 
   return (
-    <div className="mx-auto max-w-[1180px] px-5 pt-[clamp(2rem,5vw,3.5rem)] md:px-10">
+    <div className="w-full pt-[clamp(2rem,5vw,3.5rem)]">
       <Reveal>
         <div
-          className={`relative overflow-hidden px-6 py-9 sm:px-10 sm:py-12 ${CARD_R}`}
+          className="relative overflow-hidden px-6 py-9 sm:px-10 sm:py-12"
           style={{ background: BRASS_CARD }}
         >
           {/* TOP SECTION */}
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start lg:gap-12">
+          {/* The band is full bleed; its contents are not. Left to the band's
+              own width the copy ran 1360px to the line (2026-09-19). */}
+          <div className="mx-auto grid w-full max-w-[1180px] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start lg:gap-12">
             {/* LEFT */}
             <div>
               <h2
@@ -113,7 +115,7 @@ function SignalBand({ startTo }) {
           </div>
 
           {/* GRAPH / STATISTIC SECTION */}
-          <div className="relative mt-[clamp(2rem,5vw,3.5rem)]">
+          <div className="relative mx-auto mt-[clamp(2rem,5vw,3.5rem)] w-full max-w-[1180px]">
             {/* TEXT ABOVE GRAPH */}
             <p
               className="mx-auto max-w-[34ch] text-center text-[clamp(0.95rem,1.35vw,1.15rem)] font-semibold leading-snug"
@@ -1281,9 +1283,9 @@ export default function SermorelinSections({
 
       <WithoutInjections />
 
-      <UnderstandBand
-        startTo={startTo}
-      />
+      {/* The "Understand the pathway" closing band was dropped at the client's
+          request (2026-09-19). UnderstandBand itself is left in the file, ready
+          to drop back in if it is wanted again. */}
     </section>
   );
 }

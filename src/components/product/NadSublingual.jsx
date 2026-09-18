@@ -31,11 +31,13 @@ export default function NadSublingual({ startTo = "/start" }) {
 
   return (
     <section className="py-[clamp(2rem,4vw,3.5rem)]" style={{ background: "#faf8f4" }}>
-      <div className="mx-auto max-w-[1180px] px-5 md:px-10">
+      <div className="w-full">
         <div
-          className="overflow-hidden rounded-[calc(28px*var(--nv-r-scale,1))] px-6 py-9 sm:px-10 sm:py-12 lg:px-14 lg:py-16"
+          className="overflow-hidden px-6 py-9 sm:px-10 sm:py-12 lg:px-14 lg:py-16"
           style={{ background: GROUND }}
         >
+          {/* The band is full bleed; its contents are not (2026-09-19). */}
+          <div className="mx-auto w-full max-w-[1180px]">
           {/* ------------------------- capsule ------------------------- */}
           <Reveal as="div">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start lg:gap-10">
@@ -152,8 +154,12 @@ export default function NadSublingual({ startTo = "/start" }) {
               ))}
             </ol>
           </div>
+          </div>
         </div>
 
+        {/* Everything after the gold card keeps the page's own width: only the
+            card itself went full bleed (2026-09-19). */}
+        <div className="mx-auto max-w-[1180px] px-5 md:px-10">
         {/* Required qualifiers. The second one used to name the energy meter,
             which is gone as of the 2026-09-08 compliance pass, so it now covers
             the graphics that remain. */}
@@ -187,6 +193,7 @@ export default function NadSublingual({ startTo = "/start" }) {
               <span style={{ color: "#7a5f36" }}>made for everyday use</span>
             </p>
           </Reveal>
+        </div>
         </div>
       </div>
     </section>

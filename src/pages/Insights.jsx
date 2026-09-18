@@ -418,10 +418,24 @@ export default function InsightsPage() {
 
         {ops?.board && (
           <div className={`${shell} mt-6 space-y-5`}>
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Total and Lost are here so the tiles reconcile against the columns
+                below. Without them the board added up to more than open + won and
+                the missing card looked like a bug, which it isn't: a lost card
+                still sits in whichever column it was denied at. */}
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <Metric
+                label="Total visits"
+                value={count(ops.board.total)}
+                hint={`${count(ops.board.open)} open + ${count(ops.board.won)} won + ${count(
+                  ops.board.lost
+                )} lost`}
+              />
               <Metric label="Open visits" value={count(ops.board.open)} hint={ops.board.pipeline} />
-              <Metric label="Won" value={count(ops.board.won)} />
-              <Metric label="Won revenue" value={money(ops.board.won_value)} />
+              <Metric label="Won" value={count(ops.board.won)} hint="Paid" />
+              {/* Status, not the Denied column: they're separate fields in GHL and
+                  a card in Denied can still be status open. */}
+              <Metric label="Lost" value={count(ops.board.lost)} hint="Marked lost or abandoned" />
+              <Metric label="Won revenue" value={money(ops.board.won_value)} hint="Collected" />
               <Metric label="Open value" value={money(ops.board.open_value)} hint="Not yet paid" />
             </section>
 
@@ -429,8 +443,8 @@ export default function InsightsPage() {
               <div className={`${card} lg:col-span-3`}>
                 <p className={sectionLabel}>Where visits sit</p>
                 <p className="mt-1.5 text-[0.82rem] text-muted">
-                  Every card on the {ops.board.pipeline}, by column. Percentages are of the first
-                  column.
+                  Every card on the {ops.board.pipeline}, by column, won and lost ones included.
+                  Percentages are of the first column.
                 </p>
                 <Funnel rows={ops.board.stages} />
               </div>

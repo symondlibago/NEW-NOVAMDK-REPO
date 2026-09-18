@@ -184,11 +184,14 @@ function ResponseStartsEarlier({ startTo }) {
           <SignalDiagram />
 
           <FeatureGrid />
+
+          {/* Inside the band, on the brass (2026-09-19). Sitting outside the
+              section it put a white strip between two brass bands. */}
+          <p className="pt-7 text-[0.73rem] italic sm:pt-9" style={{ color: CREAM_DIM }}>
+            Prescription required. Eligibility determined by a licensed provider
+          </p>
         </div>
       </section>
-      <p className={`mx-auto max-w-[1180px] pt-7 text-[0.73rem] italic text-muted sm:pt-9 ${SECTION_X}`}>
-        Prescription required. Eligibility determined by a licensed provider
-      </p>
     </>
   );
 }
@@ -199,7 +202,9 @@ function ResponseStartsEarlier({ startTo }) {
 const MOOD_PILLS = [
   { label: "Desire", pos: "left-[34%] top-[7%] px-7", z: "z-10" },
   { label: "Confidence", pos: "right-[3%] top-[31%] px-5", z: "z-30" },
-  { label: "Response", pos: "bottom-[7%] left-[42%] px-5", z: "z-30" },
+  /* On a phone the timing card takes the foot of the band, so Response moves
+     up the left side rather than sitting behind it. */
+  { label: "Response", pos: "left-[6%] top-[20%] px-5 sm:left-[42%] sm:top-auto sm:bottom-[7%]", z: "z-30" },
 ];
 
 function ReadinessCard() {
@@ -214,11 +219,12 @@ function ReadinessCard() {
   }, [running]);
 
   return (
-    <Reveal as="div" className="order-2 lg:order-1">
+    <Reveal as="div" className="order-2 lg:relative lg:order-1">
+      {/* No fill and no radius of its own: the band behind it is the brass, so
+          the figure and the pills sit straight on the section (2026-09-19). */}
       <div
         ref={ref}
-        className={`relative min-h-[27rem] overflow-hidden sm:min-h-[34rem] lg:min-h-[40rem] ${CARD_R}`}
-        style={{ background: BRASS_FLAT }}
+        className="relative min-h-120 overflow-hidden sm:min-h-128 lg:min-h-136"
       >
         {MOOD_PILLS.map((p, i) => (
           <span
@@ -232,32 +238,28 @@ function ReadinessCard() {
             {p.label}
           </span>
         ))}
-        {/* The 45-minute countdown card that sat here was removed on 2026-09-08
-            with the compliance pass: it implied a standard response time. The
-            approved statement takes its place and its position. */}
-        <div
-          className="absolute left-[4%] top-[26%] z-10 w-[74%] rounded-[calc(20px*var(--nv-r-scale,1))] border px-5 py-5 backdrop-blur-[2px] drop-shadow-xl sm:left-[5%] sm:w-[64%] sm:px-6 sm:py-6"
-          style={{ background: "rgba(248,232,197,0.5)", borderColor: "rgba(255,241,210,0.4)" }}
-        >
-          <h3 className={`${TITLE} text-[clamp(1.1rem,2.2vw,1.5rem)]`} style={{ color: "#fffaf0" }}>
-            As-Needed Treatment
-          </h3>
-          <p
-            className="mt-2 max-w-[26ch] text-[0.86rem] leading-[1.45] sm:text-[0.92rem]"
-            style={{ color: CREAM }}
-          >
-            Use only as directed by your healthcare provider
-          </p>
-        </div>
+        <img
+          src="/site/sexual-health/pt141-timing-card.avif"
+          alt="As-Needed Use. Provider-guided timing for PT-141: 45 minutes. Often administered at least 45 minutes before anticipated intimacy, as directed by your provider."
+          loading="lazy"
+          className="absolute bottom-[5%] left-[4%] z-30 w-[92%] max-w-none sm:bottom-auto sm:left-[4%] sm:top-[22%] sm:w-[74%] lg:z-10 lg:w-[64%]"
+        />
         <img
           src="/site/sexual-health/pt141-woman.avif"
           alt=""
           aria-hidden="true"
           loading="lazy"
-          className="absolute bottom-0 right-0 z-20 h-[92%] w-auto max-w-none sm:h-[96%]"
+          /* Flush with the foot of the stage, so the band closes just under
+             her rather than leaving a span of empty brass (2026-09-19). */
+          className="absolute bottom-0 right-0 z-20 h-[96%] w-auto max-w-none sm:h-full"
         />
       </div>
-      <p className="mt-5 text-[0.72rem] italic leading-[1.35] text-muted">
+      {/* Out of flow from lg, so the figure above can stand on the section's
+          own bottom edge instead of being lifted by this line (2026-09-19). */}
+      <p
+        className="mt-5 text-[0.72rem] italic leading-[1.35] lg:absolute lg:bottom-3 lg:left-0 lg:mt-0"
+        style={{ color: CREAM_DIM }}
+      >
         PT-141 is a compounded prescription medication and is not FDA-approved.
         <span className="block">
           Compounded medications are not reviewed by the FDA for safety, effectiveness, or quality
@@ -269,23 +271,32 @@ function ReadinessCard() {
 
 function IsItRight({ startTo }) {
   return (
-    <section className={`mx-auto max-w-[1180px] py-8 sm:py-12 lg:py-16 ${SECTION_X}`}>
-      <div className="grid gap-7 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.68fr)] lg:items-center lg:gap-10">
+    /* One full-bleed brass band carrying the stage AND the copy, as the comp
+       draws it (2026-09-19). It was a rounded brass card with the copy outside
+       it on the cream page: a different layout, not a different card. The copy
+       therefore turns cream, and the button inverts to pale on brass. */
+    <section className="w-full" style={{ background: BRASS_FLAT }}>
+      <div
+        className={`mx-auto grid max-w-[1180px] gap-7 pb-6 pt-8 sm:pb-8 sm:pt-12 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.68fr)] lg:items-end lg:gap-10 lg:pb-0 lg:pt-14 ${SECTION_X}`}
+      >
         <ReadinessCard />
         <Reveal as="div" className="order-1 lg:order-2" delay={0.08}>
-          <span className="font-mono text-[0.65rem] uppercase tracking-[0.08em]" style={{ color: INK }}>
+          <span
+            className="font-mono text-[0.65rem] uppercase tracking-[0.08em]"
+            style={{ color: CREAM_SOFT }}
+          >
             Before you start
           </span>
           <h2
             className={`${TITLE} mt-3 max-w-[13ch] text-[clamp(2rem,4.6vw,3.2rem)]`}
-            style={{ color: INK }}
+            style={{ color: CREAM }}
           >
             Is PT-141
             <span className="block">right for you?</span>
           </h2>
           <p
             className="mt-5 max-w-[34ch] text-[clamp(1rem,1.2vw,1.15rem)] leading-[1.5]"
-            style={{ color: BODY }}
+            style={{ color: CREAM_SOFT }}
           >
             Our care starts with a medical review to make sure PT-141 fits your health and treatment
             goals.
@@ -293,11 +304,14 @@ function IsItRight({ startTo }) {
           <Link
             to={startTo}
             className="mt-6 inline-flex rounded-full px-7 py-3 text-center text-[0.86rem] font-semibold transition-transform duration-300 hover:-translate-y-0.5 sm:px-8"
-            style={{ background: BRASS_FLAT, color: "#fff8e9" }}
+            style={{ background: PALE, color: INK }}
           >
             See If PT-141 Is Right for You
           </Link>
-          <p className="mt-7 max-w-[36ch] text-[0.72rem] italic leading-[1.45] text-muted lg:mt-12">
+          <p
+            className="mt-7 max-w-[64ch] text-[0.72rem] italic leading-[1.45] lg:mt-12"
+            style={{ color: CREAM_DIM }}
+          >
             Prescription only. Treatment is provided when medically appropriate. Compounded
             medications are not FDA-approved.
           </p>
@@ -309,10 +323,12 @@ function IsItRight({ startTo }) {
 
 function Formulation({ startTo }) {
   return (
-    <section className={`mx-auto max-w-[1180px] pb-10 sm:pb-14 lg:pb-20 ${SECTION_X}`}>
+    /* Full bleed, as the comp has it (2026-09-19): the photograph runs edge to
+       edge and the copy on it keeps the page's column. */
+    <section className="w-full pb-10 sm:pb-14 lg:pb-20">
       <Reveal>
         <div
-          className={`relative min-h-[41rem] overflow-hidden sm:min-h-[38rem] lg:min-h-[39rem] ${CARD_R}`}
+          className="relative min-h-164 overflow-hidden sm:min-h-152 lg:min-h-156"
           /* Only ever seen above the photo on narrow screens; it ends on the
              photo's own top-edge colour so the seam disappears. */
           style={{ background: "linear-gradient(#7d6a52, #96826a)" }}
@@ -329,7 +345,8 @@ function Formulation({ startTo }) {
           />
           {/* No scrim: the comp uses the photograph as shot, and the tint was
               flattening its warmth. */}
-          <div className="relative z-10 max-w-[34rem] px-6 pt-7 text-white sm:px-9 sm:pt-10 lg:px-12 lg:pt-12">
+          <div className="relative z-10 mx-auto w-full max-w-[1180px] px-6 pt-7 text-white sm:px-9 sm:pt-10 lg:px-12 lg:pt-12">
+            <div className="max-w-136">
             <span className="font-display text-[0.72rem] font-bold uppercase tracking-[0.06em]">
               Formulation
             </span>
@@ -347,6 +364,7 @@ function Formulation({ startTo }) {
             >
               Get Started
             </Link>
+            </div>
           </div>
 
           <img
@@ -359,7 +377,10 @@ function Formulation({ startTo }) {
           />
 
           <div
-            className="absolute bottom-4 left-4 right-4 z-20 rounded-[calc(20px*var(--nv-r-scale,1))] border-2 px-5 py-5 sm:bottom-7 sm:left-auto sm:right-7 sm:w-[21rem] sm:px-6"
+            /* Pinned to the content column rather than the window: with the
+               band full bleed, sm:right-7 left it 28px off the screen edge
+               while the copy started at the column (2026-09-19). */
+            className="absolute bottom-4 left-4 right-4 z-20 rounded-[calc(20px*var(--nv-r-scale,1))] border-2 px-5 py-5 sm:bottom-7 sm:left-auto sm:right-[max(1.75rem,calc((100%-1180px)/2+2.25rem))] sm:w-84 sm:px-6"
             /* #c5a171, the comp's "Gray orange", rather than the darker brass
                that was here. */
             style={{ background: "rgba(197,161,113,0.58)", borderColor: "rgba(255,241,210,0.35)" }}

@@ -73,13 +73,16 @@ const ACTIVES = [
 
 function FormulaPanel({ startTo }) {
   return (
-    <div className={`mx-auto max-w-[1180px] ${PART_PAD} ${PART_TOP}`}>
+    <div className={`w-full ${PART_TOP}`}>
       <Reveal>
         <div
-          className={`relative overflow-hidden px-4 pb-6 pt-7 sm:px-9 sm:pb-8 sm:pt-12 md:px-12 md:pb-0 md:pt-14 lg:px-16 ${CARD_R}`}
+          className="relative overflow-hidden px-4 pb-6 pt-7 sm:px-9 sm:pb-8 sm:pt-12 md:px-12 md:pb-0 md:pt-14 lg:px-16"
           style={{ background: BRASS }}
         >
-          <div className="relative">
+          {/* The band is full bleed; its contents are not. Without this the
+              copy sat hard against the left edge of the page with a void down
+              the middle (2026-09-19). */}
+          <div className="relative mx-auto w-full max-w-[1180px]">
             {/* -------- the claim -------- */}
             <h2
               className={`${TITLE} max-w-[22ch] text-[clamp(1.3rem,3.6vw,2.7rem)] md:max-w-[26ch]`}

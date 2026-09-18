@@ -89,7 +89,17 @@ export default function ProductJourney({ product }) {
   const programs = programsFor(product.categorySlug).map(programItem);
 
   return (
-    <section className="py-[clamp(2.5rem,5vw,4.5rem)]">
+    /* Every product page runs a full-bleed brass band straight into this
+       section, and the two met on a hard horizontal line. This carries the
+       band's foot into the page ground instead (2026-09-19): the veil sits
+       above this section, over the last 6rem of whatever precedes it, and
+       fades from nothing down to the page's own colour. */
+    <section className="relative py-[clamp(2.5rem,5vw,4.5rem)]">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 -top-24 z-10 h-24"
+        style={{ background: "linear-gradient(180deg, rgba(250,248,244,0) 0%, #faf8f4 100%)" }}
+      />
       <div className="mx-auto max-w-[1180px] px-5 md:px-10">
       <Reveal as="div" className="grid gap-6 md:grid-cols-2 md:items-start">
         <h2 className="max-w-[16ch] font-display text-[clamp(1.5rem,3.2vw,2.2rem)] font-extrabold leading-[1.15] text-[#725826]">

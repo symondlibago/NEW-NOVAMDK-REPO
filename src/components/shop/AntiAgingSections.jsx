@@ -291,10 +291,10 @@ function Benefits() {
 
 function ExploreBand({ startTo }) {
   return (
-    <div className="mx-auto max-w-[1520px] px-4 pt-[clamp(2.5rem,6vw,4.5rem)] md:px-6">
+    <div className="w-full pt-[clamp(2.5rem,6vw,4.5rem)]">
       <Reveal>
         <div
-          className="relative flex min-h-[clamp(24rem,58vw,52rem)] items-end justify-center overflow-hidden rounded-[calc(30px*var(--nv-r-scale,1))] px-6 pb-[clamp(2.5rem,5vw,4rem)]"
+          className="relative flex min-h-[clamp(24rem,58vw,52rem)] items-end justify-center overflow-hidden px-6 pb-[clamp(2.5rem,5vw,4rem)]"
           style={{ background: "radial-gradient(circle at 50% 45%, #c8ab7e, #a2814a)" }}
         >
           <img
@@ -380,11 +380,11 @@ function SublingualBanner() {
   useMidChip(bandRef);
 
   return (
-    <div className="mx-auto max-w-[1520px] px-4 pt-[clamp(2.5rem,6vw,4.5rem)] md:px-6">
+    <div className="w-full pt-[clamp(2.5rem,6vw,4.5rem)]">
       <Reveal>
         <div
           ref={bandRef}
-          className="relative min-h-[clamp(17rem,26vw,24rem)] overflow-hidden rounded-[calc(30px*var(--nv-r-scale,1))] px-7 py-9 sm:px-11 sm:py-12"
+          className="relative min-h-[clamp(17rem,26vw,24rem)] overflow-hidden px-7 py-9 sm:px-11 sm:py-12"
           style={{ background: "radial-gradient(circle at 50% 50%, #c1a27a, #9a7843)" }}
         >
           <h2 className="relative z-20 max-w-[10ch] font-display text-[clamp(1.5rem,3vw,2.3rem)] font-extrabold leading-[1.14] text-[#ffe8b1]">
