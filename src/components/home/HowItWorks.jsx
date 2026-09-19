@@ -87,20 +87,23 @@ function Step({ step, index }) {
         />
       )}
 
+      {/* The size attribute is the sm-and-up figure; the classes override it on
+          a phone, where a 58px glyph over a 40px gap left each step sprawling
+          (2026-09-19). Spacing below is tighter to match. */}
       <step.icon
         size={58}
         strokeWidth={1.5}
         aria-hidden="true"
-        className="shrink-0 text-white"
+        className="h-11 w-11 shrink-0 text-white sm:h-14.5 sm:w-14.5"
       />
 
-      <h3 className="mt-10 font-display text-[clamp(1.35rem,2vw,1.85rem)] font-extrabold leading-[1.15] text-white">
+      <h3 className="mt-5 font-display text-[clamp(1.35rem,2vw,1.85rem)] font-extrabold leading-[1.15] text-white sm:mt-10">
         {step.top}
         <br />
         {step.bottom}
       </h3>
 
-      <p className="mt-3.5 max-w-[28ch] text-[clamp(0.9rem,1.1vw,1rem)] leading-relaxed text-white/85">
+      <p className="mt-3 max-w-[28ch] text-[clamp(0.9rem,1.1vw,1rem)] leading-relaxed text-white/85 sm:mt-3.5">
         {step.body}
       </p>
 
@@ -111,7 +114,7 @@ function Step({ step, index }) {
           which a utility class cannot override. */}
       <Link
         to="/start"
-        className="group relative mt-8 inline-flex h-10 w-43 items-center justify-center rounded-full text-[1.05rem] text-white/70 transition-colors duration-300 hover:text-white sm:mt-auto"
+        className="group relative mt-6 inline-flex h-10 w-43 items-center justify-center rounded-full text-[1.05rem] text-white/70 transition-colors duration-300 hover:text-white sm:mt-auto"
         style={PANEL}
       >
         <span
@@ -157,7 +160,7 @@ export default function HowItWorks() {
             {/* min-h so the panel lands on the comp's 497: the copy alone only
                 fills about 310 and the panel came out squat, with the buttons
                 sitting too close under the text. */}
-            <div className="relative grid gap-10 sm:min-h-92 sm:grid-cols-3 sm:gap-0">
+            <div className="relative grid gap-8 sm:min-h-92 sm:grid-cols-3 sm:gap-0">
               {STEPS.map((step, i) => (
                 <Step key={step.top} step={step} index={i} />
               ))}

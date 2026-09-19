@@ -102,14 +102,17 @@ function FormulaPanel({ startTo }) {
               Get Started
             </Link>
 
-            {/* The bottle: in the flow on a phone, floated out of the panel's
-                top corner once there is a column beside the copy to clear. */}
+            {/* The bottle stands out of the flow at every width now
+                (2026-09-19): centred under the button on a phone it cost the
+                panel a whole band of height and left the formula heading
+                stranded below it. Here it sits beside the copy, as it does on
+                the stage. */}
             <img
               src="/site/sexual-health/olympus-bottle.avif"
               alt=""
               aria-hidden="true"
               loading="lazy"
-              className="nv-drift mx-auto mt-5 block w-16 sm:w-24 md:hidden"
+              className="nv-drift pointer-events-none absolute right-0 top-2 w-16 sm:w-24 md:hidden"
               style={BOTTLE_TILT}
             />
             <img
@@ -128,7 +131,7 @@ function FormulaPanel({ startTo }) {
                 On a phone this is one column: eyebrow, heading, ladder, figure.
                 From md the ladder takes the left and the heading sits above the
                 cut-out on the right, as the comp has it. */}
-            <div className="mt-8 sm:mt-12 md:mt-[clamp(4rem,8vw,7rem)] md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,0.92fr)] md:gap-10">
+            <div className="mt-7 sm:mt-10 md:mt-[clamp(4rem,8vw,7rem)] md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,0.92fr)] md:gap-10">
               <div className="md:order-2 md:flex md:flex-col">
                 <span
                   className="font-mono text-[0.58rem] font-semibold uppercase tracking-[0.16em] sm:text-[0.62rem]"
@@ -197,12 +200,20 @@ function FormulaPanel({ startTo }) {
                 land between the heading and its own list. Rendering it again
                 here (same URL, one request) puts it after the ladder where it
                 belongs in a single column. */}
+            {/* The file is cropped through their torsos, which the stage hides
+                by running her off the card's bottom edge. In the flow there is
+                no edge to hide behind, so the crop is faded out instead
+                (2026-09-19). */}
             <img
               src="/site/sexual-health/olympus-couple.avif"
               alt=""
               aria-hidden="true"
               loading="lazy"
-              className="mx-auto mt-6 block w-[76%] max-w-[16rem] md:hidden"
+              className="mx-auto mt-6 block w-[82%] max-w-[18rem] md:hidden"
+              style={{
+                WebkitMaskImage: "linear-gradient(180deg, #000 0%, #000 78%, transparent 99%)",
+                maskImage: "linear-gradient(180deg, #000 0%, #000 78%, transparent 99%)",
+              }}
             />
 
             <p

@@ -540,11 +540,14 @@ export default function MattersToYou() {
             ready
           </p>
 
-          <div className="mt-7 flex w-full max-w-sm flex-col gap-3 sm:mx-auto sm:max-w-none sm:flex-row sm:justify-center">
+          {/* Pill-width and centred on a phone (2026-09-19), matching the hero:
+              at max-w-sm the pair ran the whole screen and, with mx-auto only
+              from sm, sat off the band's centre line. */}
+          <div className="mx-auto mt-7 flex w-full max-w-60 flex-col gap-2.5 sm:max-w-none sm:flex-row sm:justify-center sm:gap-3">
             {/* Solid white in the comp, against the outlined secondary. */}
             <Link
               to="/treatments"
-              className="inline-flex h-13 items-center justify-center rounded-full bg-white px-8 text-[0.98rem] font-semibold text-[#6d5934] transition-transform duration-300 hover:-translate-y-0.5"
+              className="inline-flex h-11 items-center justify-center rounded-full bg-white px-6 text-[0.88rem] font-semibold text-[#6d5934] transition-transform duration-300 hover:-translate-y-0.5 sm:h-13 sm:px-8 sm:text-[0.98rem]"
             >
               Explore Treatments
             </Link>
@@ -553,7 +556,7 @@ export default function MattersToYou() {
                 and the button read as a solid tan blob. */}
             <Link
               to="/start"
-              className="inline-flex h-13 items-center justify-center rounded-full border border-white/75 bg-white/5 px-8 text-[0.98rem] font-semibold text-white backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/15"
+              className="inline-flex h-11 items-center justify-center rounded-full border border-white/75 bg-white/5 px-6 text-[0.88rem] font-semibold text-white backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/15 sm:h-13 sm:px-8 sm:text-[0.98rem]"
             >
               Get Started
             </Link>

@@ -37,7 +37,9 @@ const FEATURES = [
 function SignalPill({ children, className = "" }) {
   return (
     <span
-      className={`flex items-center gap-2 rounded-full px-4 py-2.5 font-display text-[0.72rem] font-bold uppercase leading-none sm:px-5 sm:text-[0.78rem] ${className}`}
+      /* Smaller on a phone, where three of these are pinned around the vial
+         with only the width left over to sit in (2026-09-19). */
+      className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 font-display text-[0.56rem] font-bold uppercase leading-[1.25] sm:gap-2 sm:px-5 sm:py-2.5 sm:text-[0.78rem] ${className}`}
       style={{ background: "rgba(248,232,197,0.28)", color: CREAM }}
     >
       <span
@@ -69,19 +71,32 @@ function Elbow({ side, className = "" }) {
 function SignalDiagram() {
   return (
     <>
-      <div className="mt-7 flex flex-col items-center md:hidden">
-        <img
-          src="/site/sexual-health/pt141-vial-square.avif"
-          alt=""
-          aria-hidden="true"
-          loading="lazy"
-          className="nv-drift h-60 w-auto drop-shadow-2xl sm:h-72"
-        />
-        <div className="mt-5 flex flex-wrap justify-center gap-2.5">
-          <SignalPill>Melanocortin pathways</SignalPill>
-          <SignalPill>Central signaling</SignalPill>
-          <SignalPill>As-needed use</SignalPill>
-        </div>
+      {/* The phone gets the stage's own arrangement rather than a row of pills
+          under the vial (2026-09-19): same three labels, same elbows, drawn to
+          the width there is. The vial is sized off the box so the pair of
+          columns beside it always has room. */}
+      <div className="relative mx-auto mt-6 h-72 w-full max-w-[26rem] md:hidden">
+        <Elbow side="left" className="left-[27%] top-[46%] h-[5%] w-[12%]" />
+        <Elbow side="right" className="right-[25%] top-[25%] h-[5%] w-[13%]" />
+        <Elbow side="right" className="right-[27%] top-[62%] h-[5%] w-[12%]" />
+        <SignalPill className="absolute left-0 top-[36%] max-w-[26%] text-center">
+          Melanocortin pathways
+        </SignalPill>
+        <SignalPill className="absolute right-0 top-[16%] max-w-[26%] text-center">
+          Central signaling
+        </SignalPill>
+        <SignalPill className="absolute right-0 top-[53%] max-w-[24%] text-center">
+          As-needed use
+        </SignalPill>
+        <span className="absolute left-1/2 top-1/2 h-[92%] -translate-x-1/2 -translate-y-1/2">
+          <img
+            src="/site/sexual-health/pt141-vial-tall.avif"
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            className="nv-drift h-full w-auto drop-shadow-2xl"
+          />
+        </span>
       </div>
 
       <div className="relative mx-auto mt-5 hidden h-[24rem] max-w-[52rem] md:block lg:h-[27rem]">

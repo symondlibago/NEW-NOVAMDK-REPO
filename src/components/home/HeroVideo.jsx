@@ -148,16 +148,20 @@ export default function HeroVideo() {
             ease: EASE,
             delay: 0.14,
           }}
+          /* Held to a pill's width on a phone (2026-09-19): at max-w-sm the two
+             CTAs ran the full width of the screen and read as slabs rather
+             than buttons. Unchanged from sm up. */
           className="
             mt-[clamp(1.6rem,4vw,2.4rem)]
             flex
             w-full
-            max-w-sm
+            max-w-60
             flex-col
-            gap-3
+            gap-2.5
             sm:max-w-none
             sm:flex-row
             sm:justify-center
+            sm:gap-3
           "
         >
 
@@ -170,18 +174,22 @@ export default function HeroVideo() {
             className="
               group
               inline-flex
-              h-[52px]
+              h-11
               items-center
               justify-center
               gap-2
               rounded-full
-              px-8
-              text-[0.98rem]
+              px-6
+              text-[0.88rem]
               font-semibold
               text-white
               shadow-lg
               transition-all
               duration-300
+
+              sm:h-13
+              sm:px-8
+              sm:text-[0.98rem]
 
               hover:-translate-y-0.5
               hover:brightness-[1.08]
@@ -205,20 +213,24 @@ export default function HeroVideo() {
             to="/start"
             className="
               inline-flex
-              h-[52px]
+              h-11
               items-center
               justify-center
               rounded-full
               border
               border-white/45
               bg-white/10
-              px-8
-              text-[0.98rem]
+              px-6
+              text-[0.88rem]
               font-semibold
               text-white
               backdrop-blur-md
               transition-all
               duration-300
+
+              sm:h-13
+              sm:px-8
+              sm:text-[0.98rem]
 
               hover:-translate-y-0.5
               hover:bg-white/20

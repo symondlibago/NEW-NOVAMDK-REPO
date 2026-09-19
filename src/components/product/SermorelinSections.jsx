@@ -670,9 +670,12 @@ function HowItWorks({ startTo }) {
             metabolic and tissue processes
           </p>
 
+          {/* Below lg this button is rendered under the diagram instead, where
+              the comp puts it: stacked, it otherwise sat between the copy and
+              the picture and broke the two apart (2026-09-19). */}
           <Link
             to={startTo}
-            className="mt-10 inline-flex min-w-[15.5rem] items-center justify-center rounded-full bg-[#a98955] px-10 py-4 text-[clamp(1rem,1.05vw,1.18rem)] font-medium text-[#f6efe0] transition-all duration-300 hover:-translate-y-0.5 nv-shadow"
+            className="mt-10 hidden min-w-[15.5rem] items-center justify-center rounded-full bg-[#a98955] px-10 py-4 text-[clamp(1rem,1.05vw,1.18rem)] font-medium text-[#f6efe0] transition-all duration-300 hover:-translate-y-0.5 nv-shadow lg:inline-flex"
           >
             Get Started
           </Link>
@@ -687,12 +690,15 @@ function HowItWorks({ startTo }) {
             className={`relative isolate overflow-hidden ${CARD_R}`}
           >
             {/* Base photo */}
+            {/* Taller on a phone (2026-09-19): at 3/2 across a 350px column the
+                runner was a strip. The desktop ratio is unchanged, since the
+                chips are pinned to it in percentages. */}
             <img
               src="/site/anti-aging/sermorelin-works.png"
               alt=""
               aria-hidden="true"
               loading="lazy"
-              className="relative z-0 block aspect-[3/2] w-full object-cover object-center"
+              className="relative z-0 block aspect-4/3 w-full object-cover object-center sm:aspect-3/2"
             />
 
             {/* Lines 1 and 2 live behind the runner */}
@@ -727,13 +733,25 @@ function HowItWorks({ startTo }) {
             )}
           </div>
 
-          {/* MOBILE / TABLET LIST */}
+          {/* MOBILE / TABLET LIST
+              Arrives one card at a time on the same curve as the desktop chips,
+              rather than all four at once with the photo (2026-09-19). The
+              stagger is its own: with no connectors to wait for, the desktop
+              spacing would leave the last card nearly two seconds behind. */}
           <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:hidden">
             {STEPS.map(
-              (step) => (
-                <li
+              (step, i) => (
+                <Motion.li
                   key={step.title}
                   className="rounded-[calc(14px*var(--nv-r-scale,1))] bg-[#f1e8d8] px-4 py-3"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={IN_VIEW}
+                  transition={{
+                    duration: CHIP_DURATION,
+                    ease: CURVE_EASE,
+                    delay: CHIP_LEAD + i * 0.12,
+                  }}
                 >
                   <p
                     className="text-[0.8rem] font-bold leading-tight"
@@ -752,10 +770,17 @@ function HowItWorks({ startTo }) {
                   >
                     {step.body}
                   </p>
-                </li>
+                </Motion.li>
               )
             )}
           </ul>
+
+          <Link
+            to={startTo}
+            className="mt-6 inline-flex w-full min-w-62 items-center justify-center rounded-full bg-[#a98955] px-10 py-4 text-[1rem] font-medium text-[#f6efe0] transition-all duration-300 hover:-translate-y-0.5 nv-shadow sm:w-auto lg:hidden"
+          >
+            Get Started
+          </Link>
         </Reveal>
       </div>
     </div>
@@ -958,7 +983,7 @@ function GhPathway() {
             alt=""
             aria-hidden="true"
             loading="lazy"
-            className={`block aspect-[16/10] w-full object-cover object-center ${CARD_R}`}
+            className={`block aspect-4/3 w-full object-cover object-center sm:aspect-16/10 ${CARD_R}`}
           />
 
           {/* DESKTOP PATHWAY CARDS */}
@@ -1061,12 +1086,22 @@ function GhPathway() {
         </div>
 
         {/* MOBILE PATHWAY */}
+        {/* Same staggered arrival as the cards in the section above, since the
+            rotating slots this list stands in for are md and up only. */}
         <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 md:hidden">
           {PATHWAY.map(
             (item, i) => (
-              <li
+              <Motion.li
                 key={item.title}
                 className="rounded-[calc(14px*var(--nv-r-scale,1))] bg-[#f1e8d8] px-4 py-3"
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={IN_VIEW}
+                transition={{
+                  duration: CHIP_DURATION,
+                  ease: CURVE_EASE,
+                  delay: CHIP_LEAD + i * 0.12,
+                }}
               >
                 <img
                   src={item.icon}
@@ -1096,7 +1131,7 @@ function GhPathway() {
                 >
                   {item.body}
                 </p>
-              </li>
+              </Motion.li>
             )
           )}
         </ul>

@@ -199,22 +199,26 @@ export default function ImproveGoals() {
 
         {/* ---- the phone stack. No orbit to run: the figure gets the width and
                 the five goals sit under it as a plain list. ---- */}
-        <div className="mt-6 md:hidden">
+        <div className="mt-4 md:hidden">
           <img
             src="/site/improve-hero.avif"
             alt=""
             aria-hidden="true"
             className="mx-auto block h-64 w-auto object-contain"
           />
-          <div className="mt-5 flex flex-col gap-2.5">
+          {/* The cut-out carries transparent canvas under the figure, so the
+              list starts tight against the image and the space beneath him
+              still reads as a gap (2026-09-19). */}
+          <div className="flex flex-col gap-2.5">
             {GOALS.map((goal) => (
               <GoalPill key={goal.label} goal={goal} />
             ))}
           </div>
         </div>
 
-        {/* Phone only — from md this link lives inside the stage. */}
-        <div className="flex justify-end pb-6 pt-4 md:hidden">
+        {/* Phone only — from md this link lives inside the stage, bottom right.
+            Centred here, under the list. */}
+        <div className="flex justify-center pb-6 pt-4 md:hidden">
           <ViewAll />
         </div>
       </div>

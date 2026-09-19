@@ -310,11 +310,31 @@
     from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: none; }
   }
+  /* The phone's stand-in for the wires: each hairline drops into place, then
+     its title fades in under it. */
+  .nv-diagram .nv-drop { transform: scaleY(0); transform-origin: top; }
+  .nv-diagram.is-in .nv-drop {
+    animation: nv-drop 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes nv-drop {
+    from { transform: scaleY(0); }
+    to   { transform: scaleY(1); }
+  }
   .nv-rail__line { transform: scaleX(0); transform-origin: left; }
+  /* Below lg the rail stands on end, so it has to draw downwards. Declared
+     after the base rule, which is what makes it win. */
+  .nv-rail__line--v { transform: scaleY(0); transform-origin: top; }
   .nv-rail__dot,
   .nv-rail__item { opacity: 0; }
   .nv-rail.is-in .nv-rail__line {
     animation: nv-rail-line 1600ms linear both;
+  }
+  .nv-rail.is-in .nv-rail__line--v {
+    animation: nv-rail-line-v 1600ms linear both;
+  }
+  @keyframes nv-rail-line-v {
+    from { transform: scaleY(0); }
+    to   { transform: scaleY(1); }
   }
   .nv-rail.is-in .nv-rail__dot {
     animation: nv-rail-dot 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -849,6 +869,7 @@
   .nv-rail .nv-rail__dot,
   .nv-rail .nv-rail__item { animation: none !important; }
   .nv-diagram .nv-wire { stroke-dashoffset: 0 !important; }
+  .nv-diagram .nv-drop { animation: none !important; transform: none !important; }
   .nv-rail .nv-rail__line { transform: none !important; }
   .nv-diagram .nv-wire__label,
   .nv-rail .nv-rail__dot,

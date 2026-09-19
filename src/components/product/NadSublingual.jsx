@@ -173,7 +173,10 @@ export default function NadSublingual({ startTo = "/start" }) {
         </div>
 
         {/* ------------------------ how it is taken ------------------------ */}
-        <div className="mt-[clamp(2.5rem,6vw,4rem)] grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16">
+        {/* Side by side from the start (2026-09-19): stacked, the photo took a
+            full screen on a phone and pushed the line it belongs with out of
+            sight. It keeps the column it had from lg. */}
+        <div className="mt-[clamp(2.5rem,6vw,4rem)] grid grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)] items-center gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16">
           <Reveal as="div">
             <div className="relative aspect-[0.89] w-full max-w-[34rem] overflow-hidden rounded-[calc(20px*var(--nv-r-scale,1))]">
               <img

@@ -93,13 +93,16 @@ function ActiveDot() {
   );
 }
 
-/* Below md the chips are a plain stack with the description already open: there
-   is no hover on a phone, and a row of six things to tap before you can read
-   them is worse than simply showing the copy. */
-function ActiveRow({ item }) {
+/* Below md there is no hover to open a chip with, and six cards stacked open
+   ran the panel to nearly two screens (2026-09-19). So the phone shows one card
+   at a time and it changes itself, which keeps every description readable
+   without asking for a tap or the height. */
+const ROTATE_MS = 3800;
+
+function ActiveRow({ item, className = "" }) {
   return (
     <li
-      className={`border border-white/25 px-3 py-2 backdrop-blur-xl ${TILE_R}`}
+      className={`border border-white/25 px-3 py-2 backdrop-blur-xl ${TILE_R} ${className}`}
       style={GLASS}
     >
       <span className="flex items-center gap-2">
@@ -112,6 +115,37 @@ function ActiveRow({ item }) {
         {item.body}
       </p>
     </li>
+  );
+}
+
+function ActiveRotator() {
+  const [i, setI] = React.useState(0);
+
+  React.useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
+    const t = setInterval(() => setI((v) => (v + 1) % ACTIVES.length), ROTATE_MS);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div className="mt-4 sm:mt-6">
+      {/* A floor under the card so the panel does not jump as the copy changes
+          length between actives. */}
+      <ul className="min-h-19 sm:min-h-17">
+        {/* Keyed on the label so each active remounts and replays the fade. */}
+        <ActiveRow key={ACTIVES[i].label} item={ACTIVES[i]} className="nv-fade-in" />
+      </ul>
+      <div className="mt-3 flex justify-center gap-1.5">
+        {ACTIVES.map((a, k) => (
+          <span
+            key={a.label}
+            aria-hidden="true"
+            className="h-1.5 w-1.5 rounded-full transition-colors duration-500"
+            style={{ background: k === i ? "#fdf6e6" : "rgba(253,246,230,0.3)" }}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -240,18 +274,21 @@ function FormulaPanel({ startTo }) {
                 alt=""
                 aria-hidden="true"
                 loading="lazy"
-                className="mx-auto block w-[44%] max-w-[9.5rem] sm:w-[62%] sm:max-w-[15rem] md:absolute md:bottom-0 md:left-1/2 md:h-full md:w-auto md:max-w-none md:-translate-x-1/2 md:object-contain md:object-bottom"
+                /* Pulled down into the card below it on a phone (2026-09-19):
+                   the file carries transparent canvas under her, which read as
+                   a gap between the figure and the list. */
+                className="mx-auto -mb-4 block w-[52%] max-w-[11rem] sm:-mb-6 sm:w-[62%] sm:max-w-[15rem] md:mb-0 md:absolute md:bottom-0 md:left-1/2 md:h-full md:w-auto md:max-w-none md:-translate-x-1/2 md:object-contain md:object-bottom"
               />
 
-              <ul className="mt-4 flex flex-col gap-1.5 sm:mt-6 sm:gap-2.5 md:mt-0 md:block md:gap-0">
-                {ACTIVES.map((a, i) =>
-                  staged ? (
+              {staged ? (
+                <ul className="md:block">
+                  {ACTIVES.map((a, i) => (
                     <ActiveChip key={a.label} item={a} slot={ACTIVE_SLOTS[i]} />
-                  ) : (
-                    <ActiveRow key={a.label} item={a} />
-                  ),
-                )}
-              </ul>
+                  ))}
+                </ul>
+              ) : (
+                <ActiveRotator />
+              )}
             </div>
 
             {/* From md the figure runs into the card's bottom edge, as the comp

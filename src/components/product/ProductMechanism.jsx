@@ -3,6 +3,9 @@ import Reveal from "../ui/Reveal";
 import useRunOnceInView from "../../lib/useRunOnceInView";
 
 const barWidth = (i, n) => `${34 + (i * 22) / Math.max(1, n - 1)}%`;
+/* On a phone the bar has the row to itself rather than sharing it with the
+   label, so the ladder is drawn across the full measure. */
+const barWidthNarrow = (i, n) => `${58 + (i * 42) / Math.max(1, n - 1)}%`;
 const BAR_FILL = 0.75;
 const LABEL_LEAD = 0.55;
 const WIRES = [
@@ -31,6 +34,9 @@ function Vial({ src, className = "" }) {
 
 function CalloutDiagram({ m, product }) {
   const [ref, running] = useRunOnceInView();
+  /* The desktop diagram is display:none on a phone, so its observer never
+     fires and the phone drop needs one of its own. */
+  const [dropRef, dropping] = useRunOnceInView();
   const wires = m.callouts.slice(0, WIRES.length);
 
   return (
@@ -92,15 +98,32 @@ function CalloutDiagram({ m, product }) {
         />
       </div>
 
-      <div className="mt-8 md:hidden">
+      {/* The diagram itself cannot work at this width, and the pills it used to
+          fall back to could not hold the longer callouts on one line
+          (2026-09-19). The phone gets the same reading instead: the vial, then a
+          hairline dropping through each title in turn. */}
+      <div ref={dropRef} className={`nv-diagram mt-8 md:hidden ${dropping ? "is-in" : ""}`}>
         <Vial src={product.img} className="mx-auto h-56" />
-        <ul className="mt-6 flex flex-col items-center gap-2.5">
-          {m.callouts.map((c) => (
-            <li key={c.name} className={`rounded-full border border-white/25 px-5 py-2 text-[1rem] ${LABEL}`}>
-            {c.name}
-          </li>
+        <ol className="mt-4 flex flex-col items-center">
+          {m.callouts.map((c, i) => (
+            <li key={c.name} className="flex flex-col items-center">
+              <span
+                aria-hidden="true"
+                className="nv-drop block h-7 w-px bg-[#ffe8b1]/45"
+                style={{ animationDelay: `${i * 0.34}s` }}
+              />
+              {/* Spelled out rather than reusing LABEL: this wants a larger
+                  size than the diagram's pinned labels, and two arbitrary
+                  text-[] values on one element resolve by stylesheet order. */}
+              <span
+                className="nv-wire__label my-3 block max-w-[24ch] text-center text-[0.88rem] font-bold uppercase leading-tight tracking-[0.12em] text-[#ffe8b1]"
+                style={{ animationDelay: `${i * 0.34 + 0.24}s` }}
+              >
+                {c.name}
+              </span>
+            </li>
           ))}
-        </ul>
+        </ol>
       </div>
     </>
   );
@@ -136,23 +159,29 @@ function TimelineRail({ m }) {
       </Reveal>
 
       <div ref={ref} className={`nv-rail relative mt-9 ${running ? "is-in" : ""}`}>
-        {/* Only from lg, where the stops actually sit in one row for it to join. */}
+        {/* Two rails, because the stops run down the page until lg and across it
+            after: the same line and lit stop the desktop has, stood on end
+            (2026-09-19). Each draws from the end the stops start at. */}
+        <span
+          aria-hidden="true"
+          className="nv-rail__line nv-rail__line--v absolute inset-y-1 left-1.5 w-px bg-white/25 lg:hidden"
+        />
         <span
           aria-hidden="true"
           className="nv-rail__line absolute left-0 top-1.5 hidden h-px w-full bg-white/25 lg:block"
         />
-        <ol className="grid gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="grid gap-y-7 lg:grid-cols-4 lg:gap-x-6 lg:gap-y-8">
           {m.timeline.map((t, i) => {
             const on = i === active;
             return (
-              <li key={t.label} className="relative lg:pt-9">
+              <li key={t.label} className="relative pl-7 lg:pl-0 lg:pt-9">
                 {/* Two spans: the entry keyframes end on `transform: none` with a
                     `both` fill, so a scale on this element would be wiped the
                     moment the dot has arrived. Outer one arrives, inner one
                     carries the highlight. */}
                 <span
                   aria-hidden="true"
-                  className="nv-rail__dot absolute left-0 top-0 hidden h-3 w-3 lg:block"
+                  className="nv-rail__dot absolute left-0 top-0.5 h-3 w-3 lg:top-0"
                   style={{ animationDelay: `${(i / n) * RAIL_S}s` }}
                 >
                   <span
@@ -227,8 +256,21 @@ export default function ProductMechanism({ product }) {
             </span>
           </Reveal>
 
-          <Reveal as="div" delay={0.12}>
-            <ul className="divide-y divide-white/15 rounded-[calc(20px*var(--nv-r-scale,1))] bg-white/10 px-7 py-1 backdrop-blur-[2px]">
+          <Reveal as="div" delay={0.12} className="relative">
+            {/* The vial is pinned beside the copy from lg and was simply absent
+                below it, so the phone had the section's only picture missing
+                (2026-09-19). Here it stands on the card's right-hand edge and
+                the rows carry padding to clear it. */}
+            <span className="nv-float pointer-events-none absolute -right-1 top-1/2 z-10 block aspect-138/297 w-19 -translate-y-1/2 lg:hidden">
+              <img
+                src={product.img}
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+                className="absolute left-1/2 top-1/2 w-[244%] max-w-none -translate-x-1/2 -translate-y-1/2 drop-shadow-2xl"
+              />
+            </span>
+            <ul className="divide-y divide-white/15 rounded-[calc(20px*var(--nv-r-scale,1))] bg-white/10 py-1 pl-7 pr-26 backdrop-blur-[2px] lg:pr-7">
               {m.pathways.map((p) => (
                 <li key={p.name} className="py-5">
                   <h3 className="font-display text-[1.15rem] font-semibold leading-tight text-[#ffe8b1]">{p.name}</h3>
@@ -249,14 +291,19 @@ export default function ProductMechanism({ product }) {
                 {m.timelineTitle}
               </h2>
             </Reveal>
-            <ul ref={listRef} className={`nv-seq mt-8 flex flex-col gap-4 ${running ? "is-in" : ""}`}>
+            <ul ref={listRef} className={`nv-seq mt-8 flex flex-col gap-6 sm:gap-4 ${running ? "is-in" : ""}`}>
+              {/* Bar over label on a phone, side by side from sm. The bars were
+                  simply hidden below sm, which left the section as four lines of
+                  type (2026-09-19); they run wider there, since they no longer
+                  share the row with the copy. */}
               {m.timeline.map((t, i) => (
-                <li key={t.label} className="flex items-center gap-5">
+                <li key={t.label} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-5">
                   <span
                     aria-hidden="true"
-                    className="nv-seq__bar hidden h-12 shrink-0 rounded-[14px] sm:block"
+                    className="nv-seq__bar block h-8 w-(--nv-bar-narrow) shrink-0 rounded-[14px] sm:h-12 sm:w-(--nv-bar)"
                     style={{
-                      width: barWidth(i, m.timeline.length),
+                      "--nv-bar": barWidth(i, m.timeline.length),
+                      "--nv-bar-narrow": barWidthNarrow(i, m.timeline.length),
                       animationDelay: `${i * BAR_FILL}s`,
                       background:
                         "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.04) 38%, rgba(255,255,255,0.13) 72%, rgba(255,255,255,0.3) 100%)",
@@ -274,8 +321,11 @@ export default function ProductMechanism({ product }) {
                       <span className="font-mono text-[0.68rem] font-bold uppercase tracking-[0.1em]">
                         {t.label}
                       </span>
-                      <span aria-hidden="true" className="opacity-60">-</span>
-                      <span className="text-[1rem] font-medium leading-snug">{t.text}</span>
+                      {/* The joining dash only earns its place where the pair
+                          shares a line: on a phone the description takes the
+                          next line and the dash would end up dangling. */}
+                      <span aria-hidden="true" className="hidden opacity-60 sm:inline">-</span>
+                      <span className="basis-full text-[1rem] font-medium leading-snug sm:basis-auto">{t.text}</span>
                     </span>
                   </span>
                 </li>

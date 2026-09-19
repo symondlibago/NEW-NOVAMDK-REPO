@@ -133,7 +133,7 @@ function useWide() {
 function GlassCard({ card, style }) {
   return (
     <article
-      className="absolute top-[70%] flex h-56 w-[86vw] max-w-116 flex-col justify-center rounded-3xl px-8 py-7 lg:h-60 lg:max-w-124 [@media(max-height:820px)]:lg:h-52"
+      className="absolute top-[70%] flex h-64 w-[86vw] max-w-116 flex-col justify-center rounded-3xl px-8 py-7 md:h-56 lg:h-60 lg:max-w-124 [@media(max-height:820px)]:lg:h-52"
       style={{ ...CARD, ...style }}
     >
       <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-3xl" style={RIM} />
@@ -191,13 +191,19 @@ export default function MoreWays() {
   }, []);
 
   return (
-    /* From md the band fills one screen under the sticky header (68px bar
-       plus its 1px rule) and the stage takes whatever the heading leaves. */
+    /* The band fills one screen under the sticky header (68px bar plus its 1px
+       rule) and the stage takes whatever the heading leaves. Phones were the
+       exception until 2026-09-19, where a fixed 360px stage left the band
+       noticeably shorter than the sections around it. */
     <section
-      className="relative w-full overflow-hidden md:flex md:min-h-[calc(100svh-69px)] md:flex-col"
+      className="relative flex min-h-[calc(100svh-69px)] w-full flex-col overflow-hidden"
       style={{ background: GROUND }}
     >
-      <div className="mx-auto flex w-full max-w-330 flex-col px-5 pb-[clamp(1.5rem,3vw,2.5rem)] pt-[clamp(2rem,4vw,3rem)] md:flex-1 md:px-10">
+      {/* justify-center only does anything on a phone, where the stage is a
+          fixed height: it splits the screen's leftover height above and below
+          the band's content instead of leaving it all at the foot. From md the
+          stage is flex-1 and absorbs it. */}
+      <div className="mx-auto flex w-full max-w-330 flex-1 flex-col justify-center px-5 pb-[clamp(1.5rem,3vw,2.5rem)] pt-[clamp(2rem,4vw,3rem)] md:px-10">
         <Reveal className="text-center">
           <span
             className="text-[0.8rem] font-semibold uppercase tracking-[0.2em]"
@@ -218,7 +224,7 @@ export default function MoreWays() {
         {/* ---- the stage. The phone is the backdrop the glass has to frost,
                 so it sits behind and fades out where the cards take over.
                 A floor keeps it from collapsing on a short window. ---- */}
-        <div className="relative mt-[clamp(1rem,2.5vw,2rem)] h-[clamp(360px,34vw,480px)] md:h-auto md:min-h-96 md:flex-1">
+        <div className="relative mt-[clamp(1rem,2.5vw,2rem)] h-110 md:h-auto md:min-h-96 md:flex-1">
           {/* Only a vertical fade now. With the backdrop out of the file there
               are no side edges left to hide, so the phone runs at the comp's
               367 rather than being sized to carry its own glow. */}
@@ -227,7 +233,7 @@ export default function MoreWays() {
             alt=""
             aria-hidden="true"
             loading="lazy"
-            className="absolute left-1/2 top-0 w-[clamp(250px,30vw,440px)] max-w-none -translate-x-1/2"
+            className="absolute left-1/2 top-0 w-[clamp(300px,30vw,440px)] max-w-none -translate-x-1/2"
             style={{
               WebkitMaskImage: "linear-gradient(180deg, #000 0%, #000 24%, transparent 42%)",
               maskImage: "linear-gradient(180deg, #000 0%, #000 24%, transparent 42%)",

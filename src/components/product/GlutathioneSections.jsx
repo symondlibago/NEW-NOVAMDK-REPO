@@ -156,6 +156,9 @@ function Vial({ className = "" }) {
 
 function HowItWorks() {
   const [ref, running] = useRunOnceInView("-80px");
+  /* The diagram is display:none below lg, so its observer never fires there and
+     the stacked version needs one of its own. */
+  const [dropRef, dropping] = useRunOnceInView("-80px");
   const [railRef, railIn] = useRunOnceInView("-80px");
 
   const [active, setActive] = useState(0);
@@ -220,16 +223,29 @@ function HowItWorks() {
           <Vial className="absolute left-1/2 top-[3%] h-[62%] -translate-x-1/2" />
         </div>
 
-        {/* ---- the stack, below lg ---- */}
-        <div className="mt-8 lg:hidden">
+        {/* ---- the stack, below lg ----
+                One column with a hairline dropping into each card, which is the
+                diagram's wires stood on end: gridded, the cards had no thread
+                running through them at all (2026-09-19). */}
+        <div ref={dropRef} className={`nv-diagram mt-8 lg:hidden ${dropping ? "is-in" : ""}`}>
           <Vial className="mx-auto h-56 w-fit sm:h-64" />
-          <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {CALLOUTS.map((c) => (
-              <Reveal as="div" key={c.label} y={12}>
-                <CalloutCard item={c} className="h-full" />
-              </Reveal>
+          <ol className="mx-auto mt-4 flex max-w-136 flex-col items-center">
+            {CALLOUTS.map((c, i) => (
+              <li key={c.label} className="flex w-full flex-col items-center">
+                <span
+                  aria-hidden="true"
+                  className="nv-drop block h-7 w-px bg-[#f4e3c1]/45"
+                  style={{ animationDelay: `${i * 0.36}s` }}
+                />
+                <div
+                  className="nv-wire__label w-full"
+                  style={{ animationDelay: `${i * 0.36 + 0.26}s` }}
+                >
+                  <CalloutCard item={c} className="h-full" />
+                </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
 
         {/* ---- the three-stage rule ---- */}
@@ -370,7 +386,10 @@ function NotSurfaceLevel() {
                 </p>
               </div>
 
-              <div className="lg:border-l lg:border-[#544529]/12 lg:pl-12">
+              {/* Stacked, the rule that divides the two columns from lg runs
+                  across instead of down (2026-09-19); it was missing entirely
+                  below lg and the two halves ran together. */}
+              <div className="border-t border-[#544529]/12 pt-9 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
                 <h3
                   className="nv-weight-keep max-w-[13ch] font-display text-[clamp(1.4rem,3.2vw,2.05rem)] font-extrabold leading-[1.12]"
                   style={{ color: INK }}
@@ -462,15 +481,29 @@ function RoleChips() {
         ))}
       </div>
 
-      <ul className="mt-7 flex flex-col gap-3 md:hidden">
+      {/* Below md the chips wrap into rows rather than scattering across a
+          stage, but they are the same pill the comp draws: closed to its own
+          label, opened by a tap, which focuses the chip the same way the
+          keyboard does (2026-09-19). They used to sit here as cards with the
+          description always showing, which is not what the design has. */}
+      <ul className="mt-7 flex flex-wrap gap-3 md:hidden">
         {ROLES.map((r) => (
-          <li key={r.label} className={`${CHIP} rounded-[calc(16px*var(--nv-r-scale,1))]`}>
-            <span className="block text-[0.86rem] font-semibold" style={{ color: INK }}>
-              {r.label}
-            </span>
-            <p className="mt-1 text-[0.78rem] leading-relaxed" style={{ color: BODY }}>
-              {r.body}
-            </p>
+          <li key={r.label} className="group">
+            <div tabIndex={0} className={`${CHIP} focus:nv-shadow`}>
+              <span
+                className="block whitespace-nowrap text-[0.86rem] font-semibold"
+                style={{ color: INK }}
+              >
+                {r.label}
+              </span>
+              <div className="grid w-0 grid-rows-[0fr] overflow-hidden transition-all duration-500 ease-out group-focus-within:w-[15rem] group-focus-within:grid-rows-[1fr]">
+                <div className="overflow-hidden">
+                  <p className="w-[15rem] pt-2 text-[0.78rem] leading-relaxed" style={{ color: BODY }}>
+                    {r.body}
+                  </p>
+                </div>
+              </div>
+            </div>
           </li>
         ))}
       </ul>

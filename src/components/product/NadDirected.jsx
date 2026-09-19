@@ -34,7 +34,10 @@ function PhotoCard({ img, title, children, className = "", delay = 0, glass = fa
           /* The un-veiled art is a cut-out on transparency, so it is contained
              rather than cropped — and anchored right once the card goes
              landscape, which is the side the comp stands her on. */
-          className={`absolute inset-0 h-full w-full ${veil ? "object-cover" : "object-contain object-bottom sm:object-bottom-right"}`}
+          /* Anchored bottom-right at every width now (2026-09-19): on a phone
+             the cut-out sat centred over the copy instead of standing beside
+             it, which is the alignment the client marked. */
+          className={`absolute inset-0 h-full w-full ${veil ? "object-cover object-right" : "object-contain object-bottom-right"}`}
         />
         {veil && <span className="pointer-events-none absolute inset-0" style={{ background: VEIL }} />}
         {glass && (
@@ -79,7 +82,9 @@ export default function NadDirected() {
         {/* ---- wide card: copy left, phone breaking the top edge on the right ---- */}
         <Reveal as="div" className="mt-[clamp(1.75rem,4vw,3rem)]">
           <div
-            className={`relative px-6 py-8 sm:px-9 sm:py-10 lg:min-h-[25rem] lg:px-11 lg:py-14 lg:pr-[42%] ${CARD_R}`}
+            /* Clipped below lg, where the phone stands in the card's corner. Not
+               at lg: there it deliberately breaks the card's top edge. */
+            className={`relative overflow-hidden px-6 py-8 sm:px-9 sm:py-10 lg:min-h-[25rem] lg:overflow-visible lg:px-11 lg:py-14 lg:pr-[42%] ${CARD_R}`}
             style={{ background: "linear-gradient(120deg, #c9ac86 0%, #bb9c71 55%, #b39468 100%)" }}
           >
             <h3
@@ -100,13 +105,16 @@ export default function NadDirected() {
               See If NAD+ Is Right for You
             </Link>
 
-            {/* Under the copy on a phone. */}
+            {/* Under the copy on a phone, standing in the card's bottom-right
+                corner the way the lg one does (2026-09-19): centred, it floated
+                with brass under it and its own square crop on show. The negative
+                margins cancel the card's padding, so it lands on both edges. */}
             <img
               src="/site/nad/care-athome.avif"
               alt=""
               aria-hidden="true"
               loading="lazy"
-              className="mx-auto mt-8 block w-[68%] max-w-[17rem] object-contain sm:w-[52%] lg:hidden"
+              className="-mb-8 -mr-6 ml-auto mt-8 block w-[72%] max-w-[17rem] object-contain sm:-mb-10 sm:-mr-9 sm:w-[54%] lg:hidden"
             />
             <span className="pointer-events-none absolute -top-[13%] bottom-0 right-0 hidden w-[36%] overflow-hidden lg:block">
               <img
