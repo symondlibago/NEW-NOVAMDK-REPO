@@ -150,7 +150,10 @@ export default function HowItWorks() {
           </h2>
         </Reveal>
 
-        <Reveal delay={0.08}>
+        {/* Not wrapped in a Reveal (2026-09-19): an ancestor at opacity below 1
+            is a backdrop root, so the panel's frost had nothing to sample and
+            only appeared once the fade had finished. */}
+        <div>
           <div
             className="relative mx-auto mt-[clamp(2rem,4vw,4.25rem)] w-full max-w-302 rounded-2xl p-7 sm:p-10 lg:p-16"
             style={PANEL}
@@ -166,7 +169,7 @@ export default function HowItWorks() {
               ))}
             </div>
           </div>
-        </Reveal>
+        </div>
       </div>
     </section>
   );

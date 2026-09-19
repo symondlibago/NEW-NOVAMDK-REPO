@@ -356,7 +356,10 @@ function useMidChip(hostRef, focus = 0.78) {
       raf = requestAnimationFrame(tick);
     };
 
-    const io = new IntersectionObserver(([entry]) => {
+    /* The last record, not the first: a callback can carry several for one
+       target and only the last one is the current state. */
+    const io = new IntersectionObserver((entries) => {
+      const entry = entries[entries.length - 1];
       if (entry.isIntersecting) {
         if (!raf) raf = requestAnimationFrame(tick);
       } else if (raf) {

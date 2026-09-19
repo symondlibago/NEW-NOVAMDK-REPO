@@ -151,11 +151,14 @@ function useRunOnceInView() {
   React.useEffect(() => {
     const node = ref.current;
     if (!node) return undefined;
+    /* some(), not entries[0]: one callback can carry several records for the
+       same target and the first is not necessarily the intersecting one.
+       Missing it here means a card that never draws itself in. */
     const io = new IntersectionObserver(
-      ([e]) => {
-        if (e.isIntersecting) {
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
           setOn(true);
-          io.unobserve(e.target);
+          io.disconnect();
         }
       },
       { threshold: 0.35 }
@@ -565,18 +568,24 @@ export default function MattersToYou() {
 
         {/* One column on a phone, then the comp's split: the goals card runs the
             full height beside two stacked cards of matching size. */}
+        {/* No Reveal on these three (2026-09-19): an ancestor at opacity below 1
+            is a backdrop root, which leaves a backdrop-filter with nothing to
+            sample. Faded in, the cards spent the whole 0.7s as flat translucent
+            panels and the blur snapped in at the end, which read as lag. They
+            have plenty of motion of their own: the ring draws, the bars fill,
+            the counter rolls and the curve draws. */}
         <div className="mx-auto mt-[clamp(1.75rem,4vw,2.75rem)] grid max-w-225 gap-5 md:grid-cols-2 md:gap-8">
-          <Reveal className="h-full">
+          <div className="h-full">
             <ActiveGoals />
-          </Reveal>
+          </div>
           {/* Two equal grid rows from md up, so the pair is exactly the same
               size. flex-grow was tried first and could not do it: a flex item
               will not shrink under its own content, so the taller card kept
               its content height and the other one came out short. */}
-          <Reveal delay={0.08} className="flex h-full flex-col gap-5 md:grid md:grid-rows-2 md:gap-8">
+          <div className="flex h-full flex-col gap-5 md:grid md:grid-rows-2 md:gap-8">
             <NextCheckIn />
             <YourProgress />
-          </Reveal>
+          </div>
         </div>
       </div>
     </section>

@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import Reveal from "../ui/Reveal";
+import useRunOnceInView from "../../lib/useRunOnceInView";
 
 const INK = "#3f3a33";
 const MUTED = "#6b5e4b";
@@ -70,32 +71,11 @@ const CURVE_AREA = `
 const HEAD = POINTS[0];
 
 export default function NadSupport() {
-  const graphRef = useRef(null);
-  const [graphActive, setGraphActive] = useState(false);
-
-  useEffect(() => {
-    const node = graphRef.current;
-
-    if (!node) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setGraphActive(true);
-          observer.unobserve(entry.target);
-        }
-      },
-      {
-        threshold: 0.3,
-      }
-    );
-
-    observer.observe(node);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
+  /* The shared hook rather than an observer of its own (2026-09-19): this one
+     asked for 30% of the band to be on screen, and the band is now the graph
+     itself, full bleed. On a phone it is taller than the viewport, so 30% of it
+     can never be visible at once and the graph simply never drew. */
+  const [graphRef, graphActive] = useRunOnceInView("-80px");
 
   return (
     <section

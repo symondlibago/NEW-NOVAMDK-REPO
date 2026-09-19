@@ -88,10 +88,14 @@ const ALL = latestPosts(24);
 /* The swap when a category changes: the outgoing set leaves together, then the
    incoming cards rise in one after another. mode="wait" on the AnimatePresence
    is what keeps the two sets from overlapping mid-air. */
+/* The rise carries no fade (2026-09-19). These cards are frosted, and an
+   ancestor at opacity below 1 is a backdrop root, which leaves a
+   backdrop-filter with nothing to sample: every swap spent its half second
+   with the panels flat and the blur arriving at the end. */
 const LIST = { hidden: {}, show: { transition: { staggerChildren: 0.09 } } };
 const ITEM = {
-  hidden: { opacity: 0, y: 18 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
+  hidden: { y: 18 },
+  show: { y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
 };
 
 /*
@@ -254,10 +258,12 @@ export default function Articles() {
         </Reveal>
 
         <div className="mb-[clamp(2rem,4vw,3rem)] mt-[clamp(1.75rem,3.5vw,2.75rem)] grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {top.map((post, i) => (
-            <Reveal key={post.slug} delay={i * 0.08}>
-              <OverlayCard post={post} />
-            </Reveal>
+          {/* Not revealed (2026-09-19): the panel inside each card is frosted,
+              and an ancestor at opacity below 1 is a backdrop root, which leaves
+              a backdrop-filter with nothing to sample. Faded in, the panel spent
+              the fade flat and the blur arrived at the end of it. */}
+          {top.map((post) => (
+            <OverlayCard key={post.slug} post={post} />
           ))}
         </div>
       </div>
@@ -310,7 +316,7 @@ export default function Articles() {
             variants={LIST}
             initial="hidden"
             animate="show"
-            exit={{ opacity: 0, y: -12, transition: { duration: 0.22 } }}
+            exit={{ y: -12, transition: { duration: 0.22 } }}
           >
             {!feature ? (
               <Motion.p
