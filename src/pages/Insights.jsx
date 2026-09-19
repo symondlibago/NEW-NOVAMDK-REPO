@@ -75,6 +75,19 @@ function Metric({ label, value, hint }) {
   );
 }
 
+/* A section title with the period it covers. Added because the two halves of
+   this page cover different windows: the CRM board and the intake funnel are
+   every record ever, while the traffic panels follow the day buttons. Without
+   the period on the card, the numbers got compared across windows. */
+function SectionHead({ label, range }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+      <p className={sectionLabel}>{label}</p>
+      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted/70">{range}</p>
+    </div>
+  );
+}
+
 function Bars({ title, rows, empty }) {
   return (
     <div className={card}>
@@ -301,8 +314,13 @@ export default function InsightsPage() {
           return;
         }
         if (e.message === "not_configured") {
+          /* Reworded at the client's request (2026-09-19): the old line read as
+             though something on the page was broken. It only ever concerns the
+             traffic tiles, and it stops rendering by itself the moment the
+             service account env vars are set, so there is nothing to remove
+             later. */
           setNotice(
-            "Summary panels are switched off until the Google key is added. The report below has the full traffic data."
+            "The traffic summary tiles need a Google service key, which is not added yet. Everything else on this page, including the report below, is live."
           );
           return;
         }
@@ -424,24 +442,39 @@ export default function InsightsPage() {
                 still sits in whichever column it was denied at. */}
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <Metric
-                label="Total visits"
+                label="Total patient journeys"
                 value={count(ops.board.total)}
                 hint={`${count(ops.board.open)} open + ${count(ops.board.won)} won + ${count(
                   ops.board.lost
                 )} lost`}
               />
-              <Metric label="Open visits" value={count(ops.board.open)} hint={ops.board.pipeline} />
+              <Metric
+                label="Open patient journeys"
+                value={count(ops.board.open)}
+                hint={ops.board.pipeline}
+              />
               <Metric label="Won" value={count(ops.board.won)} hint="Paid" />
               {/* Status, not the Denied column: they're separate fields in GHL and
                   a card in Denied can still be status open. */}
-              <Metric label="Lost" value={count(ops.board.lost)} hint="Marked lost or abandoned" />
+              <Metric
+                label="Lost or abandoned"
+                value={count(ops.board.lost)}
+                hint="Either status, both terminal"
+              />
               <Metric label="Won revenue" value={money(ops.board.won_value)} hint="Collected" />
               <Metric label="Open value" value={money(ops.board.open_value)} hint="Not yet paid" />
             </section>
 
+            {/* Asked for by the client (2026-09-19) after the two halves were read
+                as one funnel. They count different things and cannot be summed. */}
+            <p className="rounded-xl border border-line bg-surface px-4 py-3 text-[0.82rem] text-muted">
+              GoHighLevel counts opportunities. MD Integrations counts questionnaires. The two
+              totals will not necessarily match.
+            </p>
+
             <section className="grid gap-4 lg:grid-cols-5">
               <div className={`${card} lg:col-span-3`}>
-                <p className={sectionLabel}>Where visits sit</p>
+                <SectionHead label="Where patient journeys sit" range="All time" />
                 <p className="mt-1.5 text-[0.82rem] text-muted">
                   Every card on the {ops.board.pipeline}, by column, won and lost ones included.
                   Percentages are of the first column.
@@ -451,18 +484,38 @@ export default function InsightsPage() {
 
               {ops.intake && (
                 <div className={`${card} lg:col-span-2`}>
-                  <p className={sectionLabel}>Intake funnel</p>
+                  <SectionHead label="Intake funnel" range="All time" />
                   <p className="mt-1.5 text-[0.82rem] text-muted">
-                    From MDI, one per questionnaire handed to a patient. Started means they opened
-                    it, submitted means they finished and a case exists.
+                    From MDI, one per questionnaire issued to a patient. Started means they opened
+                    it at any point, including ones that later expired. Submitted means they
+                    finished and a case exists.
                   </p>
 
                   <div className="mt-4 grid grid-cols-2 gap-3">
-                    <Tile label="Handed out" value={ops.intake.total} />
+                    <Tile label="Questionnaires issued" value={ops.intake.total} />
                     <Tile label="Started" value={ops.intake.started} />
                     <Tile label="Submitted" value={ops.intake.submitted} />
                     <Tile label="Expired" value={ops.intake.expired} />
                   </div>
+
+                  {/* The line that stops "Expired" being read as patients giving
+                      up. Almost all of it is issued and never touched, which is a
+                      different problem with a different fix. */}
+                  {ops.intake.expired_untouched !== null && (
+                    <p className="mt-3 text-[0.8rem] text-muted">
+                      Of the {count(ops.intake.expired)} expired,{" "}
+                      <span className="font-semibold text-ink">
+                        {count(ops.intake.expired_untouched)} were never opened
+                      </span>{" "}
+                      and {count(ops.intake.expired_opened)} were opened but not finished.
+                    </p>
+                  )}
+                  {ops.intake.started_exact === false && (
+                    <p className="mt-3 text-[0.8rem] text-muted">
+                      Started excludes expired questionnaires this time: MDI did not answer quickly
+                      enough to check them. Press Refresh to try again.
+                    </p>
+                  )}
 
                   {ops.intake.by_status.length > 0 && (
                     <>
@@ -481,7 +534,7 @@ export default function InsightsPage() {
             <div className="overflow-hidden rounded-2xl border border-line bg-surface">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
                 <div>
-                  <p className={sectionLabel}>Website traffic</p>
+                  <SectionHead label="Website traffic" range="Set inside the report" />
                   <p className="mt-1.5 text-[0.82rem] text-muted">
                     Live from Google Analytics. Use the tabs and the date control inside the report.
                   </p>
@@ -517,6 +570,7 @@ export default function InsightsPage() {
 
         {data && (
           <div className={`${shell} mt-5 space-y-5`}>
+            <SectionHead label="Traffic summary" range={`Last ${data.days} days`} />
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Metric label="Visitors" value={count(data.totals.users)} hint={`Last ${data.days} days`} />
               <Metric label="Sessions" value={count(data.totals.sessions)} />
@@ -529,7 +583,7 @@ export default function InsightsPage() {
             </section>
 
             <section className={card}>
-              <p className={sectionLabel}>Visitors per day</p>
+              <SectionHead label="Visitors per day" range={`Last ${data.days} days`} />
               <div className="mt-3 h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={data.trend} margin={{ left: 0, right: 12, top: 6 }}>
@@ -570,7 +624,7 @@ export default function InsightsPage() {
               />
 
               <div className={card}>
-                <p className={sectionLabel}>Where visitors came from</p>
+                <SectionHead label="Where visitors came from" range={`Last ${data.days} days`} />
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full text-[0.87rem]">
                     <thead>

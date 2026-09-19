@@ -263,21 +263,112 @@ async function countVouchers(query) {
   return Number.isFinite(total) ? total : 0;
 }
 
+/* Expired vouchers split by whether the patient ever opened one.
+
+   Needed because `status` alone can't answer it. A voucher that was in progress
+   flips to `expired` after its 31 days and drops out of any count built from
+   status, so someone who genuinely opened the questionnaire stops being counted
+   as having started it. The client asked for that corrected (2026-09-19).
+
+   MDI has no filter for it, so the rows have to be read. Two rules follow from
+   that, and both matter:
+
+     privacy  every row carries the full patient object and
+              `questionnaire_progress`, which holds their own answers. Only
+              `.length` is looked at. Nothing from these rows is logged, cached
+              or returned: the two numbers below leave this function and the
+              rows are dropped.
+
+     cost     a page of 25 takes 7-13s, and the pages are asked for at once
+              because that costs the slowest page rather than the sum: 13s for
+              all 84 instead of 32s one after another. Four concurrent requests
+              draw no 429, which twelve rapid ones do, so PAGE_CAP is the guard
+              that keeps this from ever becoming twelve. Past the cap the split
+              is reported as incomplete rather than half-counted. */
+const EXPIRED_PAGE = 25;
+const EXPIRED_PAGE_CAP = 8;
+const EXPIRED_BUDGET_MS = 45_000;
+
+async function expiredPage(page) {
+  const r = await mdi(`/vouchers?status=expired&per_page=${EXPIRED_PAGE}&page=${page}`);
+  if (!r.ok) throw new Error(`MDI vouchers ${r.status}`);
+  let opened = 0;
+  let untouched = 0;
+  for (const v of r.data?.data ?? []) {
+    // Length only. The answers themselves are never read.
+    if ((v.questionnaire_progress?.length ?? 0) > 0) opened += 1;
+    else untouched += 1;
+  }
+  return { opened, untouched, rows: opened + untouched };
+}
+
+async function expiredBreakdown() {
+  const nothing = { opened: 0, untouched: 0, complete: false };
+
+  // Cheap first: the total decides how many pages, and warms the access token
+  // so its round trip isn't charged to one of the parallel reads.
+  const total = await countVouchers("status=expired&per_page=1");
+  if (!total) return { opened: 0, untouched: 0, complete: true };
+
+  const pages = Math.ceil(total / EXPIRED_PAGE);
+  if (pages > EXPIRED_PAGE_CAP) {
+    console.warn(`${total} expired vouchers is past the read cap; the split was skipped.`);
+    return nothing;
+  }
+
+  const work = Promise.all(
+    Array.from({ length: pages }, (_, i) => expiredPage(i + 1))
+  ).then((parts) => ({
+    opened: parts.reduce((n, p) => n + p.opened, 0),
+    untouched: parts.reduce((n, p) => n + p.untouched, 0),
+    rows: parts.reduce((n, p) => n + p.rows, 0),
+  }));
+
+  /* Abandoned rather than waited on. The rows are lifetime totals behind a
+     half-hour cache, so an unusually slow MDI should cost the correction and
+     not the dashboard. */
+  const timeout = new Promise((resolve) => setTimeout(() => resolve(null), EXPIRED_BUDGET_MS));
+  const got = await Promise.race([work, timeout]);
+
+  if (!got) {
+    console.warn("Expired voucher breakdown ran past its budget; reporting without it.");
+    return nothing;
+  }
+  // A short read means MDI paged differently than the total implied; don't guess.
+  if (got.rows < total) {
+    console.warn(`Expired voucher breakdown read ${got.rows} of ${total}; reporting without it.`);
+    return nothing;
+  }
+  return { opened: got.opened, untouched: got.untouched, complete: true };
+}
+
 async function voucherFunnel() {
-  const [total, ...counted] = await Promise.all([
+  const [total, counted, expired] = await Promise.all([
     countVouchers("page=1"),
-    ...STATUSES.map((s) => countVouchers(`status=${s}`)),
+    Promise.all(STATUSES.map((s) => countVouchers(`status=${s}`))),
+    /* Settled, not awaited hard: a slow or failed read here should cost the
+       correction, never the whole funnel. */
+    expiredBreakdown().catch((e) => {
+      console.warn("Expired voucher breakdown failed:", e.message);
+      return { opened: 0, untouched: 0, complete: false };
+    }),
   ]);
 
   const counts = Object.fromEntries(STATUSES.map((s, i) => [s, counted[i]]));
 
   return {
     total,
-    /* Anyone who opened the questionnaire, finished or not. `pending` is the
-       opposite: issued and never opened, which is the first real drop-off. */
-    started: counts.in_progress + counts.completed,
+    /* Everyone who has ever opened a questionnaire: the two live statuses plus
+       the ones that were opened and later timed out. Without that last term the
+       number silently falls as vouchers age, rewriting history. */
+    started: counts.in_progress + counts.completed + (expired.complete ? expired.opened : 0),
+    started_exact: expired.complete,
     submitted: counts.completed,
     expired: counts.expired,
+    /* The split that makes `expired` readable. Nearly all of it is issued and
+       never touched, which is a different problem from giving up part way. */
+    expired_opened: expired.complete ? expired.opened : null,
+    expired_untouched: expired.complete ? expired.untouched : null,
     by_status: STATUSES.map((name) => ({ name, count: counts[name] }))
       .filter((row) => row.count > 0)
       .sort((a, b) => b.count - a.count),
@@ -363,6 +454,11 @@ async function opsPayload() {
    minutes, so serving a five-minute-old copy costs nothing and keeps us far
    from either API's quota. */
 const CACHE_MS = 5 * 60_000;
+/* The ops view is held far longer than the traffic one. Reading the expired
+   vouchers to split them costs about thirty seconds, and these are lifetime
+   totals that move a handful of times a day, so paying that once every half
+   hour is right. Refresh is a manual button, not a wait people sit through. */
+const OPS_CACHE_MS = 30 * 60_000;
 const cache = new Map();
 
 // Said once per instance, not once per request: the page re-asks whenever the
@@ -428,7 +524,7 @@ export default async function handler(req, res) {
 
   if (resource === "ops") {
     const hit = cache.get("ops");
-    if (hit && Date.now() - hit.at < CACHE_MS) {
+    if (hit && Date.now() - hit.at < OPS_CACHE_MS) {
       return res.status(200).json({ ...hit.payload, cached: true });
     }
     const payload = await opsPayload();
