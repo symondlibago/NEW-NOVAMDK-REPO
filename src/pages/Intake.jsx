@@ -718,6 +718,10 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
     if (!kurvTicket) return undefined;
     let alive = true;
     let asking = false;
+    // Set once Kurv's page has handed back, so a decline is only acted on after
+    // the patient has finished trying. Kurv's page allows several attempts, and
+    // an earlier declined one mustn't interrupt a retry still in progress.
+    let returned = false;
     const timers = [];
 
     const confirm = async () => {
@@ -736,6 +740,16 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
           setTimeout(() => onPaidRef.current?.(), submittedRef.current ? 0 : 1800);
         } else if (r?.error === "amount_mismatch" || r?.error === "bad_ticket") {
           setMessage("We couldn't confirm that payment. Please contact support@novamdk.com before paying again.");
+        } else if (r?.failed && returned) {
+          /* Declined, and the patient has left Kurv's page. Back to the form
+             rather than spinning on "Confirming" forever: unmounting the
+             checking view remounts Kurv's page fresh for another card. An
+             approved retry on the same link still counts, since paid wins over
+             any number of declines. */
+          returned = false;
+          timers.splice(0).forEach(clearTimeout);
+          setKurv((k) => (k ? { ...k, checking: false } : k));
+          setMessage("That card was declined. Please try another card.");
         }
       } catch {
         /* the next poll tries again */
@@ -751,6 +765,8 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
         setMessage("Payment cancelled. You can try again when you're ready.");
         return;
       }
+      returned = true;
+      setMessage("");
       setKurv((k) => (k ? { ...k, checking: true } : k));
       // Kurv can take a moment to record the payment after its page moves on,
       // so ask a few times close together rather than waiting on the poll.
