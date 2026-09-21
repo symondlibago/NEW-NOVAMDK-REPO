@@ -221,7 +221,7 @@ const REFERENCE_RE = /^[A-Za-z0-9]{1,40}:[A-Za-z0-9]{0,40}:[a-f0-9]{12}$/;
  * Opens a Kurv payment link for one order.
  * @returns {Promise<{ok: true, url: string, reference: string} | {ok: false}>}
  */
-export async function createPayment({ amount, reference, returnPage, notifyUrl }) {
+export async function createPayment({ amount, reference, returnPage }) {
   const r = await kurv("/pos/generate-link", {
     method: "POST",
     body: {
@@ -234,9 +234,11 @@ export async function createPayment({ amount, reference, returnPage, notifyUrl }
       reference,
       redirect_url: `${returnPage}?s=done`,
       cancel_url: `${returnPage}?s=cancel`,
-      // Kurv can't reach a localhost callback, and an unreachable one only
-      // costs retries, so it's sent only for a real https site.
-      ...(notifyUrl ? { response_url: notifyUrl } : {}),
+      /* No response_url. The live POS endpoint rejects every value for it as
+         "response_url must be a valid URL", our homepage included, while
+         accepting the same URLs as redirect_url (tested 2026-09-22). Payment is
+         confirmed by the checkout polling kurvConfirm instead; the notice
+         route in pay.js stays for Kurv's app-level webhook if that's set. */
       /* Deliberately no cart items: Kurv's page and receipt show whatever is
          sent, and a medication name doesn't belong on either. Apple Pay and
          Google Pay come from the merchant's payment page settings in kurv.app. */

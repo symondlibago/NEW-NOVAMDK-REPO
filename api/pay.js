@@ -204,7 +204,6 @@ async function kurvStart(req, res) {
     amount: charge.total,
     reference: referenceFor(opportunityId, contactId),
     returnPage: `${origin}/kurv-return.html`,
-    notifyUrl: origin.startsWith("https://") ? `${origin}/api/pay?kurv=notify` : null,
   }).catch((e) => {
     console.error("Kurv payment link failed:", e.message);
     return { ok: false };
