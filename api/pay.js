@@ -10,6 +10,17 @@ import {
   INTAKE_STAGE,
   FIELD,
 } from "./_ghl.js";
+import {
+  kurvEnabled,
+  routeFor,
+  createPayment,
+  paymentState,
+  issueTicket,
+  readTicket,
+  referenceFor,
+  parseReference,
+  addToMonth,
+} from "./_kurv.js";
 
 /* Charges a card through the NMI gateway (PayTechTrust is an NMI white-label),
  * and on GET, quotes what that charge will be.
@@ -100,7 +111,7 @@ async function markPaid(opportunityId, transactionId) {
   if (!ghlConfigured()) return;
   if (!opportunityId) {
     console.error(
-      `NMI sale ${transactionId} carried no opportunity id, so the Paid move was skipped. ` +
+      `Sale ${transactionId} carried no opportunity id, so the Paid move was skipped. ` +
         `The charge went through — this card needs moving by hand.`
     );
     return;
@@ -127,6 +138,163 @@ async function markComplete(contactId, opportunityId, treatment) {
   }
 }
 
+/* ----------------------------------- Kurv ---------------------------------- */
+
+/* Kurv is the primary processor and PayTechTrust the backup; which one takes a
+   given order is decided in _kurv.js. These three routes live on this function,
+   not their own, to stay under the Hobby plan's function limit.
+
+   A Kurv payment is identified by its reference throughout (see _kurv.js):
+   POS links carry no transaction id until someone pays. */
+
+/* The site the patient is actually on, for Kurv's return page and notification.
+   Read off the request (already checked against the allowed hosts by blocked())
+   so a preview deployment returns to itself rather than to production. */
+function siteOrigin(req) {
+  const raw = req.headers?.origin || req.headers?.referer;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return "https://www.novamdk.com";
+  }
+}
+
+/* Per instance: stops the confirm poll and Kurv's own notification, which
+   usually both arrive, from double counting a sale toward the monthly cap. The
+   GHL writes are safe to repeat; the running total is what this protects. */
+const settledKurv = new Set();
+
+async function settleKurvSale({ reference, amount, contactId, opportunityId, submitted, treatment, via }) {
+  const first = !settledKurv.has(reference);
+  if (first) {
+    settledKurv.add(reference);
+    addToMonth(amount);
+    console.info(`Kurv sale approved (${via}): ref ${reference}, $${Number(amount).toFixed(2)}`);
+  }
+  await Promise.allSettled([
+    first ? syncTag(contactId, { failed: false }) : null,
+    (first ? markPaid(opportunityId, reference) : Promise.resolve()).then(() =>
+      /* Only the confirm path knows whether the questionnaire was submitted, so
+         it runs this even when the notification got there first. */
+      submitted === true ? markComplete(contactId, opportunityId, treatment) : null
+    ),
+  ]);
+}
+
+/* Opens a Kurv payment for this order and returns the page to show. */
+async function kurvStart(req, res) {
+  if (blocked(req, res, { max: 8 })) return;
+  const { pid, contact_id, opportunity_id, submitted, treatment } = req.body || {};
+
+  // Priced here, never from the request, exactly as the card path does.
+  const charge = chargeFor(pid);
+  if (!charge) return res.status(400).json({ ok: false, error: "unknown_product" });
+
+  /* Re-checked rather than trusting the quote the modal loaded: the cap may
+     have been reached in between. A "no" sends the modal to the card form. */
+  if ((await routeFor(charge.total)) !== "kurv") {
+    return res.status(200).json({ ok: false, processor: "nmi" });
+  }
+
+  const contactId = clean(contact_id, 60);
+  const opportunityId = clean(opportunity_id, 60);
+  const origin = siteOrigin(req);
+
+  const created = await createPayment({
+    amount: charge.total,
+    reference: referenceFor(opportunityId, contactId),
+    returnPage: `${origin}/kurv-return.html`,
+    notifyUrl: origin.startsWith("https://") ? `${origin}/api/pay?kurv=notify` : null,
+  }).catch((e) => {
+    console.error("Kurv payment link failed:", e.message);
+    return { ok: false };
+  });
+
+  // Kurv down or refusing: the backup takes the order instead of the patient
+  // being stuck at the last step.
+  if (!created.ok) return res.status(200).json({ ok: false, processor: "nmi", error: "kurv_unavailable" });
+
+  console.info(`Kurv payment ${created.reference} opened: product ${pid}, $${charge.total.toFixed(2)}`);
+  return res.status(200).json({
+    ok: true,
+    processor: "kurv",
+    url: created.url,
+    ticket: issueTicket({
+      ref: created.reference,
+      amt: charge.total,
+      o: opportunityId,
+      c: contactId,
+      sub: submitted === true,
+      tr: clean(treatment, 120),
+    }),
+  });
+}
+
+/* Asked by the modal once Kurv's page says it's done, and polled while it's
+   open. Answers from Kurv's API, never from the browser's say-so. */
+async function kurvConfirm(req, res) {
+  if (blocked(req, res, { max: 40 })) return;
+  const t = readTicket(req.body?.ticket);
+  if (!t) return res.status(400).json({ ok: false, error: "bad_ticket" });
+
+  const s = await paymentState(t.ref).catch(() => ({ state: "unknown" }));
+  if (s.state === "paid") {
+    if (Math.abs(s.amount - t.amt) > 0.005) {
+      console.error(`Kurv ref ${t.ref} paid $${s.amount} against an order of $${t.amt}; not marking Paid.`);
+      return res.status(200).json({ ok: false, error: "amount_mismatch" });
+    }
+    await settleKurvSale({
+      reference: t.ref,
+      amount: t.amt,
+      contactId: t.c,
+      opportunityId: t.o,
+      submitted: t.sub,
+      treatment: t.tr,
+      via: "checkout",
+    });
+    return res.status(200).json({ ok: true, reference: t.ref, amount: t.amt });
+  }
+  return res.status(200).json({ ok: false, pending: s.state !== "failed", failed: s.state === "failed" });
+}
+
+/* Kurv posts `response`, a JSON string, as a form field. Accepted in whatever
+   shape the body parser left it. */
+function readKurvNotice(body) {
+  try {
+    let v = body;
+    if (typeof v === "string") v = Object.fromEntries(new URLSearchParams(v));
+    v = v?.response ?? v;
+    return typeof v === "string" ? JSON.parse(v) : v || null;
+  } catch {
+    return null;
+  }
+}
+
+/* Kurv's server-to-server notice that a payment attempt finished. It isn't
+   signed, so nothing in it is believed: it only names a payment, which is then
+   looked up with our own key. What it buys is the Paid move for a patient who
+   closes the tab the moment they've paid. Always a 200, so Kurv never retries
+   over something that was ours to sort out. */
+async function kurvNotice(req, res) {
+  if (!kurvEnabled()) return res.status(200).json({ ok: true });
+  const notice = readKurvNotice(req.body);
+  const reference = String(notice?.reference_number || notice?.reference || "");
+  // paymentState refuses anything not shaped like a reference we issued.
+  const s = await paymentState(reference).catch(() => ({ state: "unknown" }));
+  const { opportunityId, contactId } = parseReference(reference);
+
+  if (s.state === "paid") {
+    await settleKurvSale({ reference, amount: s.amount, contactId, opportunityId, via: "notice" });
+  } else if (s.state === "failed") {
+    console.warn(`Kurv payment attempt declined: ref ${reference}`);
+    await syncTag(contactId, { failed: true });
+  }
+  return res.status(200).json({ ok: true });
+}
+
+const queryParam = (req, name) =>
+  req.query?.[name] ?? new URL(req.url || "/", "http://localhost").searchParams.get(name);
+
 export default async function handler(req, res) {
   /* The modal's order summary is rendered from this rather than from the
      catalogue in the bundle, so the shipping line it shows is always the one
@@ -136,15 +304,23 @@ export default async function handler(req, res) {
     if (blocked(req, res)) return;
     // Vercel fills req.query; the local vite shim (vite.config.js) only passes
     // the raw URL, which left every local checkout reading "Total unavailable".
-    const pid = req.query?.pid ?? new URL(req.url || "/", "http://localhost").searchParams.get("pid");
+    const pid = queryParam(req, "pid");
     const quote = quoteFor(pid);
     if (!quote) return res.status(400).json({ ok: false, error: "unknown_product" });
-    return res.status(200).json({ ok: true, ...quote });
+    /* Which form the modal should show. Advisory only: kurvStart decides again
+       at the moment of payment, since the cap can be reached in between. */
+    const processor = await routeFor(quote.total);
+    return res.status(200).json({ ok: true, ...quote, processor });
   }
 
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
+
+  // Ahead of blocked(): Kurv's servers have no browser origin to show.
+  if (queryParam(req, "kurv") === "notify") return kurvNotice(req, res);
+  if (req.body?.action === "kurv_start") return kurvStart(req, res);
+  if (req.body?.action === "kurv_confirm") return kurvConfirm(req, res);
 
   // Tighter than the default: a checkout is not a page view, and card testing
   // is exactly what a loose limit invites.

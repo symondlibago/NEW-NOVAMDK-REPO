@@ -468,6 +468,23 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
       alive = false;
     };
   }, [pid, choices.length]);
+  /* Kurv is the primary processor, PayTechTrust (the card form below) the
+     backup. The quote says which should take this order; `kurvOff` overrides it
+     to the card form when Kurv turns the order away at the last moment (monthly
+     cap reached, Kurv unreachable), so the patient is never stuck. */
+  const [kurvOff, setKurvOff] = useState(false);
+  const processor = quote?.processor === "kurv" && !kurvOff ? "kurv" : "nmi";
+  // null until Kurv's page is opened: { url, ticket, checking }
+  const [kurv, setKurv] = useState(null);
+  const [kurvStarting, setKurvStarting] = useState(false);
+  /* Kurv's page only allows being embedded by https sites, so on the local
+     http dev server it opens in its own window instead. */
+  const canEmbedKurv = typeof window !== "undefined" && window.location.protocol === "https:";
+  // Read by the confirm loop without restarting it on every parent render.
+  const submittedRef = useRef(submitted);
+  submittedRef.current = submitted;
+  const onPaidRef = useRef(onPaid);
+  onPaidRef.current = onPaid;
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [zip, setZip] = useState("");
@@ -477,8 +494,26 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
   const configured = useRef(false);
   // Keyed by Collect.js field name: ccnumber / ccexp / cvv.
   const fieldErrors = useRef({});
+  /* Whether this popup is still on screen, for Collect.js's late callbacks.
+     One flag for the popup's whole life rather than per effect run: the
+     configure effect below reruns when the quote or processor changes but
+     configures only once, so a per-run flag would be switched off by the rerun
+     and silence the ready signal for good. */
+  const open = useRef(true);
+  useEffect(() => {
+    open.current = true;
+    return () => {
+      open.current = false;
+    };
+  }, []);
 
   useEffect(() => {
+    /* Only once the quote has said PayTechTrust is taking this order, whether
+       from the start or because Kurv handed it back. Configuring earlier meant
+       Collect.js mounting into fields that were hidden while Kurv had the
+       order, and it never reported ready, which left "Loading secure form…"
+       spinning on the fallback. */
+    if (!quote || processor !== "nmi") return;
     if (!TOKENIZATION_KEY) {
       console.error("VITE_NMI_TOKENIZATION_KEY is not set — the card form cannot load.");
       setStatus("dead");
@@ -489,7 +524,6 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
     if (configured.current) return;
     configured.current = true;
 
-    let alive = true;
     const settle = (token) => {
       const resolve = resolver.current;
       resolver.current = null;
@@ -498,7 +532,7 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
 
     loadCollectJs()
       .then((CollectJS) => {
-        if (!alive) return;
+        if (!open.current) return;
         CollectJS.configure({
           variant: "inline",
           // Left off deliberately: it copies our page CSS into the gateway's
@@ -514,7 +548,7 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
           invalidCss: { "border-color": "#dc2626" },
           validCss: { "border-color": "#cfd8d3" },
           placeholderCss: { color: "#8a938f" },
-          fieldsAvailableCallback: () => alive && setStatus("ready"),
+          fieldsAvailableCallback: () => open.current && setStatus("ready"),
           // Per-field verdicts as the patient types, so a failed tokenize can
           // say "Card number is invalid" instead of shrugging.
           validationCallback: (field, valid, message) => {
@@ -526,15 +560,11 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
         });
       })
       .catch((e) => {
-        if (!alive) return;
+        if (!open.current) return;
         console.error("Collect.js failed to load:", e.message);
         setStatus("dead");
       });
-
-    return () => {
-      alive = false;
-    };
-  }, []);
+  }, [quote, processor]);
 
   const tokenize = () =>
     new Promise((resolve) => {
@@ -612,6 +642,143 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
     }
   };
 
+  /* Kurv: the server opens a payment link and hands back the page to show.
+
+     Asked for as soon as the popup knows Kurv is taking the order, not on the
+     click, so any wait on Kurv passes while the patient reads the summary.
+     One link per plan, reused if they go Back and continue again, so Kurv
+     isn't left with a trail of duplicates. `submitted` can't change while this
+     popup is up (it covers MDI's Submit button), so capturing it early is safe. */
+  const kurvRequest = useRef(null); // { pid, promise }
+  const requestKurv = () => {
+    if (kurvRequest.current?.pid === pid) return kurvRequest.current.promise;
+    const promise = fetch("/api/pay", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "kurv_start",
+        pid,
+        contact_id: stored("ghl_contact"),
+        opportunity_id: stored("ghl_opportunity"),
+        submitted,
+        treatment,
+      }),
+    })
+      .then((res) => res.json())
+      .catch((e) => {
+        console.error("Kurv start failed:", e.message);
+        return null;
+      });
+    kurvRequest.current = { pid, promise };
+    return promise;
+  };
+
+  useEffect(() => {
+    if (processor !== "kurv" || !quote || !pid) return;
+    requestKurv().then((r) => {
+      // Turned away early: show the card form now, not after a wasted click.
+      if (!(r?.ok && r.url && r.ticket) && kurvRequest.current?.pid === pid) {
+        kurvRequest.current = null;
+        setKurvOff(true);
+      }
+    });
+    // requestKurv reads the latest pid itself and dedupes by it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [processor, quote, pid]);
+
+  /* Any "no" from the server (cap reached, Kurv down) drops to the card form,
+     which charges PayTechTrust instead. */
+  const startKurv = async () => {
+    if (kurvStarting || !quote) return;
+    setMessage("");
+    setKurvStarting(true);
+    const r = await requestKurv();
+    setKurvStarting(false);
+    if (r?.ok && r.url && r.ticket) {
+      setKurv({ url: r.url, ticket: r.ticket, checking: false });
+      return;
+    }
+    kurvRequest.current = null;
+    setKurvOff(true);
+  };
+
+  const openKurvWindow = () => {
+    if (!kurv) return;
+    // Named, so a second click reuses the window instead of stacking them.
+    const w = window.open(kurv.url, "novamdk-kurv", "width=480,height=780");
+    if (!w) setMessage("Your browser blocked the payment window. Please allow pop-ups for this site and try again.");
+  };
+
+  /* While Kurv's page is open: listen for its "done" from our return page, and
+     poll the server as a net in case that never arrives (a closed window, a
+     browser that keeps Kurv's own receipt up). Only the server's answer, which
+     comes from Kurv's API, ever completes the checkout. */
+  const kurvTicket = kurv?.ticket;
+  useEffect(() => {
+    if (!kurvTicket) return undefined;
+    let alive = true;
+    let asking = false;
+    const timers = [];
+
+    const confirm = async () => {
+      if (!alive || asking) return;
+      asking = true;
+      try {
+        const r = await fetch("/api/pay", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "kurv_confirm", ticket: kurvTicket }),
+        }).then((res) => res.json());
+        if (!alive) return;
+        if (r?.ok) {
+          alive = false;
+          setStatus("done");
+          setTimeout(() => onPaidRef.current?.(), submittedRef.current ? 0 : 1800);
+        } else if (r?.error === "amount_mismatch" || r?.error === "bad_ticket") {
+          setMessage("We couldn't confirm that payment. Please contact support@novamdk.com before paying again.");
+        }
+      } catch {
+        /* the next poll tries again */
+      } finally {
+        asking = false;
+      }
+    };
+
+    const onReturn = (data) => {
+      if (!data || data.source !== "novamdk-kurv") return;
+      if (data.outcome === "cancel") {
+        setKurv(null);
+        setMessage("Payment cancelled. You can try again when you're ready.");
+        return;
+      }
+      setKurv((k) => (k ? { ...k, checking: true } : k));
+      // Kurv can take a moment to record the payment after its page moves on,
+      // so ask a few times close together rather than waiting on the poll.
+      for (const ms of [0, 2000, 4500, 8000]) timers.push(setTimeout(confirm, ms));
+    };
+
+    const onMessage = (e) => {
+      if (e.origin === window.location.origin) onReturn(e.data);
+    };
+    window.addEventListener("message", onMessage);
+    let channel = null;
+    try {
+      channel = new BroadcastChannel("novamdk-kurv");
+      channel.onmessage = (e) => onReturn(e.data);
+    } catch {
+      /* older browser: postMessage and the poll still cover it */
+    }
+    const poll = setInterval(confirm, 6000);
+
+    return () => {
+      alive = false;
+      clearInterval(poll);
+      timers.forEach(clearTimeout);
+      window.removeEventListener("message", onMessage);
+      channel?.close();
+    };
+  }, [kurvTicket]);
+
   // Whole dollars stay whole ("$169"); anything with cents shows them ("$0.01").
   const usd = (n) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
   const sectionLabel = "font-mono text-[11px] font-medium uppercase tracking-[0.13em] text-muted";
@@ -627,6 +794,64 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
             {!submitted && (
               <p className="text-[0.9rem] text-muted">
                 Finish any remaining screens and press Submit to send your request to a provider.
+              </p>
+            )}
+          </div>
+        ) : kurv ? (
+          /* Kurv's own payment page, kept inside this popup so the
+             questionnaire behind it never unloads. Leaving the page would
+             drop the intake mid-way, and the patient would come back to a
+             checkout that had forgotten they paid. */
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
+              <p className={sectionLabel}>Secure payment · {usd(quote.total)}</p>
+              <button
+                type="button"
+                onClick={() => setKurv(null)}
+                disabled={kurv.checking}
+                className="flex items-center gap-1 text-[0.82rem] font-semibold text-muted transition-colors hover:text-ink disabled:opacity-50"
+              >
+                <ArrowLeft size={14} /> Back
+              </button>
+            </div>
+
+            {kurv.checking ? (
+              <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
+                <Loader2 size={30} className="animate-spin text-primary" />
+                <p className="text-[0.95rem] font-semibold">Confirming your payment…</p>
+                <p className="text-[0.82rem] text-muted">This usually takes a few seconds.</p>
+              </div>
+            ) : canEmbedKurv ? (
+              <iframe
+                src={kurv.url}
+                title="Secure payment"
+                allow="payment"
+                className="block h-160 min-h-0 w-full shrink border-0 bg-white"
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-4 px-6 py-12 text-center">
+                <CreditCard size={30} className="text-primary" />
+                <p className="text-[0.9rem] text-muted">
+                  Your secure payment page opens in a small window. Come back here once you&rsquo;ve
+                  paid and we&rsquo;ll continue your intake.
+                </p>
+                <button
+                  type="button"
+                  onClick={openKurvWindow}
+                  className="nv-fill-marquee rounded-full px-7 py-3.5 text-[0.95rem] font-semibold text-ink nv-shadow"
+                >
+                  Open secure payment
+                </button>
+              </div>
+            )}
+
+            {message && <p className="px-5 pt-3 text-[0.8rem] font-medium text-red-600">{message}</p>}
+            {!kurv.checking && canEmbedKurv && (
+              <p className="border-t border-line px-5 py-3 text-center text-[0.76rem] text-muted">
+                Payment page not showing?{" "}
+                <button type="button" onClick={openKurvWindow} className="font-semibold text-primary underline">
+                  Open it in a new window
+                </button>
               </p>
             )}
           </div>
@@ -752,7 +977,13 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
               )}
 
               <p className={`${sectionLabel} mt-7`}>Payment details</p>
-              {status === "dead" ? (
+              {processor === "kurv" && (
+                <p className="mt-2.5 text-[0.88rem] leading-relaxed text-muted">
+                  You&rsquo;ll enter your card on our payment partner&rsquo;s secure page, right
+                  here in this window. Apple Pay and Google Pay are available on supported devices.
+                </p>
+              )}
+              {processor === "kurv" ? null : status === "dead" ? (
                 <p className="mt-2.5 text-[0.85rem] font-medium text-red-600">
                   We couldn't load the secure card form. Please refresh the page, or contact
                   support@novamdk.com and we'll take your payment another way.
@@ -760,9 +991,10 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
               ) : (
                 <div className="mt-2.5 space-y-3">
                   {/* Collect.js mounts a gateway-hosted iframe into each of these,
-                      which is why they're plain ids and not inputs. They render
-                      from the first paint, before the quote arrives, because
-                      Collect.js needs the selectors to exist when it configures. */}
+                      which is why they're plain ids and not inputs. They exist
+                      from the render that picks PayTechTrust, and Collect.js
+                      configures in the effect after it, so the selectors are
+                      always there when it looks. */}
                   <div id="nv-cc-number" className="h-11.5" />
                   <div className="grid grid-cols-2 gap-3">
                     <div id="nv-cc-exp" className="h-11.5" />
@@ -806,7 +1038,31 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
 
             {/* Pinned, so the total and the button stay in reach however far the
                 summary above has to scroll on a small screen. */}
-            {status !== "dead" && (
+            {processor === "kurv" && (
+              <div className="border-t border-line bg-surface px-6 py-4 md:px-8">
+                <button
+                  onClick={startKurv}
+                  disabled={!quote || kurvStarting}
+                  className="nv-fill-marquee flex w-full items-center justify-center gap-2 rounded-full px-7 py-4 text-center text-[1rem] font-semibold leading-snug text-ink transition-all hover:-translate-y-0.5 nv-shadow disabled:opacity-70 disabled:hover:translate-y-0"
+                >
+                  {kurvStarting ? (
+                    <>
+                      <Loader2 size={17} className="animate-spin" /> Opening secure payment…
+                    </>
+                  ) : (
+                    <>
+                      <Lock size={16} className="shrink-0" /> Continue to secure payment · {usd(quote.total)}
+                    </>
+                  )}
+                </button>
+                <p className="mt-3 flex items-center justify-center gap-1.5 text-[0.75rem] font-medium text-muted">
+                  <ShieldCheck size={14} className="text-primary" /> Encrypted and HIPAA-secure
+                  checkout
+                </p>
+              </div>
+            )}
+
+            {processor === "nmi" && status !== "dead" && (
               <div className="border-t border-line bg-surface px-6 py-4 md:px-8">
                 <button
                   onClick={pay}

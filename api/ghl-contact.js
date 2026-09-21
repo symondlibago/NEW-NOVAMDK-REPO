@@ -9,6 +9,7 @@ import {
   INTAKE_STAGE,
 } from "./_ghl.js";
 import { blocked } from "./_guard.js";
+import { checkHuman } from "./_turnstile.js";
 
 /* ------------------------------ contact form ----------------------------- */
 
@@ -52,6 +53,14 @@ async function contactForm(req, res) {
 
   if (!name || !EMAIL_RE.test(email) || message.length < 2) {
     return res.status(400).json({ ok: false, error: "invalid" });
+  }
+
+  /* After the honeypot and the field checks, which are free, and before the
+     GHL writes. One step, so no pass: the token is spent here and the form
+     resets its widget if the visitor needs to send again. */
+  const human = await checkHuman(req);
+  if (!human.ok) {
+    return res.status(403).json({ ok: false, error: "human_check_failed" });
   }
 
   if (!ghlConfigured()) {

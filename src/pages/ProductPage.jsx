@@ -28,6 +28,7 @@ import KioskQr from "../components/kiosk/KioskQr";
 import { ComplianceBadges, CompoundedDisclaimer } from "../components/Compliance";
 import useKioskMode from "../lib/useKioskMode";
 import useLockBodyScroll from "../lib/useLockBodyScroll";
+import Turnstile, { turnstileOn } from "../components/Turnstile";
 import DatePicker from "../components/ui/DatePicker";
 import { baseName, stageOf, displayTitle } from "../lib/catalog";
 import ProductGallery from "../components/product/ProductGallery";
@@ -107,6 +108,10 @@ export default function ProductPage() {
   const [showInfo, setShowInfo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  /* The server's proof that this visitor passed the human check on the email
+     step. A ref, not state: it only travels on the next request and never
+     renders anything. */
+  const humanPass = useRef(null);
 
   useEffect(() => {
     if (!product || isKiosk) return;
@@ -190,7 +195,7 @@ export default function ProductPage() {
      record named a statement (the B12 combination notice, for one), which is
      what kept Compliance.jsx from firing an unrelated disclaimer onto an Rx
      page. */
-  const startVisit = async (patient) => {
+  const startVisit = async (patient, { turnstileToken } = {}) => {
     track(EVENTS.START_VISIT, {
       product_id: active.id,
       product_name: active.name,
@@ -211,10 +216,20 @@ export default function ProductPage() {
           // promotional settings.
           patient: patient?.email ? withoutMarketing(patient) : null,
           consent: patient?.consent || null,
+          /* Sent beside the patient, never inside it: nothing about the human
+             check belongs on the patient file. The token comes from the email
+             step's widget; the pass is what the server gave back for it, and
+             stands in for it on the address step's call. */
+          turnstile_token: turnstileToken || undefined,
+          human_pass: humanPass.current || undefined,
         }),
       });
+      if (res.status === 403) {
+        throw new Error("We couldn't confirm you're not a bot. Please try again.");
+      }
       if (!res.ok) throw new Error("We couldn't start your visit just now — please try again.");
       const voucher = await res.json();
+      if (voucher.human_pass) humanPass.current = voucher.human_pass;
       // Contact-only submit + no MDI record found: the modal collects the
       // rest of the profile (steps 2–3) before we mint the voucher.
       if (voucher.need_profile) return { needProfile: true };
@@ -806,6 +821,14 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
   const toggleConsent = (k) => () => setConsent((c) => ({ ...c, [k]: !c[k] }));
   const consentValid = consent.required;
 
+  /* Human check, email step only: the server trades it for a pass that covers
+     the rest of the modal. `humanKey` remounts the widget for a fresh token
+     after a failed submit, since each token can be spent once. */
+  const [humanToken, setHumanToken] = useState("");
+  const [humanKey, setHumanKey] = useState(0);
+  const [humanBroken, setHumanBroken] = useState(false);
+  const humanValid = !turnstileOn || Boolean(humanToken);
+
   /* MDI's shape is unchanged: it stores the two flags separately and the single
      box now covers both, so existing patient files keep reading the same way. */
   const consentRecord = (at) => ({
@@ -858,15 +881,26 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
     e.preventDefault();
     if (loading) return;
     if (step === 0) {
-      if (!emailValid || !consentValid) return;
+      if (!emailValid || !consentValid || !humanValid) return;
       const at = new Date().toISOString();
       setConsentAt(at);
-      const res = await onSubmit({
-        email: form.email.trim(),
-        consent: consentRecord(at),
-        marketing: marketingRecord(at),
-      });
-      if (res?.needProfile) setStep(1);
+      const res = await onSubmit(
+        {
+          email: form.email.trim(),
+          consent: consentRecord(at),
+          marketing: marketingRecord(at),
+        },
+        { turnstileToken: humanToken }
+      );
+      if (res?.needProfile) {
+        setStep(1);
+        return;
+      }
+      /* Didn't move on, so the request failed and spent the token. A returning
+         patient who succeeded has already been navigated away, so this only
+         ever resets a widget someone is still looking at. */
+      setHumanToken("");
+      setHumanKey((k) => k + 1);
       return;
     }
     if (step === 1) {
@@ -991,6 +1025,21 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
                   {MARKETING_CONSENT_COPY}
                 </ConsentCheck>
               </div>
+              <Turnstile
+                key={humanKey}
+                action="start_visit"
+                onToken={(t) => {
+                  setHumanToken(t);
+                  if (t) setHumanBroken(false);
+                }}
+                onError={() => setHumanBroken(true)}
+              />
+              {humanBroken && (
+                <p role="alert" className="text-[0.8rem] leading-relaxed text-muted">
+                  The security check didn&rsquo;t load. Refresh the page, or turn off an ad blocker
+                  for this site, and try again.
+                </p>
+              )}
             </>
           )}
 
@@ -1075,7 +1124,7 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
             )}
             <button
               type="submit"
-              disabled={(step === 0 ? !emailValid || !consentValid : step === 1 ? !step1Valid : step === 2 ? !step2Valid : !step3Valid) || loading}
+              disabled={(step === 0 ? !emailValid || !consentValid || !humanValid : step === 1 ? !step1Valid : step === 2 ? !step2Valid : !step3Valid) || loading}
               className="flex flex-1 items-center justify-center gap-2 rounded-full bg-primary px-7 py-3.5 text-[0.98rem] font-semibold text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow disabled:opacity-60 disabled:hover:translate-y-0"
             >
               {loading ? (

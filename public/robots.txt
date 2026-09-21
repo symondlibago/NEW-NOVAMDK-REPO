@@ -4,5 +4,6 @@ Disallow: /intake
 Disallow: /portal
 Disallow: /start
 Disallow: /insights
+Disallow: /kurv-return.html
 
 Sitemap: https://www.novamdk.com/sitemap.xml

@@ -1,4 +1,5 @@
 import { blocked, signReleaseToken } from './_guard.js';
+import { checkHuman } from './_turnstile.js';
 
 const CLIENT_ID = process.env.MDI_CLIENT_ID;
 const CLIENT_SECRET = process.env.MDI_CLIENT_SECRET;
@@ -9,6 +10,14 @@ export default async function handler(req, res) {
   }
 
   if (blocked(req, res)) return;
+
+  /* Before anything touches MDI. Even the first, email-only call searches MDI's
+     patient list, and the second creates a patient and a questionnaire, which is
+     how fake sign-ups were cluttering both MDI and the CRM. */
+  const human = await checkHuman(req, req.body?.patient?.email);
+  if (!human.ok) {
+    return res.status(403).json({ error: 'human_check_failed' });
+  }
 
   if (!CLIENT_ID || !CLIENT_SECRET) {
     console.error('MDI credentials missing — set MDI_CLIENT_ID and MDI_CLIENT_SECRET.');
@@ -62,7 +71,8 @@ export default async function handler(req, res) {
         const hasFullProfile = p.first_name && p.last_name && p.date_of_birth && p.gender &&
           p.address?.address;
         if (!patientId && !hasFullProfile) {
-          return res.status(200).json({ need_profile: true });
+          // The pass carries the check over to the address step's call.
+          return res.status(200).json({ need_profile: true, human_pass: human.pass });
         }
 
         if (!patientId && hasFullProfile) {

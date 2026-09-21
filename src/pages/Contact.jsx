@@ -19,6 +19,7 @@ import Navbar from "../components/Nav/Navbar";
 import Footer from "../components/Nav/Footer";
 import Reveal from "../components/ui/Reveal";
 import { submitContactForm } from "../lib/ghl";
+import Turnstile, { turnstileOn } from "../components/Turnstile";
 import { track, EVENTS } from "../lib/analytics";
 
 /* Built on the site rather than embedded from GoHighLevel. The survey embed was
@@ -219,8 +220,19 @@ export default function ContactPage() {
   const [form, setForm] = useState(EMPTY);
   const [state, setState] = useState("idle"); // idle | sending | sent
   const [err, setErr] = useState("");
+  /* Human check. A token is spent on every send, success or not, so the widget
+     is remounted via `humanKey` whenever the visitor might need another. */
+  const [humanToken, setHumanToken] = useState("");
+  const [humanKey, setHumanKey] = useState(0);
+  const [humanBroken, setHumanBroken] = useState(false);
+  const humanValid = !turnstileOn || Boolean(humanToken);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const freshCheck = () => {
+    setHumanToken("");
+    setHumanKey((k) => k + 1);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -229,13 +241,19 @@ export default function ContactPage() {
     if (!form.name.trim()) return setErr("Please add your name.");
     if (!EMAIL_RE.test(form.email.trim())) return setErr("Please add a valid email address so we can reply.");
     if (form.message.trim().length < 2) return setErr("Please write a short message.");
+    if (!humanValid) return setErr("Please wait a moment for the security check to finish.");
 
     setState("sending");
-    const result = await submitContactForm(form);
+    const result = await submitContactForm({ ...form, turnstile_token: humanToken || undefined });
 
     if (!result.ok) {
       setState("idle");
-      setErr("We couldn't send your message just now. Please try again in a moment.");
+      freshCheck();
+      setErr(
+        result.error === "human_check_failed"
+          ? "We couldn't confirm you're not a bot. Please try again."
+          : "We couldn't send your message just now. Please try again in a moment."
+      );
       return;
     }
 
@@ -247,6 +265,7 @@ export default function ContactPage() {
   const reset = () => {
     setForm(EMPTY);
     setState("idle");
+    freshCheck();
   };
 
   return (
@@ -386,6 +405,24 @@ export default function ContactPage() {
                       />
                     </div>
 
+                    <div className="mt-5">
+                      <Turnstile
+                        key={humanKey}
+                        action="contact_form"
+                        onToken={(t) => {
+                          setHumanToken(t);
+                          if (t) setHumanBroken(false);
+                        }}
+                        onError={() => setHumanBroken(true)}
+                      />
+                      {humanBroken && (
+                        <p role="alert" className="mt-2 text-[0.85rem] text-muted">
+                          The security check didn&rsquo;t load. Refresh the page, or turn off an ad
+                          blocker for this site, and try again.
+                        </p>
+                      )}
+                    </div>
+
                     {err && (
                       <p className="mt-4 text-[0.88rem] font-medium text-red-600" role="alert">
                         {err}
@@ -394,7 +431,7 @@ export default function ContactPage() {
 
                     <button
                       type="submit"
-                      disabled={state === "sending"}
+                      disabled={state === "sending" || !humanValid}
                       className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl px-6 py-4 text-[1rem] font-bold text-on-primary shadow-lg shadow-black/10 transition hover:brightness-105 disabled:opacity-60"
                       style={cta}
                     >
