@@ -54,11 +54,18 @@ const SHIPPING_FEE = money(process.env.SHIPPING_FEE) ?? 0;
 
 /* Live card testing without repricing anything a patient can see.
  *
- * NMI_TEST_PID names the one product affected, so leaving these behind by
- * accident can misprice one product rather than the whole catalogue. The quote
- * the modal displays always uses real prices; only the charge is overridden.
- * Unset NMI_TEST_PID to turn every override off. */
-const TEST_PID = process.env.NMI_TEST_PID || null;
+ * NMI_TEST_PID names the products affected, comma separated ("1,11,12"), so
+ * leaving these behind by accident misprices a handful of products rather than
+ * the whole catalogue. A list rather than one id so a test run can cover one
+ * product per category. The quote the modal displays always uses real prices;
+ * only the charge is overridden, for Kurv and PayTechTrust alike. Unset
+ * NMI_TEST_PID to turn every override off. */
+const TEST_PIDS = new Set(
+  String(process.env.NMI_TEST_PID || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean)
+);
 const TEST_AMOUNT = money(process.env.NMI_TEST_AMOUNT);
 const TEST_SHIPPING = money(process.env.NMI_TEST_SHIPPING);
 
@@ -73,7 +80,7 @@ function quoteFor(pid) {
 function chargeFor(pid) {
   const quote = quoteFor(pid);
   if (!quote) return null;
-  if (!TEST_PID || String(pid) !== String(TEST_PID)) return quote;
+  if (!TEST_PIDS.has(String(pid))) return quote;
 
   const amount = TEST_AMOUNT > 0 ? TEST_AMOUNT : quote.amount;
   const shipping = TEST_SHIPPING ?? quote.shipping;
