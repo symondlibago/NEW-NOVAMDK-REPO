@@ -57,10 +57,23 @@ export default async function handler(req, res) {
     const consent = req.body.consent || null;
     if (p?.email) {
       try {
-        for (const body of [{ search: p.email }, { search: p.email, is_sandbox: true }]) {
-          if (patientId) break;
-          const searchRes = await mdi('/patients/search', body);
-          if (searchRes.ok) {
+        /* Whether MDI actually answered "does this patient already exist?".
+           A 500 or a 429 is not the same answer as "no such patient", and the
+           two must not be confused: creating a second chart for someone who
+           already has one splits their history, and the clinician then reviews
+           them without their earlier visits, medications or allergies. Two
+           charts really do exist for one test email because of this.
+
+           So the search is retried once, and a patient is only ever created
+           after MDI has answered at least once. */
+        let answered = false;
+        for (let attempt = 0; attempt < 2 && !patientId && !answered; attempt++) {
+          if (attempt) await new Promise((r) => setTimeout(r, 400));
+          for (const body of [{ search: p.email }, { search: p.email, is_sandbox: true }]) {
+            if (patientId) break;
+            const searchRes = await mdi('/patients/search', body);
+            if (!searchRes.ok) continue;
+            answered = true;
             const found = await searchRes.json();
             const list = Array.isArray(found) ? found : found.data || [];
             const match = list.find((x) => (x.email || '').toLowerCase() === p.email.toLowerCase());
@@ -75,12 +88,23 @@ export default async function handler(req, res) {
           return res.status(200).json({ need_profile: true, human_pass: human.pass });
         }
 
+        /* Nothing came back from either attempt, so we cannot tell a new
+           patient from an existing one. The modal turns this into "we couldn't
+           start your visit just now, please try again", which costs the patient
+           one tap. A duplicate chart would cost them their history. */
+        if (!patientId && !answered) {
+          console.error('MDI patient search unavailable — refusing to create a possible duplicate chart');
+          return res.status(503).json({ error: 'Patient lookup unavailable' });
+        }
+
         if (!patientId && hasFullProfile) {
           const consentMeta = consent
             ? {
                 consent: [
                   consent.telehealth_informed_consent && 'telehealth',
                   consent.terms_and_privacy && 'terms_privacy',
+                  // The consultation and its professional fee, ticked separately.
+                  consent.medical_fee && 'medical_fee',
                 ].filter(Boolean).join(','),
                 consent_at: consent.accepted_at,
               }

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { format, isToday, isYesterday } from "date-fns";
 import {
-  AlertCircle, Loader2, Mic, Paperclip, Plus, SendHorizontal, Square, Stethoscope, Video, X,
+  AlertCircle, FileText, Loader2, Mic, Paperclip, Plus, SendHorizontal, Square, Stethoscope, Video, X,
 } from "lucide-react";
 import { portalData } from "../../lib/portal";
 import { prepareAttachment, pickRecorderMime, extensionFor } from "../../lib/attachments";
@@ -82,7 +82,7 @@ const Placeholder = ({ mine, label }) => (
 
 /* The patient-facing thread. MDI's other channel is an internal
    clinician-to-support conversation and is deliberately not exposed here. */
-export default function PortalMessages({ onUnauthorized }) {
+export default function PortalMessages({ onUnauthorized, about, onClearAbout }) {
   const [messages, setMessages] = useState(null);
   const [error, setError] = useState(null);
   const [draft, setDraft] = useState("");
@@ -285,9 +285,14 @@ export default function PortalMessages({ onUnauthorized }) {
         resource: "send_message",
         text,
         file_ids: pending.map((f) => f.id),
+        /* The server resolves this against the patient's own cases and writes
+           the reference line itself; we only say which visit was open. */
+        ...(about?.case_id ? { about_case_id: about.case_id } : {}),
       });
       setDraft("");
       setPending([]);
+      // One message carries the reference; the next is a fresh question.
+      onClearAbout?.();
       fitComposer(composerRef.current);
       setMessages((prev) => [...(prev || []), message]);
     } catch (err) {
@@ -385,6 +390,28 @@ export default function PortalMessages({ onUnauthorized }) {
             <p role="alert" className="mb-2 flex items-start gap-1.5 text-[0.82rem] text-ink">
               <AlertCircle size={13} className="mt-0.5 shrink-0 text-primary" /> {error}
             </p>
+          )}
+
+          {/* Shown only when the patient arrived here from a visit. Removable,
+              so they are never forced to send a reference they didn't mean. */}
+          {about?.case_id && (
+            <div className="mb-2 flex items-center gap-1.5 rounded-full border border-line bg-bg py-1 pl-3 pr-1.5 text-[0.8rem] text-ink w-fit max-w-full">
+              <FileText size={12} className="shrink-0 text-primary" />
+              <span className="truncate">
+                About Visit #{about.number}
+                {about.clinician
+                  ? <> · Dr. {about.clinician}</>
+                  : about.created_at && <> · {format(new Date(about.created_at), "MMM d")}</>}
+              </span>
+              <button
+                type="button"
+                aria-label="Do not mention a visit"
+                onClick={() => onClearAbout?.()}
+                className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"
+              >
+                <X size={12} />
+              </button>
+            </div>
           )}
 
           {pending.length > 0 && (

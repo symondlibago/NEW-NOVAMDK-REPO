@@ -72,9 +72,22 @@ export default function PatientPortalPage() {
     setState("out");
   }, []);
 
+  /* Set when the patient taps "Message about this visit". MDI's chat is one
+     thread per patient with no case attached to a message, so naming the visit
+     in the message is the only context a clinician gets. Cleared on any other
+     navigation, so it can never attach itself to an unrelated message. */
+  const [messageAbout, setMessageAbout] = useState(null);
+
   const selectTab = useCallback((key) => {
     setTab(key);
+    setMessageAbout(null);
     setDrawerOpen(false); // the drawer overlays the content on mobile
+  }, []);
+
+  const messageAboutVisit = useCallback((visit) => {
+    setMessageAbout(visit);
+    setTab("messages");
+    setDrawerOpen(false);
   }, []);
 
   const chip =
@@ -183,8 +196,16 @@ export default function PatientPortalPage() {
                 transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
               >
                 {tab === "home" && <PortalHome onUnauthorized={signOut} onNavigate={selectTab} />}
-                {tab === "messages" && <PortalMessages onUnauthorized={signOut} />}
-                {tab === "visits" && <PortalVisits onUnauthorized={signOut} />}
+                {tab === "messages" && (
+                  <PortalMessages
+                    onUnauthorized={signOut}
+                    about={messageAbout}
+                    onClearAbout={() => setMessageAbout(null)}
+                  />
+                )}
+                {tab === "visits" && (
+                  <PortalVisits onUnauthorized={signOut} onMessageAbout={messageAboutVisit} />
+                )}
                 {tab === "profile" && (
                   <PortalProfile onUnauthorized={signOut} />
                 )}

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
-import { AlertCircle, ChevronLeft, ChevronRight, FileClock, FileText, Pill, Stethoscope, Truck } from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, FileClock, FileText, MessageSquare, Pill, Stethoscope, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { portalData } from "../../lib/portal";
 import ResumeIntakeButton from "./ResumeIntakeButton";
@@ -197,15 +197,15 @@ function Treatments({ treatments }) {
       </p>
     );
   }
+  /* The name and nothing else, on the client's instruction. The dose and
+     directions the server used to send alongside it are gone from the payload
+     too, so there is no second line left to render. */
   return (
     <ul className="space-y-2.5">
       {treatments.map((t) => (
-        <li key={t.id} className="flex gap-3 rounded-xl border border-line bg-bg p-3.5">
-          <Pill size={16} className="mt-0.5 shrink-0 text-primary" />
-          <div className="min-w-0">
-            <p className="text-[0.92rem] font-semibold text-ink">{t.name}</p>
-            {t.detail && <p className="mt-0.5 text-[0.85rem] leading-relaxed text-muted">{t.detail}</p>}
-          </div>
+        <li key={t.id} className="flex items-center gap-3 rounded-xl border border-line bg-bg p-3.5">
+          <Pill size={16} className="shrink-0 text-primary" />
+          <p className="min-w-0 text-[0.92rem] font-semibold text-ink">{t.name}</p>
         </li>
       ))}
     </ul>
@@ -343,7 +343,7 @@ function DraftRow({ draft }) {
   );
 }
 
-export default function PortalVisits({ onUnauthorized }) {
+export default function PortalVisits({ onUnauthorized, onMessageAbout }) {
   const [cases, setCases] = useState(null);
   const [visits, setVisits] = useState([]);
   // Set once the visits land: with no "All" tab, the page has to open on a
@@ -474,14 +474,27 @@ export default function PortalVisits({ onUnauthorized }) {
             <hr className="my-6 border-line" />
 
             <p className="text-[0.88rem] leading-relaxed text-muted">
-              Questions about your treatment? Message your care team from the{" "}
-              <span className="font-medium text-ink">Messages</span> tab. For orders,
-              shipping or billing,{" "}
+              Questions about your treatment? Message your care team about this visit.
+              For orders, shipping or billing,{" "}
               <Link to="/contact" className="font-medium text-primary underline-offset-4 hover:underline">
                 contact support
               </Link>
               .
             </p>
+
+            {/* One thread covers every visit, so the message says which one it
+                is about. Only offered where the patient is looking at a visit,
+                which is the only place we can know. */}
+            {onMessageAbout && (
+              <button
+                type="button"
+                onClick={() => onMessageAbout(open)}
+                className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-[0.88rem] font-semibold text-white transition-opacity hover:opacity-90"
+              >
+                <MessageSquare size={15} />
+                Message about this visit
+              </button>
+            )}
           </div>
         </div>
       </div>

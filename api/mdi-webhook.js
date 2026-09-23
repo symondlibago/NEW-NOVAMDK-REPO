@@ -39,12 +39,20 @@ const AUTH = process.env.MDI_WEBHOOK_AUTH || null;
    instruction (2026-09-19) to stop denied visits sitting in Paid and counting as
    won revenue; if the two need telling apart, that has to come from MDI.
 
-   Support still moves nothing: it's a detour, not an exit. */
+   Support still moves nothing: it's a detour, not an exit.
+
+   `case_processing` moves nothing either, and that is deliberate. It looks like
+   a pharmacy event but it isn't: MDI fires it seconds after the approval, while
+   it transmits the prescription, and the case then reaches `case_completed`
+   minutes later, before the pharmacy has touched the order (first live case,
+   2026-09-22: processing, then completed four minutes on, then the order
+   created as a draft). So the clinical chain ends at Completed and the pharmacy
+   columns are driven by the order events below. */
 const CASE_EVENTS = {
   case_created: { status: "created" },
   case_waiting: { status: "waiting", tag: "mdi-waiting" },
   case_assigned_to_clinician: { status: "assigned", stage: "Provider Review", tag: "mdi-in-review" },
-  case_processing: { status: "processing", stage: "Pharmacy Processing", tag: "mdi-processing" },
+  case_processing: { status: "processing", tag: "mdi-processing" },
   case_approved: { status: "approved", stage: "Approved", tag: "mdi-approved" },
   case_completed: { status: "completed", stage: "Completed", tag: "mdi-completed" },
   case_cancelled: { status: "cancelled", tag: "mdi-cancelled", lost: true },
@@ -58,18 +66,132 @@ const ORDER_EVENTS = new Set([
   "order_tracking_number_changed",
 ]);
 
+/* The pharmacy half of the board, keyed on the real `order_status` values rather
+   than the words MDI's Rx Orders screen shows, which are not the same:
+   "Upcoming" is `draft`, "At Pharmacy" is `received`.
+
+   `draft` deliberately moves nothing. An order is created in draft the moment
+   the case completes, but it still has to be approved by hand in MDI before it
+   reaches the pharmacy at all (observed live 2026-09-22: draft at 17:14,
+   received an hour later), so a card in Pharmacy Processing at that point would
+   be claiming work nobody had started. It waits in Completed.
+
+   What's left collapses into the three columns a patient would recognise:
+   someone is making it, it's on its way, it arrived. */
+const ORDER_STAGE = {
+  received: "Pharmacy Processing",
+  ready: "Pharmacy Processing",
+  fulfilled: "Shipped",
+  shipped: "Shipped",
+  completed: "Delivered",
+  delivered: "Delivered",
+};
+
+const ORDER_TAG = {
+  "Pharmacy Processing": "mdi-pharmacy",
+  Shipped: "mdi-shipped",
+  Delivered: "mdi-delivered",
+};
+
+/* The column the order sits in is the honest status, not the pharmacy's word for
+   it: "fulfilled" and "completed" both read like the end of the line, and only
+   one of them is. */
+const STAGE_STATUS = { Shipped: "shipped", Delivered: "delivered" };
+
+/* An order that went wrong rather than forward. Kept loose because this is the
+   one part of the pharmacy vocabulary we have not seen the whole of. */
+const ORDER_PROBLEM = /cancel|void|reject|fail|error|declin/;
+
+/** The column, status and tag an order event implies. */
+function fromOrder(payload) {
+  const raw = safeStatus(payload.order_status);
+  const key = (raw || "").toLowerCase();
+  const tracked = Boolean(safeStatus(payload.tracking_number));
+
+  /* A cancelled or failed order is a pharmacy problem on a case a provider
+     already approved, not a denied visit: the patient has paid and been
+     prescribed, and someone has to sort the order out. So it moves nothing and
+     is left for a human to pick up from the tag. `failed` is real, not
+     defensive: MDI sent one on 2026-09-22. */
+  if (ORDER_PROBLEM.test(key)) {
+    const label = /cancel|void|reject/.test(key) ? "cancelled" : "failed";
+    return { status: `order-${label}`, stage: null, tag: `mdi-order-${label}` };
+  }
+
+  /* A tracking number is the parcel leaving whatever the status says, which is
+     what `order_tracking_number_changed` arrives with on its own. */
+  const stage = ORDER_STAGE[key] || (tracked ? "Shipped" : null);
+  if (!stage) return { status: raw, stage: null, tag: null };
+
+  return { status: STAGE_STATUS[stage] || raw, stage, tag: ORDER_TAG[stage] };
+}
+
+/* Orders arrive in `draft`, which the Rx Orders screen calls "Upcoming", and
+   sit there until someone opens the row and clicks Approve. On the first live
+   case that was an hour. MDI exposes the same action on the partner API, so the
+   click happens here the moment the order appears.
+
+   This does NOT approve a visit. By this point a clinician has reviewed the
+   patient and written the prescription; the only step automated is pushing an
+   order they already approved to the pharmacy. What it does remove is the last
+   human look at the order, so a bad address now surfaces as MDI's own Error row
+   ("the ship-to and bill-to addresses are invalid") plus the mdi-order-failed
+   tag, and is fixed and resubmitted by hand in MDI. That is the client's
+   decision, taken 2026-09-23.
+
+   Set MDI_AUTO_SUBMIT_ORDERS=0 to hand the click back to staff. */
+const AUTO_SUBMIT = process.env.MDI_AUTO_SUBMIT_ORDERS !== "0";
+
+/* Proof, within one warm instance, that this order already went. MDI repeats
+   events, and an order must not be submitted twice. It is a cheap guard, not
+   the real one: the `draft` check is, since a submitted order is no longer in
+   draft by the time any repeat arrives. */
+const submitted = new Set();
+
+/** Pushes a draft order to the pharmacy. Never throws. @returns {Promise<string|null>} */
+async function submitDraftOrder(payload) {
+  const caseId = payload.case_id;
+  const orderId = payload.case_order_id;
+  const status = String(safeStatus(payload.order_status) || "").toLowerCase();
+
+  if (!AUTO_SUBMIT || status !== "draft" || !caseId || !orderId) return null;
+  if (submitted.has(orderId)) return "already_sent";
+
+  submitted.add(orderId);
+  try {
+    const r = await mdi(
+      `/cases/${encodeURIComponent(caseId)}/orders/${encodeURIComponent(orderId)}/submit`,
+      { method: "POST" }
+    );
+    if (!r.ok) {
+      // Let a later event try again; this one may simply have been too early.
+      submitted.delete(orderId);
+      console.error(`MDI order submit ${orderId} returned ${r.status}`);
+      return `submit_failed_${r.status}`;
+    }
+    console.info(`MDI order ${orderId} sent to the pharmacy`);
+    return "sent";
+  } catch (e) {
+    submitted.delete(orderId);
+    console.error(`MDI order submit ${orderId} failed:`, e.message);
+    return "submit_error";
+  }
+}
+
 /* How far along each status is, so the field can't be walked backwards.
 
    MDI fires events in quick succession and repeats them: approving a case also
    submits the prescription, so `case_approved` and `case_processing` arrive
    three seconds apart, and clicking approve twice more afterwards sent
    `case_approved` again. The last write would otherwise win and the field would
-   read "approved" while the card sat in Pharmacy Processing.
+   read "approved" while the card had already moved on.
 
    The column was already protected by moveOpportunityForward; this gives the
-   text field the same one-way rule. `cancelled` ranks highest because it is
-   terminal: nothing should overwrite it. An unranked status (an order status is
-   free text from the pharmacy) is written as-is, since we can't place it. */
+   text field the same one-way rule. The order statuses continue the ladder past
+   `completed`, so a late case event can't pull the field back off the pharmacy
+   half of the board. `cancelled` ranks highest because it is terminal: nothing
+   should overwrite it. An unranked status is written as-is, since we can't place
+   it. */
 const STATUS_RANK = {
   created: 1,
   waiting: 2,
@@ -77,9 +199,13 @@ const STATUS_RANK = {
   support: 3,
   approved: 4,
   processing: 5,
-  shipped: 6,
-  completed: 7,
-  cancelled: 8,
+  completed: 6,
+  draft: 7,
+  received: 8,
+  ready: 9,
+  shipped: 10,
+  delivered: 11,
+  cancelled: 12,
 };
 
 /** Whether `next` is at least as far along as what the contact already holds. */
@@ -241,19 +367,21 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: false, skipped: "not_configured" });
   }
 
-  const orderStatus = safeStatus(payload.order_status);
-  const status = known.status || orderStatus;
-  /* Shipped is the only order status worth a column of its own; the rest are
-     pharmacy progress and stay in Pharmacy Processing. */
-  const shipped = Boolean(orderStatus && /ship|fulfil/i.test(orderStatus));
-  const stage = known.stage || (shipped ? "Shipped" : null);
+  const order = fromOrder(payload);
+  const status = known.status || order.status;
+  const stage = known.stage || order.stage;
   /* Every status also lands as a tag. The column can only ever show one thing,
      and on this board payment and the clinical decision sit in the same line, so
      a paid card parked past Approved would otherwise hide whether a provider
      had approved it. The tag makes it filterable whatever column it sits in. */
-  const tag = known.tag || (shipped ? "mdi-shipped" : null);
+  const tag = known.tag || order.tag;
   // Closes the card rather than advancing it, so it wins over `stage`.
   const lost = Boolean(known.lost);
+
+  /* Ahead of the CRM lookup and independent of it. Getting the order to the
+     pharmacy is between us and MDI, and must not be skipped because a patient
+     happens to have no GHL contact. */
+  const sent = await submitDraftOrder(payload);
 
   try {
     const found = await findContact(payload);
@@ -263,7 +391,7 @@ export default async function handler(req, res) {
          directly in MDI rather than through the website, which is not an error
          and must not trigger retries. */
       console.warn(`MDI webhook ${event}: no matching GHL contact`);
-      return res.status(200).json({ ok: false, skipped: "no_contact" });
+      return res.status(200).json({ ok: false, skipped: "no_contact", ...(sent && { order: sent }) });
     }
 
     /* The tag and the date always land: a repeat or late event is still proof
@@ -308,6 +436,7 @@ export default async function handler(req, res) {
       ok: results.every((r) => r.status === "fulfilled"),
       event,
       contact_id: contact.id,
+      ...(sent && { order: sent }),
       ...(lost ? { closed_as: "lost" } : stage && { moved_to: stage }),
     });
   } catch (e) {

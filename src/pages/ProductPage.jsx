@@ -271,6 +271,12 @@ export default function ProductPage() {
             (patient?.consent?.accepted_at
               ? ` Agreed to the Privacy Policy, Terms & Conditions and Telehealth Consent at ${patient.consent.accepted_at}.`
               : "") +
+            /* Recorded separately from the documents because it is the one that
+               discloses a charge, and "they agreed to the terms" is not proof
+               of that. */
+            (patient?.consent?.medical_fee
+              ? ` Accepted the telehealth consultation and professional medical fee (${patient.consent.medical_fee_version}).`
+              : "") +
             /* Notes append and timestamp themselves, so this is the audit trail:
                the four contact fields only ever hold the newest answer, while
                every choice a patient has made survives here. */
@@ -814,12 +820,19 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
   const MARKETING_CONSENT_COPY =
     "Send me occasional educational content, product updates, and promotional offers from NovaMDK. I can unsubscribe at any time.";
 
-  /* One required box covering all three documents, plus an optional marketing
-     opt-in that must never stand between a patient and care. */
-  const [consent, setConsent] = useState({ required: false, marketing: false });
+  /* Same rule as the marketing copy: this wording is the disclosure itself,
+     there is no document behind it to point at, so the version is the only
+     record of what a given patient was shown. Bump it if the sentence changes. */
+  const FEE_CONSENT_VERSION = "v1";
+  const FEE_CONSENT_COPY =
+    "By proceeding, you consent to a telehealth consultation with an independent licensed clinician. A professional medical fee applies and is included in the amount paid.";
+
+  /* Two required boxes, the documents and the consultation fee, plus an optional
+     marketing opt-in that must never stand between a patient and care. */
+  const [consent, setConsent] = useState({ required: false, fee: false, marketing: false });
   const [consentAt, setConsentAt] = useState("");
   const toggleConsent = (k) => () => setConsent((c) => ({ ...c, [k]: !c[k] }));
-  const consentValid = consent.required;
+  const consentValid = consent.required && consent.fee;
 
   /* Human check, email step only: the server trades it for a pass that covers
      the rest of the modal. `humanKey` remounts the widget for a fresh token
@@ -834,6 +847,11 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
   const consentRecord = (at) => ({
     telehealth_informed_consent: consent.required,
     terms_and_privacy: consent.required,
+    /* The consultation and its fee, agreed separately from the documents. It
+       belongs on the patient file rather than only in our CRM: it is what the
+       clinician's own engagement with the patient rests on. */
+    medical_fee: consent.fee,
+    medical_fee_version: FEE_CONSENT_VERSION,
     accepted_at: at || consentAt,
     documents: {
       privacy_policy: "/legal/privacy-policy",
@@ -1019,6 +1037,11 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
                   <ConsentLink href="/legal/privacy-policy">Privacy Policy</ConsentLink>,{" "}
                   <ConsentLink href="/legal/terms-and-conditions">Terms &amp; Conditions</ConsentLink>, and{" "}
                   <ConsentLink href="/legal/telehealth-consent">Telehealth Consent</ConsentLink>.
+                </ConsentCheck>
+                {/* Required: it discloses a fee, so it has to be an explicit
+                    tick rather than something buried in the documents above. */}
+                <ConsentCheck checked={consent.fee} onToggle={toggleConsent("fee")}>
+                  {FEE_CONSENT_COPY}
                 </ConsentCheck>
                 {/* Optional. Never gates Continue, and starts unticked. */}
                 <ConsentCheck checked={consent.marketing} onToggle={toggleConsent("marketing")}>
