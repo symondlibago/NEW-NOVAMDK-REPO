@@ -271,6 +271,10 @@ function VisitList({ visits, filter, onOpen }) {
   );
 }
 
+/* Enough for a titration pair plus a lab panel, which is the busiest real visit
+   we have seen. Beyond that the row would outgrow the list it sits in. */
+const NAMES_SHOWN = 3;
+
 function CaseRow({ visit: c, onOpen }) {
   return (
     <button
@@ -288,11 +292,29 @@ function CaseRow({ visit: c, onOpen }) {
         <span className="mt-1 block truncate text-[0.85rem] text-muted">
           {format(new Date(c.created_at), "MMM d, yyyy")}
           {c.clinician && <> · Dr. {c.clinician}</>}
-          {" · "}
-          {c.treatments.length
-            ? `${c.treatments.length} treatment${c.treatments.length > 1 ? "s" : ""}`
-            : "No treatment prescribed"}
+          {!c.treatments.length && <> · No treatment prescribed</>}
         </span>
+        {/* The names themselves rather than a count, which told the patient
+            nothing they wanted to know. Chips instead of a joined sentence
+            because a visit can hold two dose steps and a lab panel, and MDI's
+            names run long: each one truncates on its own and the row wraps. */}
+        {c.treatments.length > 0 && (
+          <span className="mt-2 flex flex-wrap gap-1.5">
+            {c.treatments.slice(0, NAMES_SHOWN).map((t) => (
+              <span
+                key={t.id}
+                className="max-w-full truncate rounded-full border border-line bg-bg px-2.5 py-1 text-[0.78rem] font-medium text-ink sm:max-w-[18rem]"
+              >
+                {t.name}
+              </span>
+            ))}
+            {c.treatments.length > NAMES_SHOWN && (
+              <span className="px-1 py-1 text-[0.78rem] text-muted">
+                +{c.treatments.length - NAMES_SHOWN} more
+              </span>
+            )}
+          </span>
+        )}
       </span>
       <ChevronRight size={18} className="shrink-0 text-muted transition-colors group-hover:text-primary" />
     </button>
