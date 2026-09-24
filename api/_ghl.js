@@ -446,6 +446,19 @@ export const SEARCH_FIELD_ID = {
      the webhook can see the status it is about to overwrite without a second
      call. */
   MDI_ENCOUNTER_STATUS: process.env.GHL_STATUS_FIELD_ID || "ppPP4OXU4nNjBpbYLg1c",
+  /* The encounter recorded on an OPPORTUNITY, which is how a case is matched to
+     the one card that belongs to it. `/opportunities/search` returns each
+     card's customFields, so this needs no extra call. Distinct from
+     LATEST_MDI_ENCOUNTER_ID, which lives on the contact and holds only the most
+     recent visit. */
+  OPPORTUNITY_ENCOUNTER_ID:
+    process.env.GHL_OPPORTUNITY_ENCOUNTER_FIELD_ID || "zITnI6V21UiTywG4QHD5",
+};
+
+/** The value of one custom field on a record GHL returned, or "". */
+export const fieldValueOf = (record, fieldId) => {
+  const f = (record?.customFields || []).find((x) => x.id === fieldId);
+  return String(f?.fieldValueString ?? f?.fieldValue ?? f?.value ?? "");
 };
 
 /** The one contact carrying this value in the given custom field, or null. */

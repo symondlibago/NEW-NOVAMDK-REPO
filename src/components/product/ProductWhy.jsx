@@ -18,7 +18,10 @@ const POINTS = [
 
 export default function ProductWhy() {
   return (
-    <section className="mx-auto max-w-[1180px] px-5 py-[clamp(2.5rem,5vw,4.5rem)] md:px-10">
+    /* Lighter on top than underneath (2026-09-25): the safety paragraph above
+       this carries its own bottom margin, and the two stacked into a band of
+       empty page around two lines of type. */
+    <section className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.5rem,5vw,4.5rem)] pt-[clamp(1.5rem,3vw,2.5rem)] md:px-10">
       <Reveal>
         <span className="nv-eyebrow">Why Nova MDK</span>
         <h2 className="mt-3 font-display text-[clamp(1.6rem,3.4vw,2.2rem)] font-extrabold leading-tight text-[#725826]">

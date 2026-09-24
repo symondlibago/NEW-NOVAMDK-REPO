@@ -496,7 +496,7 @@ export default function ProductPage() {
       {/* The decline graph runs on both NAD+ formats, straight after the
           product image, per the update. Everything below it is the injection's
           own editorial. */}
-      {isNad && <NadSupport />}
+      {isNad && <NadSupport withCoenzyme={!isSublingual} />}
       {isNad && isSublingual && <NadSublingual />}
       {isNad && !isSublingual && <NadDirected />}
 
@@ -539,13 +539,16 @@ export default function ProductPage() {
           </div>
         </section>
       )}
+      {/* Tightened 2026-09-25: this wrapper's own padding and the safety
+          section's bottom margin were stacking into a band of empty page above
+          and below one short paragraph. */}
       <div
-        className="pb-[clamp(3rem,6vw,5rem)] pt-[clamp(2.5rem,5vw,4rem)]"
+        className="pb-[clamp(1.5rem,3vw,2.5rem)]"
         style={{ background: "#fbfaf7" }}
       >
       {/* ===== Safety ===== */}
       {active.safety && (
-        <section className="mx-auto mb-[clamp(3rem,6vw,5rem)] max-w-[1180px] px-5 md:px-10">
+        <section className="mx-auto mb-[clamp(1.25rem,2.5vw,2rem)] max-w-[1180px] px-5 md:px-10">
           {/* Typeset as running copy rather than a bordered callout (2026-08-31).
               The tinted card, the rule around it and the alert icon together read
               as a highlight — a box the eye files as promotional and skips. This
@@ -565,7 +568,10 @@ export default function ProductPage() {
       </section>
       <section className="mx-auto max-w-[1180px] px-5 md:px-10">
         <Reveal>
-          <div className="relative overflow-hidden rounded-[calc(28px*var(--nv-r-scale,1))] border border-line bg-[#fbfaf7] px-6 py-[clamp(2.4rem,5vw,3.6rem)] text-center text-ink">
+          {/* A solid gold rule rather than the page's hairline (2026-09-25):
+              this is the page's last call to action and the client wants it to
+              read as a framed card. */}
+          <div className="relative overflow-hidden rounded-[calc(28px*var(--nv-r-scale,1))] border-2 border-[#b8975e] bg-[#fbfaf7] px-6 py-[clamp(2.4rem,5vw,3.6rem)] text-center text-ink">
             <div className="relative">
               <h2 className="mx-auto max-w-[22ch] font-display text-[clamp(1.6rem,3.4vw,2.4rem)] font-extrabold leading-tight">
                 {otc ? "Add " : "Start consultation for "}

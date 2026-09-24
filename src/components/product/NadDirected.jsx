@@ -140,28 +140,50 @@ function Elbow({ side }) {
   );
 }
 
-function CoenzymeBand() {
+/* Rendered by NadSupport, inside the graph's own section: the comp has the two
+   as a single panel, so this carries no background or seam veil of its own
+   (2026-09-25). One box, one gradient, nothing to match up. */
+export function CoenzymeBand() {
   const [ref, running] = useRunOnceInView("-80px");
 
   return (
     <div
       ref={ref}
-      className={`nv-coen relative overflow-hidden px-5 pb-[clamp(2rem,5vw,3.5rem)] pt-[clamp(1.5rem,3vw,2.5rem)] md:px-10 ${
+      className={`nv-coen relative overflow-hidden px-5 pb-[clamp(2rem,5vw,3.5rem)] md:px-10 ${
         running ? "is-in" : ""
       }`}
-      style={{ background: BRASS }}
     >
-      {/* The band above paints the same radial over a much shorter box, so the
-          two meet a few percent apart down the centre line. This lifts the join
-          level, as on the sublingual page. */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-36"
-        style={{
-          background:
-            "radial-gradient(70% 100% at 50% 0%, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 72%)",
-        }}
-      />
+      <style>{`
+        .nv-coen__card { opacity: 0; transform: translateY(14px); }
+        .nv-coen.is-in .nv-coen__card {
+          animation: nvCoenCard 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes nvCoenCard { to { opacity: 1; transform: none; } }
+
+        .nv-coen__rule { transform: scaleX(0); transform-origin: left; }
+        .nv-coen__rule--rtl { transform-origin: right; }
+        .nv-coen.is-in .nv-coen__rule {
+          animation: nvCoenRule 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes nvCoenRule { to { transform: scaleX(1); } }
+
+        .nv-coen__drop { transform: scaleY(0); transform-origin: top; }
+        .nv-coen.is-in .nv-coen__drop {
+          animation: nvCoenDrop 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes nvCoenDrop { to { transform: scaleY(1); } }
+
+        .nv-coen__vial { opacity: 0; transform: scale(0.92); }
+        .nv-coen.is-in .nv-coen__vial {
+          animation: nvCoenVial 900ms cubic-bezier(0.22, 1, 0.36, 1) 0.6s both;
+        }
+        @keyframes nvCoenVial { to { opacity: 1; transform: none; } }
+
+        @media (prefers-reduced-motion: reduce) {
+          .nv-coen__card, .nv-coen__vial { opacity: 1 !important; transform: none !important; animation: none !important; }
+          .nv-coen__rule, .nv-coen__drop { transform: none !important; animation: none !important; }
+        }
+      `}</style>
 
       <div className="relative mx-auto max-w-[1180px]">
         {/* ---- heading, its rule, and the note ---- */}
@@ -246,42 +268,14 @@ function CoenzymeBand() {
 
 export default function NadDirected() {
   return (
-    <section className="pb-[clamp(2.5rem,5vw,4.5rem)]" style={{ background: "#faf8f4" }}>
-      <style>{`
-        .nv-coen__card { opacity: 0; transform: translateY(14px); }
-        .nv-coen.is-in .nv-coen__card {
-          animation: nvCoenCard 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
-        }
-        @keyframes nvCoenCard { to { opacity: 1; transform: none; } }
-
-        .nv-coen__rule { transform: scaleX(0); transform-origin: left; }
-        .nv-coen__rule--rtl { transform-origin: right; }
-        .nv-coen.is-in .nv-coen__rule {
-          animation: nvCoenRule 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
-        }
-        @keyframes nvCoenRule { to { transform: scaleX(1); } }
-
-        .nv-coen__drop { transform: scaleY(0); transform-origin: top; }
-        .nv-coen.is-in .nv-coen__drop {
-          animation: nvCoenDrop 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
-        }
-        @keyframes nvCoenDrop { to { transform: scaleY(1); } }
-
-        .nv-coen__vial { opacity: 0; transform: scale(0.92); }
-        .nv-coen.is-in .nv-coen__vial {
-          animation: nvCoenVial 900ms cubic-bezier(0.22, 1, 0.36, 1) 0.6s both;
-        }
-        @keyframes nvCoenVial { to { opacity: 1; transform: none; } }
-
-        @media (prefers-reduced-motion: reduce) {
-          .nv-coen__card, .nv-coen__vial { opacity: 1 !important; transform: none !important; animation: none !important; }
-          .nv-coen__rule, .nv-coen__drop { transform: none !important; animation: none !important; }
-        }
-      `}</style>
-
-      <CoenzymeBand />
-
-      <div className="mx-auto max-w-[1180px] px-5 pt-[clamp(2.5rem,5vw,4.5rem)] md:px-10">
+    /* The coenzyme diagram moved into NadSupport's section (2026-09-25) so the
+       two share one background and one gradient; what is left here is the cream
+       half of the page. */
+    <section
+      className="pb-[clamp(1.5rem,3vw,2.5rem)] pt-[clamp(2.5rem,5vw,4.5rem)]"
+      style={{ background: "#faf8f4" }}
+    >
+      <div className="mx-auto max-w-[1180px] px-5 md:px-10">
         <Reveal className="text-center">
           <span className="nv-eyebrow">Provider-guided treatment</span>
           <h2

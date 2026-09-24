@@ -8,6 +8,7 @@ import {
   markOpportunityLost,
   tagContact,
   clinicStamp,
+  fieldValueOf,
   SEARCH_FIELD_ID,
   FIELD,
 } from "./_ghl.js";
@@ -428,15 +429,31 @@ export default async function handler(req, res) {
     ];
 
     if (stage || lost) {
-      /* The newest opportunity is this visit's. moveOpportunityForward refuses
-         to go backwards, so a repeat patient's older visits can't be disturbed
-         by a late event on a newer one. A close is terminal and skips that rule,
-         but still only ever touches this one card. */
+      /* The card is matched by the encounter recorded ON it, never by recency.
+         "Newest opportunity" was wrong and did real damage: on 2026-09-23 a
+         tracking event for a case that has no card at all moved this patient's
+         most recent unrelated visit to Shipped. One patient here holds six
+         concurrent visits, so guessing is guaranteed to pick the wrong one
+         eventually.
+
+         No match means no move. A case we have no card for is usually one
+         created inside MDI rather than through the website, and the honest
+         response to that is to leave the board alone: the contact still gets
+         the status and the tag, so nothing is lost. */
       writes.push(
         opportunitiesForContact(contact.id).then((opps) => {
-          const id = opps[0]?.id;
-          if (!id) return null;
-          return lost ? markOpportunityLost(id) : moveOpportunityForward(id, stage);
+          const caseId = payload.case_id || payload.encounter_id || null;
+          const match = caseId
+            ? opps.find((o) => fieldValueOf(o, SEARCH_FIELD_ID.OPPORTUNITY_ENCOUNTER_ID) === caseId)
+            : null;
+
+          if (!match?.id) {
+            console.warn(
+              `MDI webhook ${event}: no opportunity carries case ${caseId || "-"}, board left alone (${opps.length} card(s) on this contact)`
+            );
+            return null;
+          }
+          return lost ? markOpportunityLost(match.id) : moveOpportunityForward(match.id, stage);
         })
       );
     }

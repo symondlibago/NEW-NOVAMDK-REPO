@@ -1,6 +1,7 @@
 import React from "react";
 import Reveal from "../ui/Reveal";
 import useRunOnceInView from "../../lib/useRunOnceInView";
+import { CoenzymeBand } from "./NadDirected";
 
 const INK = "#3f3a33";
 const MUTED = "#6b5e4b";
@@ -70,7 +71,7 @@ const CURVE_AREA = `
 
 const HEAD = POINTS[0];
 
-export default function NadSupport() {
+export default function NadSupport({ withCoenzyme = false }) {
   /* The shared hook rather than an observer of its own (2026-09-19): this one
      asked for 30% of the band to be on screen, and the band is now the graph
      itself, full bleed. On a phone it is taller than the viewport, so 30% of it
@@ -664,6 +665,11 @@ export default function NadSupport() {
           </div>
         </Reveal>
       </div>
+
+      {/* The coenzyme diagram belongs to the same panel in the comp, so it is
+          rendered inside this section rather than as a band of its own
+          (2026-09-25): one box, one gradient, and no seam to match up. */}
+      {withCoenzyme && <CoenzymeBand />}
     </section>
   );
 }

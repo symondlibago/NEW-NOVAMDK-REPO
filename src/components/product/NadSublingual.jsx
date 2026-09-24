@@ -103,17 +103,29 @@ function EnergyMeter() {
           />
         </div>
 
-        <img
-          src="/products/nad-sublingual.avif"
-          alt=""
-          aria-hidden="true"
-          loading="lazy"
-          /* Sized off the bar rather than the viewport: the comp stands the
-             bottle at about 2.9x the track's height, which is also what keeps
-             it wide enough to hide the end of the fill. */
-          className="nv-float pointer-events-none absolute top-1/2 h-28 w-auto max-w-none -translate-x-1/2 -translate-y-1/2 rotate-[8deg] object-contain drop-shadow-[0_14px_26px_rgba(70,50,20,0.42)] sm:h-40 lg:h-46"
-          style={{ left: BOTTLE_AT }}
-        />
+        {/* The bottle travels with the fill rather than waiting at the end of
+            it (2026-09-25): same duration, delay and curve, so the two arrive
+            together and the fill is never out in the open beside it.
+            Layered, one transform each: the outer rides and centres, the middle
+            holds the tilt, and the float is on the image. On one element the
+            float's animation would wipe the rest. */}
+        <span
+          className="nv-meter__rider pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
+          style={{ "--nv-fill": METER_FILL }}
+        >
+          <span className="block rotate-[8deg]">
+            <img
+              src="/products/nad-sublingual.avif"
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              /* Sized off the bar rather than the viewport: the comp stands the
+                 bottle at about 2.9x the track's height, which is also what
+                 keeps it wide enough to hide the end of the fill. */
+              className="nv-float block h-28 w-auto max-w-none object-contain drop-shadow-[0_14px_26px_rgba(70,50,20,0.42)] sm:h-40 lg:h-46"
+            />
+          </span>
+        </span>
       </div>
 
       {/* Three stops under the track, at its ends and its middle. */}
@@ -202,6 +214,14 @@ export default function NadSublingual({ startTo = "/start" }) {
         }
         @keyframes nvMeterFill { to { width: var(--nv-fill); } }
 
+        /* The bottle rides the fill: left, not transform, so the centring
+           translate on the same element survives. */
+        .nv-meter__rider { left: 0; }
+        .nv-meter.is-in .nv-meter__rider {
+          animation: nvMeterRide 1.25s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
+        }
+        @keyframes nvMeterRide { to { left: var(--nv-fill); } }
+
         .nv-facts__line { transform: scaleY(0); transform-origin: top; }
         .nv-facts.is-in .nv-facts__line {
           animation: nvFactsLine 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -216,6 +236,7 @@ export default function NadSublingual({ startTo = "/start" }) {
 
         @media (prefers-reduced-motion: reduce) {
           .nv-meter__fill { width: var(--nv-fill) !important; animation: none !important; }
+          .nv-meter__rider { left: var(--nv-fill) !important; animation: none !important; }
           .nv-facts__line { transform: none !important; animation: none !important; }
           .nv-facts__item { opacity: 1 !important; transform: none !important; animation: none !important; }
         }

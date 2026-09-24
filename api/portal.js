@@ -167,6 +167,43 @@ const PENDING_STATUS = new Set(['draft', 'new', 'pending', 'upcoming', '']);
 const flattenOrders = (payload) =>
   listOf(payload).flatMap((row) => (Array.isArray(row?.orders) ? row.orders : row ? [row] : []));
 
+/* MDI's metadata carries the carrier as "(T) UPS Next Day Air". The bracketed
+   marker is theirs, not something to show a patient. `shipcarrier` is ignored
+   deliberately: it holds the shipping platform, EASYPOST, not the carrier. */
+function carrierOf(order) {
+  try {
+    const meta = JSON.parse(order.tracking_metadata || 'null');
+    return String(meta?.deliveryservice || '').replace(/^\([^)]*\)\s*/, '').trim() || null;
+  } catch {
+    return null; // free-text from a pharmacy, not a contract
+  }
+}
+
+/* The parcel, if the pharmacy has handed one over.
+
+   MDI puts these FLAT on the order: `tracking_number`, `tracking_url`,
+   `tracked_at` and a `tracking_metadata` JSON string. There is no nested
+   `tracking` object, which is what this code read until 2026-09-25, so the
+   Shipped step never filled even with a parcel in transit — confirmed against
+   the live order 01M375D5ZYXT42550N0B5TEMJY, which had
+   `tracking_number: "1Z1YV0901398822992"` while the portal showed nothing. The
+   nested and free-text readings are kept behind it since they cost nothing. */
+function trackingOf(order) {
+  const number = order.tracking_number || order.tracking?.number || null;
+  if (number) {
+    return {
+      number: String(number),
+      link: order.tracking_url || order.tracking?.link || null,
+      company: carrierOf(order) || order.tracking?.company || null,
+      at: order.tracked_at || null,
+    };
+  }
+  // The webhook writes it into the details string as "Tracking Number: 101010".
+  const match = String(order.details || order.status_details || '')
+    .match(/tracking number[:\s]+([A-Za-z0-9-]+)/i);
+  return match ? { number: match[1], link: null, company: null, at: null } : null;
+}
+
 function summariseOrders(orders) {
   if (!orders.length) return { started: false, shipped: false, tracking: null, issue: null };
 
@@ -184,23 +221,21 @@ function summariseOrders(orders) {
     return !PENDING_STATUS.has(s) && !ORDER_PROBLEM.test(s);
   });
 
-  // Tracking arrives either as a structured object or embedded in the details
-  // string — the webhook sends it as "Tracking Number: 101010".
-  let tracking = null;
+  let found = null;
   for (const o of orders) {
-    if (o.tracking?.number) {
-      tracking = { number: o.tracking.number, link: o.tracking.link || null, company: o.tracking.company || null };
-      break;
-    }
-    const match = String(o.details || o.status_details || '').match(/tracking number[:\s]+([A-Za-z0-9-]+)/i);
-    if (match) { tracking = { number: match[1], link: null, company: null }; break; }
+    found = trackingOf(o);
+    if (found) break;
   }
+  const tracking = found && { number: found.number, link: found.link, company: found.company };
 
   return {
     /* A tracking number is the parcel leaving whatever the status says, and it
        is the thing the patient can actually go and check. */
     shipped: Boolean(shippedOrder || tracking),
-    at: shippedOrder?.updated_at || shippedOrder?.date || null,
+    /* `tracked_at` is when the carrier took it, which is the date the Shipped
+       step should show. Without it the step filled with no date against it,
+       since an order whose status is still `received` has nothing else to give. */
+    at: shippedOrder?.updated_at || shippedOrder?.date || found?.at || null,
     // Whether the pharmacy actually has it, and when it got there.
     started: Boolean(working || shippedOrder || tracking),
     started_at: working?.updated_at || working?.created_at || working?.date || null,

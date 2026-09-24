@@ -76,7 +76,7 @@ function Featured({ post }) {
       <span className="block p-6 md:p-7">
         <Category post={post} />
         <span
-          className="mt-2.5 block font-journal text-[clamp(1.5rem,2.4vw,2rem)] font-bold leading-[1.15]"
+          className="mt-2.5 block font-display text-[clamp(1.5rem,2.4vw,2rem)] font-extrabold leading-[1.15]"
           style={{ color: INK }}
         >
           {post.title}
@@ -109,7 +109,7 @@ function Row({ post }) {
       <span className="block min-w-0 flex-1 py-1 pr-1">
         <Category post={post} />
         <span
-          className="mt-1.5 line-clamp-2 font-journal text-[1.05rem] font-bold leading-[1.2]"
+          className="mt-1.5 line-clamp-2 font-display text-[1.05rem] font-extrabold leading-[1.2]"
           style={{ color: INK }}
         >
           {post.title}
@@ -164,20 +164,10 @@ export default function BlogPage() {
       <section className="mx-auto max-w-350 px-5 py-[clamp(2rem,4.5vw,3.75rem)] md:px-12">
         {/* ---- header ---- */}
         <Reveal>
-          {/* The page's own title, so it is obvious which page this is. It takes
-              the h1 and the journal line below drops to an h2: two h1s on a
-              page is not a heading order any crawler should have to guess at.
-              Same face and gold ramp as every other page header (PageHero), so
-              /blog is titled like /treatments/weight-loss rather than looking
-              like a page from another site. */}
-          <h1
-            className="nv-weight-keep bg-clip-text text-center text-[clamp(1.9rem,4.4vw,3.1rem)] font-extrabold leading-[1.1] tracking-tight text-transparent"
-            style={{ backgroundImage: "radial-gradient(circle at 0% 0%, #d9c797, #6b511e)" }}
-          >
-            Blog
-          </h1>
-
-          <div className="mt-10 flex items-center gap-4">
+          {/* The standalone "Blog" title was dropped at the client's request
+              (2026-09-25) and the journal line takes the h1 back, so the page
+              still has exactly one. */}
+          <div className="flex items-center gap-4">
             <span
               className="shrink-0 text-[0.7rem] font-semibold uppercase tracking-[0.18em]"
               style={{ color: EYEBROW }}
@@ -187,26 +177,16 @@ export default function BlogPage() {
             <span aria-hidden="true" className="h-px w-16 shrink-0" style={{ background: LINE }} />
           </div>
 
-          <div className="mt-3 flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
-            <h2
-              className="font-journal text-[clamp(1.5rem,2.8vw,2.3rem)] font-bold leading-[1.1]"
-              style={{ color: INK }}
-            >
-              Expert guidance for feeling your best
-            </h2>
-
-            {/* Resets the category filter. On the archive itself that is what
-                "all articles" can honestly mean. */}
-            <button
-              type="button"
-              onClick={() => pick("all")}
-              className="group inline-flex shrink-0 items-center gap-2.5 rounded-full border px-6 py-3 text-[0.88rem] font-medium transition-colors duration-300 hover:bg-white"
-              style={{ borderColor: LINE, color: BODY }}
-            >
-              View all articles
-              <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-1" />
-            </button>
-          </div>
+          {/* The "View all articles" button beside this was dropped with the
+              page title (2026-09-25), so the heading has the row to itself. The
+              journal face went with it: the client wants the site's own display
+              type here, as everywhere else. */}
+          <h1
+            className="nv-weight-keep mt-3 font-display text-[clamp(1.6rem,3vw,2.5rem)] font-extrabold leading-[1.1] tracking-tight"
+            style={{ color: INK }}
+          >
+            Expert guidance for feeling your best
+          </h1>
 
           <p className="mt-3 max-w-[62ch] text-[clamp(0.85rem,1vw,0.95rem)] leading-relaxed" style={{ color: BODY }}>
             Thoughtful articles on health, wellness, treatments, and the topics that matter

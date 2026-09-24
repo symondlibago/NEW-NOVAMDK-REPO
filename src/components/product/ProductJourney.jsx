@@ -76,9 +76,9 @@ function StepPanel({ step, index }) {
           loading="lazy"
           className={`pointer-events-none absolute bottom-0 max-w-none object-contain object-bottom ${step.art}`}
         />
-        <p className="relative z-10 mt-auto pt-6 text-[0.82rem] font-semibold leading-[1.35] text-white sm:text-[0.86rem]">
-          {step.text}
-        </p>
+        {/* The supporting line under each title was dropped at the client's
+            request (2026-09-25); the cut-out now runs to the panel's floor with
+            only the step's name over it. */}
       </div>
     </Reveal>
   );
@@ -103,7 +103,7 @@ export default function ProductJourney({ product }) {
       <div className="mx-auto max-w-[1180px] px-5 md:px-10">
       <Reveal as="div" className="grid gap-6 md:grid-cols-2 md:items-start">
         <h2 className="max-w-[16ch] font-display text-[clamp(1.5rem,3.2vw,2.2rem)] font-extrabold leading-[1.15] text-[#725826]">
-          From assessment to ongoing care
+          From Assessment To Ongoing Care
         </h2>
         {/* Column is a flex stack so both the sentence and the link can be sent
             to the container's right edge. Left-ranged on a phone, where there
