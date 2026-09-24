@@ -283,12 +283,14 @@ export default function ContactPage() {
             {/* Form first on a phone: it's what the visitor came to do. The
                 reassurance panel follows, and sits on the left from md up. */}
             <div className="order-2 flex flex-col p-6 sm:p-10 md:order-1" style={panel}>
-              <p className={`${eyebrow} text-primary`}>Talk to us</p>
+              {/* Client copy, 2026-09-24. */}
+              <p className={`${eyebrow} text-primary`}>Stay in touch</p>
               <h1 className="mt-3 text-[clamp(1.9rem,4vw,2.6rem)] font-bold leading-[1.08] tracking-tight">
-                A care team that actually answers
+                Talk to Our Care Team
               </h1>
-              <p className="mt-4 max-w-[40ch] text-[1rem] leading-relaxed text-muted">
-                Reach the care team directly, no phone trees, no bots reading from a script.
+              <p className="mt-4 max-w-[44ch] text-[1rem] leading-relaxed text-muted">
+                Connect directly with our care team whenever you have questions about your treatment
+                or next steps
               </p>
 
               <div className="mt-8 space-y-3">

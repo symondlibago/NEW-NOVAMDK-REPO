@@ -253,8 +253,12 @@ export default function StartingPoint() {
     /* From md the band fills one screen under the sticky header and centres
        the rail in it (2026-09-15). White ground to match the page. */
     <section className="flex w-full flex-col justify-center overflow-hidden bg-white md:min-h-[calc(100svh-69px)]">
-      <div className="mx-auto w-full max-w-[1340px] px-5 pb-[clamp(1.5rem,3vw,2.25rem)] pt-[clamp(2rem,4vw,3rem)] md:px-10">
-        <Reveal>
+      {/* Heading and its standfirst share one row from md (2026-09-24), which is
+          where the comp puts them: the heading had the band's whole width to
+          itself and sat hard against the rail. Stacked below md, so the pair
+          costs the band no height on the screen it has to fit into. */}
+      <div className="mx-auto w-full max-w-[1340px] px-5 pb-[clamp(2rem,4vw,3rem)] pt-[clamp(2rem,4vw,3rem)] md:px-10">
+        <Reveal as="div" className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,0.62fr)] md:items-start md:gap-12">
           <h2 className="nv-weight-keep font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-extrabold leading-[1.1] tracking-tight">
             <span className="block" style={{ color: "#b39258" }}>
               Find the Right
@@ -263,6 +267,10 @@ export default function StartingPoint() {
               Starting Point
             </span>
           </h2>
+          <p className="max-w-[42ch] text-[0.92rem] leading-relaxed text-muted md:pt-2">
+            Browse care options across a range of health goals and discover where your NovaMDK
+            journey can begin
+          </p>
         </Reveal>
       </div>
 

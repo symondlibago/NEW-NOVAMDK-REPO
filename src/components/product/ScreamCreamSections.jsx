@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import Reveal from "../ui/Reveal";
+import useRunOnceInView from "../../lib/useRunOnceInView";
 
 const INK = "#544529";
 const BROWN = "#9a8154";
@@ -27,6 +28,229 @@ const MOMENTS = [
   { t: "Prescription Only" },
   { t: "Use as Directed" },
 ];
+
+/* ------------------------- 0. more feeling, more you -------------------------
+   The 2026-09-25 comp: the couple faded into the brass, the bottle standing on
+   the middle of it, and three notes pinned around it. Two of the notes carry
+   their label alone with the copy set on the photograph underneath, which is
+   how the comp draws them; the third holds both.
+
+   Note for review: the arousal and response wording in the third note is the
+   client's own, from the comp. Lines of that kind were taken off these cards by
+   the 2026-09-08 compliance pass, so this is a deliberate reinstatement rather
+   than an oversight. */
+
+const BRASS_GROUND = "radial-gradient(circle at 50% 40%, #b9986c, #96733f)";
+const CREAM_TEXT = "#f7efe2";
+const NOTE = {
+  background: "rgba(255,255,255,0.16)",
+  borderColor: "rgba(255,255,255,0.26)",
+};
+const SCREAM_RULE = "rgba(255,255,255,0.45)";
+
+const NOTES = [
+  {
+    label: "How is it used?",
+    body: "Applied locally to the external genital area as directed by your healthcare provider, based on your prescribed formulation and care plan",
+    /* The comp sets the copy on the photograph under this one rather than
+       inside the card. */
+    split: true,
+    box: "left-0 top-[52%] w-[30%]",
+    rule: "left-[30%] top-[62%] w-[8%]",
+    delay: 0.95,
+  },
+  {
+    label: "What is it?",
+    body: "A compounded prescription cream created for women's sexual wellness and formulated for local application",
+    split: false,
+    box: "right-0 top-[33%] w-[26%]",
+    rule: "right-[26%] top-[45%] w-[7%]",
+    delay: 1.1,
+  },
+  {
+    label: "What is it used for?",
+    body: "Used to address concerns related to arousal, sensitivity, and physical sexual response during intimacy",
+    split: true,
+    box: "right-[1%] top-[70%] w-[27%]",
+    rule: "right-[28%] top-[76%] w-[7%]",
+    delay: 1.25,
+  },
+];
+
+function Note({ note, stage = false }) {
+  return (
+    <div className={stage ? `absolute ${note.box}` : ""}>
+      <div
+        className="nv-scream__card rounded-[calc(14px*var(--nv-r-scale,1))] border px-4 py-3"
+        style={{ ...NOTE, animationDelay: `${note.delay}s` }}
+      >
+        <span className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            style={{ background: "#e8c179", boxShadow: "0 0 10px 3px rgba(232,193,121,0.4)" }}
+          />
+          <span
+            className="text-[0.74rem] font-bold uppercase tracking-[0.1em]"
+            style={{ color: CREAM_TEXT }}
+          >
+            {note.label}
+          </span>
+        </span>
+        {!note.split && (
+          <p className="mt-2 text-[0.78rem] leading-relaxed" style={{ color: "rgba(247,239,226,0.9)" }}>
+            {note.body}
+          </p>
+        )}
+      </div>
+      {note.split && (
+        <p
+          className="nv-scream__card mt-3 px-1 text-[0.78rem] font-semibold leading-relaxed"
+          style={{ color: CREAM_TEXT, animationDelay: `${note.delay + 0.12}s` }}
+        >
+          {note.body}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function MoreFeelingHero({ startTo }) {
+  const [ref, running] = useRunOnceInView("-80px");
+
+  return (
+    <div
+      ref={ref}
+      className={`nv-scream relative w-full overflow-hidden ${running ? "is-in" : ""}`}
+      style={{ background: BRASS_GROUND }}
+    >
+      {/* The photograph sits in the lower half and is faded in at the top, so it
+          grows out of the brass instead of starting on an edge. */}
+      <img
+        src="/site/sexual-health/scream-couple.avif"
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        /* Full width at its own ratio rather than cropped to a percentage of
+           the band: object-cover was scaling a 3.2:1 shot up to fill a much
+           taller box, which zoomed it in on one face. */
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-64 w-full object-cover object-top sm:h-auto"
+        style={{
+          WebkitMaskImage: "linear-gradient(180deg, transparent 0%, #000 26%)",
+          maskImage: "linear-gradient(180deg, transparent 0%, #000 26%)",
+        }}
+      />
+      {/* Warms the shot back into the band and keeps the type legible over it. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(150,115,63,0.1) 0%, rgba(150,115,63,0.42) 55%, rgba(150,115,63,0.62) 100%)",
+        }}
+      />
+
+      <div className="relative mx-auto max-w-[1180px] px-5 py-[clamp(2.25rem,5vw,3.5rem)] md:px-10">
+        {/* ---- the claim ---- */}
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.78fr)] lg:gap-12">
+          <div>
+            <span
+              className="nv-scream__card block text-[0.7rem] font-bold uppercase tracking-[0.18em]"
+              style={{ color: "rgba(247,239,226,0.82)", animationDelay: "0.05s" }}
+            >
+              Sexual wellness &nbsp;&middot;&nbsp; For women
+            </span>
+            <h2
+              className={`nv-scream__card ${TITLE} mt-3 text-[clamp(2rem,5vw,3.4rem)] leading-[1.06]`}
+              style={{ color: CREAM_TEXT, animationDelay: "0.15s" }}
+            >
+              <span className="block">More feeling</span>
+              <span className="block">More you</span>
+            </h2>
+            <Link
+              to={startTo}
+              className="nv-scream__card mt-6 inline-flex rounded-full border px-7 py-3 text-[0.9rem] font-semibold transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/10"
+              style={{ ...NOTE, color: CREAM_TEXT, animationDelay: "0.3s" }}
+            >
+              Start Your Assessment
+            </Link>
+          </div>
+
+          <p
+            className="nv-scream__card max-w-[44ch] text-[0.88rem] font-semibold leading-relaxed lg:pt-1"
+            style={{ color: CREAM_TEXT, animationDelay: "0.45s" }}
+          >
+            A compounded prescription cream created for women&rsquo;s sexual wellness and formulated
+            for local application
+          </p>
+        </div>
+
+        {/* ---- the stage: bottle in the middle, notes pinned around it ---- */}
+        <div className="relative mt-8 hidden h-[clamp(22rem,34vw,30rem)] lg:block">
+          {/* Four layers, one transform each: the outer centres, the next
+              carries the entry, the span holds the tilt and the float is on the
+              image. They would overwrite each other on one element. */}
+          {/* Over the stage's own height, and pulled up by half the difference
+              so it stays centred on it: the bottle fills only 53% of its
+              canvas, so the element has to run well past the stage for the
+              bottle itself to read at the size the comp gives it. */}
+          <span className="pointer-events-none absolute left-1/2 top-[-16%] h-[132%] -translate-x-1/2">
+            <span className="nv-scream__bottle block h-full">
+              <span className="block h-full rotate-6">
+                <img
+                  src="/site/sexual-health/scream-bottle.avif"
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                  className="nv-float block h-full w-auto max-w-none object-contain drop-shadow-[0_22px_38px_rgba(60,42,16,0.38)]"
+                />
+              </span>
+            </span>
+          </span>
+          {NOTES.map((n) => (
+            <React.Fragment key={n.label}>
+              <span
+                aria-hidden="true"
+                className={`nv-scream__rule absolute h-px ${n.rule} ${
+                  n.box.startsWith("right") ? "nv-scream__rule--rtl" : ""
+                }`}
+                style={{ background: SCREAM_RULE, animationDelay: `${n.delay + 0.2}s` }}
+              />
+              <Note note={n} stage />
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* ---- below lg the stage cannot hold: bottle, then the notes ---- */}
+        <div className="mt-8 lg:hidden">
+          <span className="nv-scream__bottle mx-auto block w-fit">
+            <span className="block rotate-6">
+              <img
+                src="/site/sexual-health/scream-bottle.avif"
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+                className="nv-float pointer-events-none block h-[clamp(14rem,52vw,20rem)] w-auto object-contain drop-shadow-[0_22px_38px_rgba(60,42,16,0.38)]"
+              />
+            </span>
+          </span>
+          <div className="mt-7 grid gap-4 sm:grid-cols-2">
+            {NOTES.map((n) => (
+              <Note key={n.label} note={n} />
+            ))}
+          </div>
+        </div>
+
+        <p
+          className="nv-scream__card mt-8 text-[0.74rem] italic leading-relaxed"
+          style={{ color: "rgba(247,239,226,0.62)", animationDelay: "1.45s" }}
+        >
+          Prescription required. Eligibility determined by a licensed provider
+        </p>
+      </div>
+    </div>
+  );
+}
 
 /* ---------------------------- 1. more feeling ---------------------------- */
 
@@ -193,6 +417,38 @@ function KeepTheRoutine() {
 export default function ScreamCreamSections({ startTo = "/start" }) {
   return (
     <section style={{ background: "#faf8f4" }}>
+      <style>{`
+        .nv-scream__card { opacity: 0; transform: translateY(14px); }
+        .nv-scream.is-in .nv-scream__card {
+          animation: nvScreamCard 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes nvScreamCard { to { opacity: 1; transform: none; } }
+
+        .nv-scream__rule { transform: scaleX(0); transform-origin: left; }
+        .nv-scream__rule--rtl { transform-origin: right; }
+        .nv-scream.is-in .nv-scream__rule {
+          animation: nvScreamRule 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes nvScreamRule { to { transform: scaleX(1); } }
+
+        /* The bottle keeps its tilt through the entry, so the rotation is part
+           of both ends of the keyframe rather than being wiped by it. */
+        .nv-scream__bottle { opacity: 0; }
+        .nv-scream.is-in .nv-scream__bottle {
+          animation: nvScreamBottle 900ms cubic-bezier(0.22, 1, 0.36, 1) 0.5s both;
+        }
+        @keyframes nvScreamBottle {
+          from { opacity: 0; transform: translateY(18px) scale(0.94); }
+          to   { opacity: 1; transform: none; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .nv-scream__card, .nv-scream__bottle { opacity: 1 !important; transform: none !important; animation: none !important; }
+          .nv-scream__rule { transform: none !important; animation: none !important; }
+        }
+      `}</style>
+
+      <MoreFeelingHero startTo={startTo} />
       <MoreFeeling startTo={startTo} />
       <MomentsThatMatter />
       <KeepTheRoutine />
