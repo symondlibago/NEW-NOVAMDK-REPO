@@ -98,6 +98,11 @@ const ORDER_TAG = {
    one of them is. */
 const STAGE_STATUS = { Shipped: "shipped", Delivered: "delivered" };
 
+/* How far along the pharmacy columns run, so a tracking number can be compared
+   against whatever the order status claims instead of losing to it. */
+const STAGE_RANK = { "Pharmacy Processing": 1, Shipped: 2, Delivered: 3 };
+const furthest = (a, b) => ((STAGE_RANK[b] || 0) > (STAGE_RANK[a] || 0) ? b : a);
+
 /* An order that went wrong rather than forward. Kept loose because this is the
    one part of the pharmacy vocabulary we have not seen the whole of. */
 const ORDER_PROBLEM = /cancel|void|reject|fail|error|declin/;
@@ -118,9 +123,20 @@ function fromOrder(payload) {
     return { status: `order-${label}`, stage: null, tag: `mdi-order-${label}` };
   }
 
-  /* A tracking number is the parcel leaving whatever the status says, which is
-     what `order_tracking_number_changed` arrives with on its own. */
-  const stage = ORDER_STAGE[key] || (tracked ? "Shipped" : null);
+  /* A tracking number means the parcel has left, and it outranks whatever the
+     order status says rather than merely filling in for a missing one.
+
+     MDI does not promote an order to `fulfilled` when the carrier picks it up:
+     it leaves the status on `received` and adds the number. Observed live on
+     2026-09-23, `case_order_updated` with status=received and
+     tracking=1Z1YV0901398822992, which the previous version read as Pharmacy
+     Processing because the status map was consulted first. The card then sat in
+     Pharmacy Processing with a tracking number against it.
+
+     Compared rather than overridden, so an order that is already `completed`
+     keeps Delivered instead of being pulled back to Shipped. */
+  const byStatus = ORDER_STAGE[key] || null;
+  const stage = tracked ? furthest("Shipped", byStatus) : byStatus;
   if (!stage) return { status: raw, stage: null, tag: null };
 
   return { status: STAGE_STATUS[stage] || raw, stage, tag: ORDER_TAG[stage] };
