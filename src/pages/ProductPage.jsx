@@ -665,6 +665,7 @@ export default function ProductPage() {
           err={err}
           productId={active.id}
           productName={active.name}
+          categorySlug={active.categorySlug}
           onClose={() => setShowInfo(false)}
           onSubmit={startVisit}
         />
@@ -811,7 +812,63 @@ const US_STATES = [
 ];
 
 
-function PatientInfoModal({ onClose, onSubmit, loading = false, err = "", productId, productName }) {
+/* The "we can't do this here" screen, shared by the two reasons that can stop a
+   visit at the address step: a state we aren't licensed in at all, and a state
+   where this particular treatment can't be dispensed. One component because the
+   two were identical apart from their wording, and a copy of a dialog is a
+   dialog that drifts.
+
+   `actionTo` makes the primary a link, `onAction` makes it a button. The
+   secondary is optional: only the recoverable case has somewhere to go back to. */
+function UnavailableDialog({
+  onClose, title, body, actionLabel, actionTo, onAction, secondaryLabel, onSecondary,
+}) {
+  const primary =
+    "mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-7 py-3.5 text-[0.98rem] font-semibold text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow";
+
+  return (
+    <div onClick={onClose} data-lenis-prevent className="nv-veil-in fixed inset-0 z-120 flex overflow-y-auto bg-ink/65 p-6 backdrop-blur-sm">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="alertdialog"
+        aria-labelledby="nv-unavailable"
+        className="nv-dialog-in relative m-auto w-full max-w-110 rounded-3xl border border-line bg-surface p-6 text-center nv-shadow-lg md:p-8"
+      >
+        <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
+          <MapPin size={22} />
+        </span>
+        <h3 id="nv-unavailable" className="mt-3 font-display text-[1.35rem] font-extrabold leading-tight">
+          {title}
+        </h3>
+        <p className="mx-auto mt-2 max-w-[38ch] text-[0.9rem] leading-relaxed text-muted">{body}</p>
+
+        {actionTo ? (
+          <Link to={actionTo} className={primary}>
+            {actionLabel}
+          </Link>
+        ) : (
+          <button type="button" onClick={onAction} className={primary}>
+            {actionLabel}
+          </button>
+        )}
+
+        {secondaryLabel && (
+          <button
+            type="button"
+            onClick={onSecondary}
+            className="mt-2.5 w-full rounded-full px-7 py-3 text-[0.92rem] font-semibold text-muted transition-colors hover:text-ink"
+          >
+            {secondaryLabel}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PatientInfoModal({
+  onClose, onSubmit, loading = false, err = "", productId, productName, categorySlug,
+}) {
   useLockBodyScroll(); // mobile: page behind the modal must not scroll
   const [step, setStep] = useState(0); // 0 = email gate, then steps 1–3
   const [form, setForm] = useState({
@@ -979,31 +1036,33 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "", produc
      call order can't shift when it trips. */
   if (isBlockedState(form.state)) {
     return (
-      <div onClick={onClose} data-lenis-prevent className="fixed inset-0 z-120 flex overflow-y-auto bg-ink/65 p-6 backdrop-blur-sm">
-        <div
-          onClick={(e) => e.stopPropagation()}
-          role="alertdialog"
-          aria-labelledby="nv-unavailable"
-          className="relative m-auto w-full max-w-110 rounded-3xl border border-line bg-surface p-6 text-center nv-shadow-lg md:p-8"
-        >
-          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
-            <MapPin size={22} />
-          </span>
-          <h3 id="nv-unavailable" className="mt-3 font-display text-[1.35rem] font-extrabold leading-tight">
-            NovaMDK isn&rsquo;t currently available in {form.state}.
-          </h3>
-          <p className="mx-auto mt-2 max-w-[38ch] text-[0.9rem] leading-relaxed text-muted">
-            We&rsquo;re working to expand access. Please check back for future availability.
-          </p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-7 py-3.5 text-[0.98rem] font-semibold text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow"
-          >
-            Return to NovaMDK
-          </button>
-        </div>
-      </div>
+      <UnavailableDialog
+        onClose={onClose}
+        title={`NovaMDK isn’t currently available in ${form.state}.`}
+        body="We’re working to expand access. Please check back for future availability."
+        actionLabel="Return to NovaMDK"
+        onAction={onClose}
+      />
+    );
+  }
+
+  /* Same takeover, but this one is recoverable: we serve the state, the pharmacy
+     just can't dispense this treatment there. So it offers a way onward instead
+     of only a way out, and "Change address" returns to the form in case the
+     state was picked by mistake. */
+  if (stateBlocksProduct) {
+    return (
+      <UnavailableDialog
+        onClose={onClose}
+        title={`${productName || "This treatment"} isn’t available in ${form.state}.`}
+        body="Other treatments may be available where you live."
+        actionLabel="Browse other treatments"
+        /* Their own category, so the alternatives on the next page are ones
+           they were already looking for. `/treatments/:goal` is a real route. */
+        actionTo={categorySlug ? `/treatments/${categorySlug}` : "/treatments"}
+        secondaryLabel="Change address"
+        onSecondary={() => setForm((f) => ({ ...f, state: "" }))}
+      />
     );
   }
 
@@ -1144,22 +1203,6 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "", produc
                   it: a missing state reads as a broken form. Choosing one swaps
                   this whole modal for the unavailable notice below. */}
               <NvSelect value={form.state} onChange={setVal("state")} placeholder="State…" options={US_STATES} />
-              {/* Inline rather than taking over the modal, because unlike an
-                  unserved state this is fixable: another treatment in the same
-                  category may ship there, and the address they typed is fine. */}
-              {stateBlocksProduct && (
-                <p role="alert" className="flex items-start gap-2 rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3 text-[0.86rem] leading-relaxed text-ink">
-                  <MapPin size={15} className="mt-0.5 shrink-0 text-primary" />
-                  <span>
-                    {productName || "This treatment"} isn&rsquo;t available in {form.state}. Please
-                    choose another treatment, or{" "}
-                    <Link to="/contact" className="font-semibold text-primary underline-offset-4 hover:underline">
-                      contact support
-                    </Link>
-                    .
-                  </span>
-                </p>
-              )}
             </>
           )}
 

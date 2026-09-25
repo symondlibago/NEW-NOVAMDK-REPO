@@ -277,6 +277,24 @@
     from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: none; }
   }
+
+  /* The "we can't do this here" dialogs at the address step. Entrance only:
+     they unmount the moment they close, so an exit animation would never get a
+     frame to play in, and faking one needs state these dialogs don't carry.
+
+     The veil is quicker than the panel on purpose — the blur settling first is
+     what stops the panel reading as a snap. */
+  .nv-veil-in { animation: nv-veil-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @keyframes nv-veil-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .nv-dialog-in { animation: nv-dialog-in 340ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @keyframes nv-dialog-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.96); }
+    to   { opacity: 1; transform: none; }
+  }
   .nv-seq__bar { transform: scaleX(0); transform-origin: left; }
   .nv-seq__label { opacity: 0; }
   .nv-seq.is-in .nv-seq__bar {
