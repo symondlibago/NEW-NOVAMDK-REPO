@@ -99,7 +99,14 @@ export default function ProductPage() {
   const { id } = useParams();
   // URLs use keyword slugs (/product/semaglutide-…); legacy numeric ids still
   // resolve and 301-style redirect to the slug so old links and QR codes work.
-  const product = productsData.find((p) => String(p.id) === String(id) || productSlug(p) === id);
+  /* slugAliases carries a product's previous slug, so a rename never 404s a
+     link that is already printed, indexed or bookmarked. */
+  const product = productsData.find(
+    (p) =>
+      String(p.id) === String(id) ||
+      productSlug(p) === id ||
+      (p.slugAliases || []).includes(id),
+  );
 
   const isKiosk = useKioskMode();
   const [search, setSearch] = useSearchParams();
@@ -164,7 +171,9 @@ export default function ProductPage() {
   const isNad = /nad\+/i.test(product.name);
   const isSublingual = /sublingual/i.test(product.name);
   const isGlutathione = /glutathione/i.test(product.name);
-  const isScreamCream = /scream cream/i.test(product.name);
+  /* Matches the old name too: the product was renamed on 2026-09-26 and the
+     section is the same one either way. */
+  const isScreamCream = /euphoria cream|scream cream/i.test(product.name);
   const isSermorelin = /sermorelin/i.test(product.name);
   const isLdn = /naltrexone/i.test(product.name);
   const isLuminance = /luminance/i.test(product.name);

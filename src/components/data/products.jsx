@@ -1161,7 +1161,14 @@ export const productsData = [
     id: 44,
     categorySlug: "sexual-health",
     categoryName: "Sexual Health",
-    name: "Scream Cream",
+    /* Renamed from Scream Cream on 2026-09-26. `slugAliases` keeps the old
+       /product/scream-cream URL resolving, so printed QR codes, the sitemap's
+       previous entry and any link already in the wild still land here. */
+    name: "Euphoria Cream O",
+    slugAliases: ["scream-cream"],
+    /* Still the old file: the code encodes the old URL, which the alias above
+       resolves. Regenerate it against /product/euphoria-cream-o when new
+       print material is ordered. */
     qrImg: "/qr/Scream Cream.png",
     tagline: "Compounded with DHEA, Oxytocin, Sildenafil + Theophylline",
     subtitle:
@@ -1175,7 +1182,7 @@ export const productsData = [
     img: "/products/scream-cream.avif",
     imgDetail: "/products/detail/scream-cream.avif",
     imgGallery: ["/products/detail/scream-cream-2.avif", "/products/detail/scream-cream-3.avif"],
-    questionnaireId: "f3ac4fcd-728c-4495-809b-ae6aea0406e4",
+    questionnaireId: "5fee7423-e1c3-4a4d-89da-2f2ccef6153f",
     highlights: [
       { text: "Topical Formula" },
       { text: "Prescription Only" },
@@ -1865,8 +1872,8 @@ const FAQ_SETS = [
     { q: "Who might consider Lipo-C?", a: "Your provider will review your health history, medications, and treatment goals to determine whether it may be appropriate for you." },
     { q: "What should I know before starting?", a: "Injection-site discomfort and other side effects can occur. Your provider can explain what to expect and what to watch for during treatment." },
   ]],
-  [/scream cream/i, [
-    { q: "What is Scream Cream?", a: "Scream Cream is a compounded prescription topical treatment used before intimacy." },
+  [/euphoria cream|scream cream/i, [
+    { q: "What is Euphoria Cream O?", a: "Euphoria Cream O is a compounded prescription topical treatment used before intimacy." },
     { q: "When do I use it?", a: "Use it only as directed by your healthcare provider, including timing and application instructions." },
     { q: "What should I know before using it?", a: "Your provider will review your medications and health history to make sure the treatment is appropriate for you." },
     { q: "What if I experience irritation?", a: "Contact your provider if you experience irritation, discomfort, or another unexpected reaction." },

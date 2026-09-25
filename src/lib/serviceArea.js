@@ -24,10 +24,23 @@ export function blockedStatesPhrase(list = BLOCKED_STATES) {
 /* Which treatments a state allows, by product id.
  *
  * Separate from BLOCKED_STATES above: those are states we can't serve at all,
- * these are states we serve where the pharmacy can only dispense part of the
- * catalogue. California is the first, from Strive's availability list
- * (2026-09-26); more states are expected, which is why this is a map rather
- * than a California-shaped special case.
+ * these are states we serve where only part of the catalogue can be dispensed.
+ *
+ * California is the first, and the cause is the pharmacy rather than the
+ * medicine. Two pharmacies fill our orders, and as of 2026-09-26 MediVera is
+ * not licensed to operate in California, so nothing they fill can go there.
+ * Strive can, but only the formulations on their California list. Everywhere
+ * else MediVera covers all 49 remaining states, which is why no other state
+ * needs an entry. More states are expected, hence a map rather than a
+ * California-shaped special case.
+ *
+ * The list follows Strive's California list by TREATMENT, not by the exact
+ * formulation a card happens to name. Strive fills Semaglutide, Tirzepatide and
+ * Sermorelin for California in their own formulations (Glycine/B12 for the
+ * first two), so those treatments stay available there even though the cards
+ * currently describe MediVera's versions; John is updating the catalogue to
+ * match. What stays out is anything Strive does not list for California at all,
+ * such as the NAD+ injections, Lipo-C and Glutathione.
  *
  * A state listed here is limited to EXACTLY these ids. Anything absent counts
  * as unavailable, so adding a product makes it unavailable in a restricted
@@ -40,12 +53,13 @@ export const STATE_PRODUCTS = {
   California: [
     1, 2, // Semaglutide, both doses
     5, 6, 7, // Tirzepatide, all three doses
-    11, // Sermorelin Nasal Spray
-    23, // NAD+ Sublingual Tablet — the sublingual only; the injections are not listed
-    26, 27, 28, //  Low-Dose Naltrexone, all three doses
+    11, // Sermorelin
+    23, // NAD+ Sublingual Tablet — the sublingual only, not the injections
+    26, 27, 28, // Low-Dose Naltrexone, all three doses
     29, // Luminance Brightening Cream
     32, // Olympus Peak
     37, 39, // Bremelanotide, injection and nasal spray
+    44, // being rewritten as Strive's Euphoria Cream O, which California allows
   ],
 };
 

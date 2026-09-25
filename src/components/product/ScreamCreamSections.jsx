@@ -194,7 +194,10 @@ function MoreFeelingHero({ startTo }) {
               so it stays centred on it: the bottle fills only 53% of its
               canvas, so the element has to run well past the stage for the
               bottle itself to read at the size the comp gives it. */}
-          <span className="pointer-events-none absolute left-1/2 top-[-16%] h-[132%] -translate-x-1/2">
+          {/* Scaled back for the Euphoria render (2026-09-26): the bottle fills
+              80% of its canvas where the old file filled 53%, so the same box
+              would have drawn it half again as large. */}
+          <span className="pointer-events-none absolute left-1/2 top-[6%] h-[88%] -translate-x-1/2">
             <span className="nv-scream__bottle block h-full">
               <span className="block h-full rotate-6">
                 <img
@@ -230,7 +233,7 @@ function MoreFeelingHero({ startTo }) {
                 alt=""
                 aria-hidden="true"
                 loading="lazy"
-                className="nv-float pointer-events-none block h-[clamp(14rem,52vw,20rem)] w-auto object-contain drop-shadow-[0_22px_38px_rgba(60,42,16,0.38)]"
+                className="nv-float pointer-events-none block h-[clamp(9rem,34vw,13rem)] w-auto object-contain drop-shadow-[0_22px_38px_rgba(60,42,16,0.38)]"
               />
             </span>
           </span>
