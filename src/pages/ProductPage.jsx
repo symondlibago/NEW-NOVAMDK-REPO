@@ -23,7 +23,7 @@ import { syncToGhl, treatmentLabel } from "../lib/ghl";
 import {
   readKioskLocation, scanUrl, captureScanSource, readScanSource, sourceLabel, SCAN_PARAM,
 } from "../lib/kioskLocations";
-import { isBlockedState } from "../lib/serviceArea";
+import { isBlockedState, availableInState } from "../lib/serviceArea";
 import KioskQr from "../components/kiosk/KioskQr";
 import { ComplianceBadges, CompoundedDisclaimer } from "../components/Compliance";
 import useKioskMode from "../lib/useKioskMode";
@@ -663,6 +663,8 @@ export default function ProductPage() {
         <PatientInfoModal
           loading={loading}
           err={err}
+          productId={active.id}
+          productName={active.name}
           onClose={() => setShowInfo(false)}
           onSubmit={startVisit}
         />
@@ -809,7 +811,7 @@ const US_STATES = [
 ];
 
 
-function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
+function PatientInfoModal({ onClose, onSubmit, loading = false, err = "", productId, productName }) {
   useLockBodyScroll(); // mobile: page behind the modal must not scroll
   const [step, setStep] = useState(0); // 0 = email gate, then steps 1–3
   const [form, setForm] = useState({
@@ -891,6 +893,10 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
     !tooYoung &&
     (form.gender === "1" || form.gender === "2");
 
+  /* This treatment, in the state they just gave. Distinct from isBlockedState:
+     we serve the state, the pharmacy just can't dispense this one there. */
+  const stateBlocksProduct = Boolean(form.state) && !availableInState(form.state, productId);
+
   /* A blocked state fails validation like any other bad field, which disables
      Continue. Checked on form.state rather than at selection time because the
      address autocomplete can set it too, without the picker ever being opened. */
@@ -899,6 +905,7 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
     form.city.trim().length > 0 &&
     form.state &&
     !isBlockedState(form.state) &&
+    !stateBlocksProduct &&
     /^\d{5}(-\d{4})?$/.test(form.zip.trim());
 
   const submit = async (e) => {
@@ -1137,6 +1144,22 @@ function PatientInfoModal({ onClose, onSubmit, loading = false, err = "" }) {
                   it: a missing state reads as a broken form. Choosing one swaps
                   this whole modal for the unavailable notice below. */}
               <NvSelect value={form.state} onChange={setVal("state")} placeholder="State…" options={US_STATES} />
+              {/* Inline rather than taking over the modal, because unlike an
+                  unserved state this is fixable: another treatment in the same
+                  category may ship there, and the address they typed is fine. */}
+              {stateBlocksProduct && (
+                <p role="alert" className="flex items-start gap-2 rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3 text-[0.86rem] leading-relaxed text-ink">
+                  <MapPin size={15} className="mt-0.5 shrink-0 text-primary" />
+                  <span>
+                    {productName || "This treatment"} isn&rsquo;t available in {form.state}. Please
+                    choose another treatment, or{" "}
+                    <Link to="/contact" className="font-semibold text-primary underline-offset-4 hover:underline">
+                      contact support
+                    </Link>
+                    .
+                  </span>
+                </p>
+              )}
             </>
           )}
 

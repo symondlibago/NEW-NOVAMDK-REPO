@@ -365,14 +365,18 @@ function DraftRow({ draft }) {
   );
 }
 
-export default function PortalVisits({ onUnauthorized, onMessageAbout }) {
+export default function PortalVisits({ onUnauthorized, onMessageAbout, initialOpenId = null }) {
   const [cases, setCases] = useState(null);
   const [visits, setVisits] = useState([]);
   // Set once the visits land: with no "All" tab, the page has to open on a
   // bucket that actually has something in it.
   const [filter, setFilter] = useState(null);
   const [error, setError] = useState(null);
-  const [openId, setOpenId] = useState(null);
+  /* Seeded when the patient arrived from a card on the Home page, which names
+     the visit it is about: landing them on the list to find it again would be
+     the wrong answer to "view treatment details". The tab remounts on every
+     switch, so the initial value is enough and needs no effect to sync. */
+  const [openId, setOpenId] = useState(initialOpenId);
   // Keyed by case id so reopening a visit doesn't refetch it.
   const [details, setDetails] = useState({});
 

@@ -252,7 +252,7 @@ export default function StartingPoint() {
   return (
     /* From md the band fills one screen under the sticky header and centres
        the rail in it (2026-09-15). White ground to match the page. */
-    <section className="flex w-full flex-col justify-center overflow-hidden bg-white md:min-h-[calc(100svh-69px)]">
+    <section className="flex w-full flex-col justify-center overflow-hidden bg-white md:min-h-[calc(100svh-69px)] [@media(min-width:600px)_and_(orientation:portrait)]:min-h-0">
       {/* The standfirst that sat beside the heading was dropped at the client's
           request (2026-09-25). The band keeps the roomier spacing it came with:
           the heading no longer sits hard against the rail. */}

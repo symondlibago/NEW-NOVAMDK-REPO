@@ -268,14 +268,24 @@ export default function Navbar() {
         className="sticky top-0 z-50 border-b border-line bg-bg/95 backdrop-blur-xl"
       >
         <nav className="mx-auto flex min-h-[68px] max-w-[1340px] items-center justify-between gap-4 px-5 md:px-10">
-          <Link to="/" aria-label="Nova MDK home" onClick={closePanel}>
-            <img src="/logo.png" alt="Nova MDK" className="h-[46px] w-auto md:h-[52px]" />
-          </Link>
+          {/* No mark on the kiosk (2026-09-25): its screen is portrait, and the
+              logo was squeezing the five categories into a scrunch. The unit
+              stands in a branded frame, so the mark is not doing any work
+              there that the frame is not already doing. */}
+          {!isKiosk && (
+            <Link to="/" aria-label="Nova MDK home" onClick={closePanel}>
+              <img src="/logo.png" alt="Nova MDK" className="h-[46px] w-auto md:h-[52px]" />
+            </Link>
+          )}
 
           {/* The category row. Hidden below lg on a normal browser, where the
               drawer carries the same five; the kiosk keeps it at every width
               because its screen is wide enough and tapping beats a burger. */}
-          <div className={`items-center gap-1 ${isKiosk ? "flex" : "hidden lg:flex"}`}>
+          {/* mx-auto on the kiosk (2026-09-25): with the mark gone there is
+              nothing on the left for justify-between to push against, so the
+              row sat hard against the edge. The auto margins centre it in what
+              the burger leaves. */}
+          <div className={`items-center gap-1 ${isKiosk ? "mx-auto flex" : "hidden lg:flex"}`}>
             {CATEGORIES.map((cat, i) => {
               const on = openCat === cat.goal;
               return (

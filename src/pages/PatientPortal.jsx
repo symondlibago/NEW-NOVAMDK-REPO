@@ -78,10 +78,22 @@ export default function PatientPortalPage() {
      navigation, so it can never attach itself to an unrelated message. */
   const [messageAbout, setMessageAbout] = useState(null);
 
+  /* The visit a Home card sent them to, so the Visits tab opens on it rather
+     than on the list. Cleared by any other navigation, so going to Visits from
+     the sidebar afterwards still shows the list. */
+  const [openVisitId, setOpenVisitId] = useState(null);
+
   const selectTab = useCallback((key) => {
     setTab(key);
     setMessageAbout(null);
+    setOpenVisitId(null);
     setDrawerOpen(false); // the drawer overlays the content on mobile
+  }, []);
+
+  const openVisit = useCallback((caseId) => {
+    setOpenVisitId(caseId);
+    setTab("visits");
+    setDrawerOpen(false);
   }, []);
 
   const messageAboutVisit = useCallback((visit) => {
@@ -195,7 +207,9 @@ export default function PatientPortalPage() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
               >
-                {tab === "home" && <PortalHome onUnauthorized={signOut} onNavigate={selectTab} />}
+                {tab === "home" && (
+                  <PortalHome onUnauthorized={signOut} onNavigate={selectTab} onOpenVisit={openVisit} />
+                )}
                 {tab === "messages" && (
                   <PortalMessages
                     onUnauthorized={signOut}
@@ -204,7 +218,11 @@ export default function PatientPortalPage() {
                   />
                 )}
                 {tab === "visits" && (
-                  <PortalVisits onUnauthorized={signOut} onMessageAbout={messageAboutVisit} />
+                  <PortalVisits
+                    onUnauthorized={signOut}
+                    onMessageAbout={messageAboutVisit}
+                    initialOpenId={openVisitId}
+                  />
                 )}
                 {tab === "profile" && (
                   <PortalProfile onUnauthorized={signOut} />

@@ -34,7 +34,15 @@ function ProgressRail({ step }) {
   );
 }
 
-export default function PortalHome({ onUnauthorized, onNavigate }) {
+export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) {
+  /* Cards that name one visit open that visit. `See all` still goes to the
+     list, because that is what it says. */
+  const openVisit = (c) => () => {
+    const id = c.case_id || c.id;
+    if (onOpenVisit && id) onOpenVisit(id);
+    else onNavigate("visits");
+  };
+
   const [visits, setVisits] = useState(null);
   const [name, setName] = useState(null);
   const [error, setError] = useState(null);
@@ -102,7 +110,7 @@ export default function PortalHome({ onUnauthorized, onNavigate }) {
         {/* primary-deep rather than a literal: it is the theme's own darker
             gold, so it follows the Design Studio instead of drifting from it. */}
         <h1 className="mt-2 text-[1.8rem] leading-tight tracking-tight text-primary-deep">
-          {greeting()}{name ? `, ${name}` : ""}.
+          {greeting()}{name ? `, ${name}` : ""}
         </h1>
 
         {/* Unfinished intakes lead. Plain card, no photo: it's a task to clear,
@@ -186,7 +194,7 @@ export default function PortalHome({ onUnauthorized, onNavigate }) {
                             : "Your care team is working on this visit."}
                         </p>
                         <button
-                          onClick={() => onNavigate("visits")}
+                          onClick={openVisit(c)}
                           className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-bg px-7 py-3 text-[0.9rem] font-semibold text-ink transition-colors hover:border-primary hover:text-primary md:w-auto md:self-start"
                         >
                           View treatment details <ArrowRight size={15} />
@@ -211,7 +219,7 @@ export default function PortalHome({ onUnauthorized, onNavigate }) {
                 return (
                   <li key={c.id}>
                     <button
-                      onClick={() => onNavigate("visits")}
+                      onClick={openVisit(c)}
                       className="group flex w-full items-center gap-4 px-6 py-5 text-left transition-colors hover:bg-surface-2"
                     >
                       <span className="min-w-0 flex-1">
