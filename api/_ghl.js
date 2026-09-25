@@ -475,6 +475,55 @@ export async function findContactByCustomField(fieldId, value) {
   return (data?.contacts || [])[0] || null;
 }
 
+/** One contact by id, or null. Never throws. */
+export async function contactById(contactId) {
+  if (!contactId) return null;
+  try {
+    const data = await ghlFetch(`/contacts/${encodeURIComponent(contactId)}`);
+    return data?.contact || null;
+  } catch (e) {
+    console.warn(`GHL contact ${contactId} could not be read:`, e.message);
+    return null;
+  }
+}
+
+/* The card carrying this MDI encounter, found by scanning rather than filtering.
+   /opportunities/search takes no customFields filter, so this reads a page of
+   cards and looks at the field itself.
+
+   Worth the scan because it is the last resort and the only durable link there
+   is. The contact's mdi_patient_id and latest_mdi_encounter_id each hold ONE
+   value and get overwritten: on 2026-09-26 a later test reused a contact (GHL
+   upsert matches on phone as well as email) and replaced both, so an approved
+   case could no longer be traced to its patient and the card never moved. The
+   encounter on the card is written once, at intake, and never changes.
+
+   Newest first and capped: this runs on a miss, and a webhook has 15 seconds.
+   A case older than the cap can't be found this way, which is a bounded loss
+   against an unbounded scan. */
+const ENCOUNTER_SCAN_LIMIT = 100;
+
+export async function opportunityForEncounter(caseId) {
+  if (!caseId) return null;
+  try {
+    const data = await ghlFetch(
+      `/opportunities/search?location_id=${LOCATION_ID}&limit=${ENCOUNTER_SCAN_LIMIT}`
+    );
+    const opps = data?.opportunities || [];
+    const hit = opps.find(
+      (o) => fieldValueOf(o, SEARCH_FIELD_ID.OPPORTUNITY_ENCOUNTER_ID) === caseId
+    );
+    if (!hit) {
+      console.warn(`No card carries encounter ${caseId} in the newest ${opps.length} scanned`);
+      return null;
+    }
+    return { id: hit.id, contactId: hit.contact?.id || hit.contactId || null };
+  } catch (e) {
+    console.warn(`GHL opportunity scan for ${caseId} failed:`, e.message);
+    return null;
+  }
+}
+
 /* Every opportunity belonging to one contact, newest first. `contact_id` is
    snake_case on this endpoint; `contactId` is rejected with a 422. */
 export async function opportunitiesForContact(contactId) {

@@ -9,6 +9,8 @@ import {
   tagContact,
   clinicStamp,
   fieldValueOf,
+  contactById,
+  opportunityForEncounter,
   SEARCH_FIELD_ID,
   FIELD,
 } from "./_ghl.js";
@@ -305,27 +307,44 @@ async function patientIdForCase(caseId) {
   return c?.patient_id || c?.patient?.patient_id || c?.patient?.id || null;
 }
 
-/** @returns {Promise<{contact: object, stampCaseId: string|null}|null>} */
+/** @returns {Promise<{contact: object, stampCaseId: string|null, opportunityId: string|null}|null>} */
 async function findContact(payload) {
   const caseId = payload.case_id || payload.encounter_id || null;
 
   if (caseId) {
     const byCase = await findContactByCustomField(SEARCH_FIELD_ID.LATEST_MDI_ENCOUNTER_ID, caseId);
-    if (byCase) return { contact: byCase, stampCaseId: null };
+    if (byCase) return { contact: byCase, stampCaseId: null, opportunityId: null };
   }
 
   /* Voucher and patient events do carry patient_id; case events don't, so for
      those we ask MDI. */
   const patientId = payload.patient_id || (caseId ? await patientIdForCase(caseId) : null);
-  if (!patientId) return null;
 
-  const byPatient = await findContactByCustomField(SEARCH_FIELD_ID.MDI_PATIENT_ID, patientId);
-  if (!byPatient) return null;
+  if (patientId) {
+    const byPatient = await findContactByCustomField(SEARCH_FIELD_ID.MDI_PATIENT_ID, patientId);
+    /* Record the case id we just resolved the hard way, so the next event for
+       this same case matches on the first lookup instead of round-tripping to
+       MDI again. */
+    if (byPatient) return { contact: byPatient, stampCaseId: caseId, opportunityId: null };
+  }
 
-  /* Record the case id we just resolved the hard way, so the next event for
-     this same case matches on the first lookup instead of round-tripping to
-     MDI again. */
-  return { contact: byPatient, stampCaseId: caseId };
+  /* Last resort: the card itself. Both lookups above read single-value contact
+     fields that a later visit overwrites, and on 2026-09-26 that is exactly
+     what happened — a second test reused the contact (GHL upsert matches on
+     phone, not only email), replaced both ids, and an approved case could no
+     longer be traced to anyone even though its card was sitting in Paid with
+     the case id written on it. The encounter on a card is written once and
+     never changes, so it outlives the contact's fields. */
+  if (!caseId) return null;
+
+  const card = await opportunityForEncounter(caseId);
+  if (!card?.contactId) return null;
+
+  const contact = await contactById(card.contactId);
+  if (!contact?.id) return null;
+
+  console.info(`MDI webhook: matched case ${caseId} through its card ${card.id}`);
+  return { contact, stampCaseId: caseId, opportunityId: card.id };
 }
 
 export default async function handler(req, res) {
@@ -441,20 +460,27 @@ export default async function handler(req, res) {
          response to that is to leave the board alone: the contact still gets
          the status and the tag, so nothing is lost. */
       writes.push(
-        opportunitiesForContact(contact.id).then((opps) => {
+        (async () => {
           const caseId = payload.case_id || payload.encounter_id || null;
-          const match = caseId
-            ? opps.find((o) => fieldValueOf(o, SEARCH_FIELD_ID.OPPORTUNITY_ENCOUNTER_ID) === caseId)
-            : null;
 
-          if (!match?.id) {
-            console.warn(
-              `MDI webhook ${event}: no opportunity carries case ${caseId || "-"}, board left alone (${opps.length} card(s) on this contact)`
-            );
-            return null;
+          /* Already identified if the contact was found through its card, which
+             saves searching the contact's opportunities for what we just had. */
+          let id = found.opportunityId;
+          if (!id) {
+            const opps = await opportunitiesForContact(contact.id);
+            const match = caseId
+              ? opps.find((o) => fieldValueOf(o, SEARCH_FIELD_ID.OPPORTUNITY_ENCOUNTER_ID) === caseId)
+              : null;
+            if (!match?.id) {
+              console.warn(
+                `MDI webhook ${event}: no opportunity carries case ${caseId || "-"}, board left alone (${opps.length} card(s) on this contact)`
+              );
+              return null;
+            }
+            id = match.id;
           }
-          return lost ? markOpportunityLost(match.id) : moveOpportunityForward(match.id, stage);
-        })
+          return lost ? markOpportunityLost(id) : moveOpportunityForward(id, stage);
+        })()
       );
     }
 
