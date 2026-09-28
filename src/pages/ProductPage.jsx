@@ -1014,7 +1014,7 @@ function PatientInfoModal({
       last_name: form.last_name.trim(),
       email: form.email.trim(),
       phone_number: form.phone_number.trim(),
-      date_of_birth: form.dob, // <input type="date"> emits Y-m-d — MDI's format
+      date_of_birth: form.dob, // DatePicker emits Y-m-d, which is MDI's format
       gender: Number(form.gender), // MDI: 1 = male, 2 = female
       address: {
         address: form.street.trim(),

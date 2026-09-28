@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 
 const MONTHS = [
@@ -8,7 +8,13 @@ const MONTHS = [
 const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 const MIN_YEAR = 1900;
+/* The tallest the panel ever wants to be. It is a ceiling, not a promise: on a
+   short screen the panel is capped to whatever room there actually is. */
 const PANEL_HEIGHT = 360;
+/* Never let the panel touch the edge of the screen, and never shrink it below
+   the point where a scrollable year list is still usable. */
+const GUTTER = 8;
+const PANEL_MIN = 190;
 const pad = (n) => String(n).padStart(2, "0");
 const toISO = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
 
@@ -26,6 +32,33 @@ const todayParts = () => {
   return { y: now.getFullYear(), m: now.getMonth(), d: now.getDate() };
 };
 
+/* Which side of the field the panel opens on, and how tall it may be.
+ *
+ * Exported so the rule can be checked against real device geometry without a
+ * browser. `viewportTop`/`viewportHeight` come from visualViewport, so the
+ * keyboard counts as "not room".
+ *
+ * The rule is simply: take the side with more room, and never ask for more
+ * height than that side has. The version this replaced demanded a full
+ * PANEL_HEIGHT below and flipped above only when there were also PANEL_HEIGHT
+ * above, so a field with, say, 300px below and 320px above satisfied neither
+ * branch, stayed below and ran off the bottom of the screen.
+ */
+export function placeFor(rect, viewportTop = 0, viewportHeight = 0) {
+  const below = viewportTop + viewportHeight - rect.bottom - GUTTER;
+  const above = rect.top - viewportTop - GUTTER;
+  const flip = above > below && below < PANEL_HEIGHT;
+  /* PANEL_MIN is a floor on usefulness, not a licence to be taller than the
+     screen: a landscape phone can leave less than PANEL_MIN in total, and a
+     panel taller than the viewport is unscrollable at both ends. */
+  const ceiling = Math.min(PANEL_HEIGHT, Math.max(0, viewportHeight - 2 * GUTTER));
+  const room = Math.max(0, flip ? above : below);
+  return {
+    above: flip,
+    maxHeight: Math.max(Math.min(PANEL_MIN, ceiling), Math.min(ceiling, room)),
+  };
+}
+
 const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
 const firstWeekday = (y, m) => new Date(y, m, 1).getDay();
 const isAfter = (a, b) => (a.y !== b.y ? a.y > b.y : a.m !== b.m ? a.m > b.m : a.d > b.d);
@@ -40,7 +73,7 @@ export default function DatePicker({
   id,
 }) {
   const [open, setOpen] = useState(false);
-  const [above, setAbove] = useState(false);
+  const [place, setPlace] = useState({ above: false, maxHeight: PANEL_HEIGHT });
   const selected = parseISO(value);
   const [view, setView] = useState(selected ? "days" : "years");
   const [cursor, setCursor] = useState(() => selected || { y: maxDate.y - 30, m: 0, d: 1 });
@@ -48,13 +81,22 @@ export default function DatePicker({
   const ref = useRef(null);
   const triggerRef = useRef(null);
   const selectedYearRef = useRef(null);
+  const yearListRef = useRef(null);
 
   useEffect(() => {
     const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", onDoc);
+    /* Touch as well as mouse: a tap outside on a phone arrives as touchstart,
+       and waiting for the emulated mousedown leaves the panel open over
+       whatever the patient was trying to reach. */
+    document.addEventListener("touchstart", onDoc, { passive: true });
     document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("touchstart", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
   }, []);
 
   // Reopen where the current answer lives.
@@ -64,15 +106,64 @@ export default function DatePicker({
     if (selected) setCursor(selected);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
-  useEffect(() => {
-    if (!open) return;
+  /* Where the panel goes, and how tall it may be.
+   *
+   * This used to ask for 360px below and flip above only when there were also
+   * 360px above, which left a gap: on a short screen with the field around
+   * two-thirds down — exactly where the intake modal puts date of birth —
+   * neither side had 360px, so the panel stayed below and ran off the bottom of
+   * the screen. The year list was then unreachable and the patient could not
+   * answer the question at all. So: take whichever side has more room and cap
+   * the panel to it, which means it is always fully on screen somewhere.
+   *
+   * Measured against visualViewport rather than innerHeight, because with a
+   * phone keyboard open the two disagree by half the screen and innerHeight
+   * would happily place the panel underneath the keyboard.
+   */
+  const measure = useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect) setAbove(rect.bottom + PANEL_HEIGHT > window.innerHeight && rect.top > PANEL_HEIGHT);
-  }, [open, view]);
+    if (!rect) return;
+    const vv = window.visualViewport;
+    setPlace(placeFor(rect, vv?.offsetTop ?? 0, vv?.height ?? window.innerHeight));
+  }, []);
 
   useEffect(() => {
-    if (view === "years") selectedYearRef.current?.scrollIntoView({ block: "center" });
-  }, [view]);
+    if (!open) return;
+    measure();
+    const vv = window.visualViewport;
+    window.addEventListener("resize", measure);
+    /* Capture, because the thing that scrolls is the modal overlay rather than
+       the page, and a scroll event on it does not bubble to window. */
+    window.addEventListener("scroll", measure, true);
+    vv?.addEventListener("resize", measure);
+    vv?.addEventListener("scroll", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+      vv?.removeEventListener("resize", measure);
+      vv?.removeEventListener("scroll", measure);
+    };
+  }, [open, view, measure]);
+
+  /* Open the year list on the cursor year instead of at the top.
+   *
+   * Keyed on `open` as well as `view`: for an empty field `view` is already
+   * "years" when the panel opens, so a `[view]`-only effect never re-ran and
+   * the list opened at the current year with a century of scrolling between the
+   * patient and their birth year. Scrolls the list itself rather than calling
+   * scrollIntoView, which walks every scrollable ancestor and drags the modal
+   * out from under the panel. */
+  useEffect(() => {
+    if (!open || view !== "years") return;
+    const list = yearListRef.current;
+    const btn = selectedYearRef.current;
+    if (!list || !btn) return;
+    /* Rect deltas, not offsetTop: offsetTop is measured from the panel rather
+       than from the list, so it would centre on the wrong row. */
+    const lr = list.getBoundingClientRect();
+    const br = btn.getBoundingClientRect();
+    list.scrollTop += br.top - lr.top - (lr.height - br.height) / 2;
+  }, [open, view, place.maxHeight]);
 
   const years = useMemo(() => {
     const list = [];
@@ -132,13 +223,14 @@ export default function DatePicker({
           /* Lenis swallows touchmove site-wide; without this the year list
              simply won't scroll on a phone. Same flag the nav drawer uses. */
           data-lenis-prevent
-          className={`absolute left-0 z-50 w-72 rounded-2xl border border-line bg-surface p-3 nv-shadow-lg sm:w-80 ${
-            above ? "bottom-full mb-1.5" : "top-full mt-1.5"
+          style={{ maxHeight: place.maxHeight }}
+          className={`absolute left-0 z-50 flex w-72 flex-col overflow-hidden rounded-2xl border border-line bg-surface p-3 nv-shadow-lg sm:w-80 ${
+            place.above ? "bottom-full mb-1.5" : "top-full mt-1.5"
           }`}
         >
           {/* ---------------- header ---------------- */}
           {view === "days" ? (
-            <div className="flex items-center justify-between gap-1">
+            <div className="flex flex-none items-center justify-between gap-1">
               <button type="button" onClick={() => shiftMonth(-1)} disabled={atMinMonth} aria-label="Previous month" className={navBtn}>
                 <ChevronLeft size={18} />
               </button>
@@ -155,7 +247,7 @@ export default function DatePicker({
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-1">
+            <div className="flex flex-none items-center gap-1">
               {view === "months" && (
                 <button type="button" onClick={() => setView("years")} aria-label="Back to years" className={navBtn}>
                   <ChevronLeft size={18} />
@@ -170,7 +262,10 @@ export default function DatePicker({
 
           {/* ---------------- days ---------------- */}
           {view === "days" && (
-            <>
+            /* overscroll-contain: without it a drag that reaches the end of
+               this list carries on into the modal behind, which on a phone
+               scrolls the field out from under the patient's finger. */
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain nv-scroll-lg">
               <div className="mt-1 grid grid-cols-7">
                 {WEEKDAYS.map((w, i) => (
                   <span key={i} className="grid h-8 place-items-center font-mono text-[0.65rem] uppercase tracking-wide text-muted">
@@ -201,12 +296,15 @@ export default function DatePicker({
                   );
                 })}
               </div>
-            </>
+            </div>
           )}
 
           {/* ---------------- years ---------------- */}
           {view === "years" && (
-            <div className="mt-1.5 grid max-h-64 grid-cols-4 gap-1 overflow-y-auto pr-1 nv-scroll-lg">
+            <div
+              ref={yearListRef}
+              className="mt-1.5 grid min-h-0 flex-1 grid-cols-4 gap-1 overflow-y-auto overscroll-contain pr-1 nv-scroll-lg"
+            >
               {years.map((y) => {
                 const on = y === cursor.y;
                 return (
@@ -226,7 +324,7 @@ export default function DatePicker({
 
           {/* ---------------- months ---------------- */}
           {view === "months" && (
-            <div className="mt-1.5 grid grid-cols-3 gap-1">
+            <div className="mt-1.5 grid min-h-0 flex-1 grid-cols-3 gap-1 overflow-y-auto overscroll-contain nv-scroll-lg">
               {MONTHS_SHORT.map((label, m) => {
                 const on = m === cursor.m && selected?.y === cursor.y;
                 const disabled = cursor.y === maxDate.y && m > maxDate.m;
