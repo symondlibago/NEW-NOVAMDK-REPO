@@ -293,12 +293,22 @@ export default function ProductPage() {
               ? ` ${patient.marketing.consent ? "Opted in to" : "Declined"} marketing email (${patient.marketing.version}).`
               : ""),
         }).then((r) => {
+          /* Say so when the CRM write did not land. It stays unawaited, so a
+             failure must never block the handoff to intake, but it must not be
+             silent either: on 2026-09-29 a day of visits reached MDI and never
+             reached GoHighLevel, and because this branch swallowed the result
+             there was nothing anywhere to show it. */
+          if (!r || r.ok === false || (!r.contactId && !r.opportunityId)) {
+            console.error("NovaMDK: GoHighLevel sync did not land", r?.error || r);
+          }
           // The contact id rides along so the intake page can tag this same
           // person once MDI confirms the questionnaire actually started.
           try {
             if (r?.opportunityId) sessionStorage.setItem("ghl_opportunity", r.opportunityId);
             if (r?.contactId) sessionStorage.setItem("ghl_contact", r.contactId);
           } catch { /* private mode */ }
+        }).catch((e) => {
+          console.error("NovaMDK: GoHighLevel sync threw", e);
         });
       }
 
