@@ -1,5 +1,6 @@
 import { blocked, signReleaseToken } from './_guard.js';
 import { checkHuman } from './_turnstile.js';
+import { availableInState, isBlockedState } from '../src/lib/serviceArea.js';
 
 const CLIENT_ID = process.env.MDI_CLIENT_ID;
 const CLIENT_SECRET = process.env.MDI_CLIENT_SECRET;
@@ -181,6 +182,35 @@ export default async function handler(req, res) {
 
     if (consent && (patientId || p?.email)) {
       console.info('NovaMDK consent:', JSON.stringify({ patient_id: patientId, ...consent }));
+    }
+
+    /* Where the patient lives decides whether this treatment can be dispensed
+       at all, so the last word has to be here rather than in the modal.
+     *
+     * The modal checks the state box as it is typed, but a RETURNING patient
+     * never sees that box: MDI already knows them, so steps 2 and 3 are
+     * skipped, `form.state` stays empty and the client-side guard
+     * short-circuits. On 2026-09-29 that let a California patient start NAD+
+     * Injection, which MediVera cannot ship there. The address is also the one
+     * field a determined caller could simply omit.
+     *
+     * The submitted address wins when there is one, because it is what the
+     * patient is telling us today; otherwise fall back to the chart. */
+    const stateName =
+      p?.address?.state_name ||
+      patientProfile?.address?.state_name ||
+      null;
+    const productId = Number(req.body.product_id) || null;
+    if (stateName) {
+      if (isBlockedState(stateName)) {
+        return res.status(409).json({ error: 'state_not_served', state: stateName });
+      }
+      if (productId && !availableInState(stateName, productId)) {
+        return res.status(409).json({
+          error: 'product_not_available_in_state',
+          state: stateName,
+        });
+      }
     }
 
     const offeringId = req.body.case_offering_id;

@@ -220,6 +220,10 @@ export default function ProductPage() {
         body: JSON.stringify({
           questionnaire_id: active.questionnaireId || DEFAULT_QUESTIONNAIRE_ID,
           case_offering_id: active.caseOfferingId || undefined,
+          /* So the server can apply the state rule itself. A returning patient
+             never fills in an address here, so this is the only way the check
+             can reach them. */
+          product_id: active.id,
           // Marketing preference stripped here rather than riding along with
           // the patient file: MDI holds the clinical record, not our CRM's
           // promotional settings.
@@ -235,6 +239,14 @@ export default function ProductPage() {
       });
       if (res.status === 403) {
         throw new Error("We couldn't confirm you're not a bot. Please try again.");
+      }
+      /* The server applied the state rule. For a returning patient this is the
+         first and only place it can be caught, so it drives the same takeover
+         dialog the address step would have shown. */
+      if (res.status === 409) {
+        const why = await res.json().catch(() => ({}));
+        if (why.state) return { blockedState: why.state, served: why.error !== "state_not_served" };
+        throw new Error("We couldn't start your visit just now — please try again.");
       }
       if (!res.ok) throw new Error("We couldn't start your visit just now — please try again.");
       const voucher = await res.json();
@@ -890,6 +902,9 @@ function PatientInfoModal({
 }) {
   useLockBodyScroll(); // mobile: page behind the modal must not scroll
   const [step, setStep] = useState(0); // 0 = email gate, then steps 1–3
+  /* The server's verdict on where this patient lives, for the returning patient
+     who never fills in an address here. { state, served }. */
+  const [serverBlock, setServerBlock] = useState(null);
   const [form, setForm] = useState({
     first_name: "", last_name: "", email: "", phone_number: "",
     dob: "", gender: "",
@@ -1003,6 +1018,12 @@ function PatientInfoModal({
         setStep(1);
         return;
       }
+      /* A returning patient the pharmacy can't serve where they live. They
+         never see the address step, so this is the only chance to say so. */
+      if (res?.blockedState) {
+        setServerBlock({ state: res.blockedState, served: res.served });
+        return;
+      }
       /* Didn't move on, so the request failed and spent the token. A returning
          patient who succeeded has already been navigated away, so this only
          ever resets a widget someone is still looking at. */
@@ -1019,7 +1040,7 @@ function PatientInfoModal({
       return;
     }
     if (!step3Valid) return;
-    onSubmit({
+    const res = await onSubmit({
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
       email: form.email.trim(),
@@ -1035,6 +1056,9 @@ function PatientInfoModal({
       consent: consentRecord(), // agreed at step 0; stored on the patient file
       marketing: marketingRecord(), // agreed at step 0; CRM only, never MDI
     });
+    /* step3Valid already blocks this, so reaching here means the client check
+       was bypassed. The server is the one that counts, so honour its answer. */
+    if (res?.blockedState) setServerBlock({ state: res.blockedState, served: res.served });
   };
 
   const inputCls =
@@ -1053,6 +1077,33 @@ function PatientInfoModal({
      can't serve this address there's nothing left to fill in, and leaving the
      fields up invites the patient to keep trying. Sits below every hook so the
      call order can't shift when it trips. */
+  /* The server refused on the state held in MDI. Checked before the two
+     form-driven branches below, because for a returning patient `form.state`
+     is empty and neither of them would ever fire. No "Change address" here:
+     the address is on their chart, not in this form, so the only honest
+     options are another treatment or the way out. */
+  if (serverBlock) {
+    return serverBlock.served ? (
+      <UnavailableDialog
+        onClose={onClose}
+        title={`${productName || "This treatment"} isn’t available in ${serverBlock.state}.`}
+        body="Other treatments may be available where you live."
+        actionLabel="Browse other treatments"
+        actionTo={categorySlug ? `/treatments/${categorySlug}` : "/treatments"}
+        secondaryLabel="Close"
+        onSecondary={onClose}
+      />
+    ) : (
+      <UnavailableDialog
+        onClose={onClose}
+        title={`NovaMDK isn’t currently available in ${serverBlock.state}.`}
+        body="We’re working to expand access. Please check back for future availability."
+        actionLabel="Return to NovaMDK"
+        onAction={onClose}
+      />
+    );
+  }
+
   if (isBlockedState(form.state)) {
     return (
       <UnavailableDialog
