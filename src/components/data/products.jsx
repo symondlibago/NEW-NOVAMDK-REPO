@@ -709,7 +709,7 @@ export const productsData = [
     imgDetail: "/products/detail/nad-plus.avif",
     // Real NAD+ photography, so the gallery drops the stand-in stock frames.
     imgGallery: ["/products/detail/nad-plus-2.avif", "/products/detail/nad-plus-3.avif"],
-    questionnaireId: "1e74716c-356b-4680-a026-1245bdce42b6",
+    questionnaireId: "ae4ca1f7-e6d1-4710-bf33-9b53d5326667",
     highlights: [
       { text: "Cellular Coenzyme" },
       { text: "Personalized Dosing" },
@@ -740,7 +740,7 @@ export const productsData = [
     icon: <Zap size={16} />,
     img: "/products/nad-plus.avif",
     imgDetail: "/products/detail/nad-plus.avif",
-    questionnaireId: "1e74716c-356b-4680-a026-1245bdce42b6",
+    questionnaireId: "ae4ca1f7-e6d1-4710-bf33-9b53d5326667",
     highlights: [
       { text: "Cellular Coenzyme" },
       { text: "Provider-Guided" },
@@ -890,7 +890,7 @@ export const productsData = [
     img: "/products/nad-sublingual.avif",
     imgDetail: "/products/detail/nad-sublingual.avif",
     imgGallery: ["/products/detail/nad-sublingual-2.avif", "/products/detail/nad-sublingual-3.avif"],
-    questionnaireId: "91480561-864e-4bda-8bad-694696ac2e1f",
+    questionnaireId: "91480561-864e-4bda-8bad-694696ac2e1",
     caseOfferingId: "6a3b5e15-806a-4ea1-b1f6-b6567ca80066",
     highlights: [
       { text: "Needle-Free" },
