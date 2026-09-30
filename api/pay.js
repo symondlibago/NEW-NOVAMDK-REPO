@@ -7,6 +7,7 @@ import {
   markOpportunityPaid,
   updateContactFields,
   updateOpportunityFields,
+  contactById,
   INTAKE_STAGE,
   FIELD,
 } from "./_ghl.js";
@@ -21,6 +22,7 @@ import {
   parseReference,
   addToMonth,
 } from "./_kurv.js";
+import { stripe, stripeEnabled, stripeMode, toCents } from "./_stripe.js";
 
 /* Charges a card through the NMI gateway (PayTechTrust is an NMI white-label),
  * and on GET, quotes what that charge will be.
@@ -54,20 +56,34 @@ const SHIPPING_FEE = money(process.env.SHIPPING_FEE) ?? 0;
 
 /* Live card testing without repricing anything a patient can see.
  *
- * NMI_TEST_PID names the products affected, comma separated ("1,11,12"), so
+ * TEST_CHARGE_PID names the products affected, comma separated ("1,11,12"), so
  * leaving these behind by accident misprices a handful of products rather than
  * the whole catalogue. A list rather than one id so a test run can cover one
  * product per category. The quote the modal displays always uses real prices;
- * only the charge is overridden, for Kurv and PayTechTrust alike. Unset
- * NMI_TEST_PID to turn every override off. */
+ * only the charge is overridden, for every processor alike. Unset
+ * TEST_CHARGE_PID to turn every override off.
+ *
+ * Named NMI_TEST_* until 2026-10-01, which became actively misleading once
+ * Stripe started taking the orders: these govern what Stripe charges too. The
+ * old names still work so nothing breaks mid-test, but set the new ones.
+ *
+ * Stripe refuses anything under $0.50 USD, so a total below that fails at the
+ * processor rather than here. */
+const envAny = (...names) => {
+  for (const n of names) {
+    const v = process.env[n];
+    if (v !== undefined && v !== "") return v;
+  }
+  return undefined;
+};
 const TEST_PIDS = new Set(
-  String(process.env.NMI_TEST_PID || "")
+  String(envAny("TEST_CHARGE_PID", "NMI_TEST_PID") || "")
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean)
 );
-const TEST_AMOUNT = money(process.env.NMI_TEST_AMOUNT);
-const TEST_SHIPPING = money(process.env.NMI_TEST_SHIPPING);
+const TEST_AMOUNT = money(envAny("TEST_CHARGE_AMOUNT", "NMI_TEST_AMOUNT"));
+const TEST_SHIPPING = money(envAny("TEST_CHARGE_SHIPPING", "NMI_TEST_SHIPPING"));
 
 /* What the patient is shown. Real prices only, whatever test overrides exist. */
 function quoteFor(pid) {
@@ -86,9 +102,9 @@ function chargeFor(pid) {
   const shipping = TEST_SHIPPING ?? quote.shipping;
   const charge = { amount, shipping, total: cents(amount + shipping) };
   console.warn(
-    `NMI TEST PRICING ACTIVE: product ${pid} charged $${charge.total.toFixed(2)} ` +
+    `TEST PRICING ACTIVE: product ${pid} charged $${charge.total.toFixed(2)} ` +
       `($${amount.toFixed(2)} + $${shipping.toFixed(2)} shipping) instead of $${quote.total.toFixed(2)}. ` +
-      `Unset NMI_TEST_PID once testing is done.`
+      `Unset TEST_CHARGE_PID once testing is done.`
   );
   return charge;
 }
@@ -189,6 +205,165 @@ async function settleKurvSale({ reference, amount, contactId, opportunityId, sub
 }
 
 /* Opens a Kurv payment for this order and returns the page to show. */
+/* Which processor takes this order.
+ *
+ * Stripe is primary from 2026-10-01. Kurv and PayTechTrust stay wired as the
+ * fallback rather than being deleted, because Stripe restricts compounded
+ * prescription medications and an account review would otherwise take checkout
+ * down with it. Keeping the decision here rather than in _kurv.js leaves that
+ * module knowing only about its own cap.
+ */
+async function processorFor(amount) {
+  if (stripeEnabled()) return "stripe";
+  return routeFor(amount);
+}
+
+/* Opens a Stripe payment for the amount WE price, not the amount asked for.
+ *
+ * Same rule as the NMI path below: the id is priced server side and the
+ * request's own figures are ignored, or anyone could pay $1 for a $1,350
+ * treatment. Returns only the client secret, which can confirm this one payment
+ * and nothing else.
+ */
+async function stripeIntent(req, res) {
+  if (blocked(req, res, { max: 8 })) return;
+  if (!stripeEnabled()) {
+    return res.status(503).json({ ok: false, error: "not_configured" });
+  }
+
+  const { pid, contact_id, opportunity_id, treatment, submitted } = req.body || {};
+  const charge = chargeFor(pid);
+  if (!charge) {
+    console.error(`Refused Stripe intent for unpriced product id "${pid}"`);
+    return res.status(400).json({ ok: false, error: "unknown_product" });
+  }
+
+  const orderId = clean(opportunity_id, 60);
+
+  /* Who gets the receipt. Stripe emails it itself once `receipt_email` is set,
+     so nothing has to be asked for on the form, which the brief wanted kept to
+     the card alone.
+   *
+     The browser's value is preferred because it needs no extra call, but it is
+     only a hint and is re-checked here. A portal-resumed intake arrives in a
+     fresh tab with nothing stashed, so the GHL contact is the fallback. Note
+     Stripe only sends receipts with live keys: in test mode the field is
+     recorded and no email goes out. */
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  const hinted = clean(req.body?.receipt_email, 120);
+  let receiptEmail = hinted && EMAIL_RE.test(hinted) ? hinted : null;
+  const contactId = clean(contact_id, 60);
+  if (!receiptEmail && contactId && ghlConfigured()) {
+    const contact = await contactById(contactId);
+    const found = clean(contact?.email, 120);
+    if (found && EMAIL_RE.test(found)) receiptEmail = found;
+  }
+
+  const created = await stripe("/payment_intents", {
+    body: {
+      amount: toCents(charge.total),
+      currency: "usd",
+      description: DESCRIPTION,
+      receipt_email: receiptEmail || undefined,
+      /* Card only, deliberately, rather than automatic_payment_methods.
+       *
+       * Letting Stripe offer everything it could put Bank (ACH), Cash App Pay
+       * and Amazon Pay on the panel. Two of those redirect to another page,
+       * which is the second screen this checkout exists to remove, and ACH
+       * settles over days and can fail afterwards, so a prescription would be
+       * on its way to the pharmacy before the money cleared. Restricting the
+       * types here also keeps Stripe Link's "save my information" block off the
+       * form, which was asking for the phone number and full name the brief
+       * said to drop.
+       *
+       * Apple Pay and Google Pay are the ones worth adding later: they are one
+       * tap and never leave the page. They need the domain registered with
+       * Stripe first. */
+      payment_method_types: ["card"],
+      /* Our own ids, so a payment in the dashboard can be traced back to the
+         card on the board. Deliberately no treatment name, no patient name and
+         no clinical detail: a processor is not a place for any of that. */
+      metadata: {
+        product_id: String(pid),
+        opportunity_id: orderId || "",
+        contact_id: contactId || "",
+      },
+    },
+    /* Deliberately NO idempotency key.
+     *
+     * The instinct is to add one so a double-clicked Pay button can't charge
+     * twice, but creating an intent charges nobody: only confirming one does,
+     * and the browser holds a single client secret, so a duplicate intent just
+     * expires unconfirmed. Meanwhile Stripe rejects a reused key whose request
+     * body differs at all, and `contact_id` here comes from sessionStorage and
+     * can resolve a moment late. That turned an ordinary retry into a 400 and
+     * sent the patient a gateway error. Protection against paying twice belongs
+     * at settlement, where markPaid() already refuses to bill an order twice. */
+  });
+
+  if (!created.ok || !created.data?.client_secret) {
+    console.error("Stripe intent rejected:", created.status, created.data?.error?.message || "");
+    return res.status(502).json({ ok: false, error: "gateway_unreachable" });
+  }
+
+  console.info(
+    `Stripe intent ${created.data.id} (${stripeMode()}): product ${pid}, ` +
+      `$${charge.total.toFixed(2)} incl. $${charge.shipping.toFixed(2)} shipping`
+  );
+  return res.status(200).json({
+    ok: true,
+    processor: "stripe",
+    clientSecret: created.data.client_secret,
+    paymentIntentId: created.data.id,
+    amount: charge.total,
+    shipping: charge.shipping,
+    submitted: submitted === true,
+    treatment: clean(treatment, 120) || null,
+  });
+}
+
+/* Confirms what Stripe says about a payment, then runs the same CRM side
+   effects the NMI path does. Called by the browser the moment the Payment
+   Element reports success; the webhook repeats it later for the cases where the
+   patient closes the tab first, and both are safe to run twice. */
+async function stripeSettle(req, res) {
+  if (blocked(req, res, { max: 12 })) return;
+  if (!stripeEnabled()) return res.status(503).json({ ok: false, error: "not_configured" });
+
+  const id = clean(req.body?.payment_intent_id, 80);
+  if (!id) return res.status(400).json({ ok: false, error: "missing_payment_intent" });
+
+  /* Read the payment back from Stripe rather than believing the browser: a
+     client that says "paid" is not evidence of a payment. */
+  const found = await stripe(`/payment_intents/${encodeURIComponent(id)}`, { method: "GET" });
+  const intent = found.data;
+  if (!found.ok || !intent?.id) {
+    console.error("Stripe intent unreadable:", found.status, intent?.error?.message || "");
+    return res.status(502).json({ ok: false, error: "gateway_unreachable" });
+  }
+
+  const meta = intent.metadata || {};
+  const contactId = clean(meta.contact_id, 60);
+  const orderId = clean(meta.opportunity_id, 60);
+
+  if (intent.status !== "succeeded") {
+    console.warn(`Stripe payment ${intent.id} is ${intent.status}, not settling`);
+    await syncTag(contactId, { failed: true });
+    return res.status(200).json({ ok: false, declined: true, error: "declined", message: "" });
+  }
+
+  await Promise.allSettled([
+    syncTag(contactId, { failed: false }),
+    markPaid(orderId, intent.id).then(() =>
+      req.body?.submitted === true
+        ? markComplete(contactId, orderId, clean(req.body?.treatment, 120))
+        : null
+    ),
+  ]);
+  console.info(`Stripe payment ${intent.id} settled: $${(intent.amount / 100).toFixed(2)}`);
+  return res.status(200).json({ ok: true, transactionId: intent.id, amount: intent.amount / 100 });
+}
+
 async function kurvStart(req, res) {
   if (blocked(req, res, { max: 8 })) return;
   const { pid, contact_id, opportunity_id, submitted, treatment } = req.body || {};
@@ -313,9 +488,9 @@ export default async function handler(req, res) {
     const pid = queryParam(req, "pid");
     const quote = quoteFor(pid);
     if (!quote) return res.status(400).json({ ok: false, error: "unknown_product" });
-    /* Which form the modal should show. Advisory only: kurvStart decides again
-       at the moment of payment, since the cap can be reached in between. */
-    const processor = await routeFor(quote.total);
+    /* Which form the modal should show. Advisory only: the payment call decides
+       again at the moment of payment, since the cap can be reached in between. */
+    const processor = await processorFor(quote.total);
     return res.status(200).json({ ok: true, ...quote, processor });
   }
 
@@ -327,6 +502,8 @@ export default async function handler(req, res) {
   if (queryParam(req, "kurv") === "notify") return kurvNotice(req, res);
   if (req.body?.action === "kurv_start") return kurvStart(req, res);
   if (req.body?.action === "kurv_confirm") return kurvConfirm(req, res);
+  if (req.body?.action === "stripe_intent") return stripeIntent(req, res);
+  if (req.body?.action === "stripe_settle") return stripeSettle(req, res);
 
   // Tighter than the default: a checkout is not a page view, and card testing
   // is exactly what a loose limit invites.

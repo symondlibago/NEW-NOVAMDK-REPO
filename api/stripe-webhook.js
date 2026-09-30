@@ -1,0 +1,121 @@
+import { verifyWebhook } from "./_stripe.js";
+import { ghlConfigured, tagContact, untagContact, markOpportunityPaid } from "./_ghl.js";
+
+/* Stripe's own account of what happened to a payment.
+ *
+ * The browser already tells us when a card clears, and that path does the same
+ * work. This exists for the cases the browser can't cover: the tab closed
+ * before the confirmation came back, the network dropped at exactly the wrong
+ * moment, or a payment settled later than the page was willing to wait. Without
+ * it a patient could be charged and their card never leave the Paid column.
+ *
+ * Every action here is safe to run twice, because in the ordinary case it does
+ * run twice: once from the browser and once from here.
+ */
+
+/* Stripe signs the exact bytes it sent, so the body must not be parsed before
+   this handler sees it. Vercel parses JSON by default, hence the opt-out. */
+export const config = { api: { bodyParser: false } };
+
+const FAILED_TAG = "payment-failed";
+
+async function readRaw(req) {
+  /* The local vite shim consumes the stream to build req.body and keeps the
+     bytes on req.rawBody (see vite.config.js). On Vercel the stream is still
+     unread because of the config above. */
+  if (typeof req.rawBody === "string") return req.rawBody;
+  if (Buffer.isBuffer(req.rawBody)) return req.rawBody.toString("utf8");
+  if (typeof req.body === "string") return req.body;
+  try {
+    let raw = "";
+    for await (const chunk of req) raw += chunk;
+    return raw;
+  } catch {
+    return "";
+  }
+}
+
+const clean = (v, max) => {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s && s.length <= max ? s : "";
+};
+
+/* The same CRM work the browser's settle call does. Split out so the two paths
+   cannot drift apart. Never throws: Stripe retries a non-2xx for days, and a
+   GHL hiccup is not a reason to be sent the same event again. */
+async function recordPaid(intent) {
+  if (!ghlConfigured()) return;
+  const meta = intent.metadata || {};
+  const contactId = clean(meta.contact_id, 60);
+  const orderId = clean(meta.opportunity_id, 60);
+
+  /* Exactly what the browser's settle path does and no more: clear the failed
+     tag and move the card to Paid. Deliberately not touching the intake stage,
+     which is the questionnaire's business and is written by ghl-encounter. */
+  const jobs = [];
+  if (contactId) jobs.push(untagContact(contactId, [FAILED_TAG]));
+  if (orderId) {
+    jobs.push(markOpportunityPaid(orderId));
+  } else {
+    console.error(
+      `Stripe ${intent.id} carried no opportunity id, so the Paid move was skipped. ` +
+        `The charge went through — this card needs moving by hand.`
+    );
+  }
+  await Promise.allSettled(jobs);
+}
+
+async function recordFailed(intent) {
+  if (!ghlConfigured()) return;
+  const contactId = clean((intent.metadata || {}).contact_id, 60);
+  if (contactId) await Promise.allSettled([tagContact(contactId, [FAILED_TAG])]);
+}
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method Not Allowed" });
+  }
+
+  /* No blocked() here: Stripe's servers have no browser origin to show, and the
+     signature is a far stronger gate than an origin check. */
+  const raw = await readRaw(req);
+  const event = verifyWebhook(raw, req.headers?.["stripe-signature"]);
+  if (!event) {
+    /* 400 rather than 401: Stripe reads any non-2xx as "retry", and an event we
+       cannot authenticate is one we never want again. */
+    console.warn("Stripe webhook rejected: signature did not verify");
+    return res.status(400).json({ error: "bad_signature" });
+  }
+
+  const intent = event.data?.object || {};
+  try {
+    switch (event.type) {
+      case "payment_intent.succeeded":
+        console.info(`Stripe webhook: ${intent.id} succeeded, $${((intent.amount || 0) / 100).toFixed(2)}`);
+        await recordPaid(intent);
+        break;
+      case "payment_intent.payment_failed":
+        console.warn(
+          `Stripe webhook: ${intent.id} failed — ${intent.last_payment_error?.code || "unknown"}`
+        );
+        await recordFailed(intent);
+        break;
+      case "charge.dispute.created":
+        /* Logged, deliberately not acted on. A chargeback on a prescription is
+           a decision for a human: refunding, cancelling the order and telling
+           the pharmacy are not things to automate. */
+        console.error(`Stripe webhook: DISPUTE opened on charge ${intent.charge || intent.id}`);
+        break;
+      default:
+        /* Registered events we don't handle are acknowledged rather than
+           retried for days. */
+        break;
+    }
+  } catch (e) {
+    /* Swallowed on purpose. Everything above is idempotent and repeated by the
+       browser path, so a retry storm costs more than a missed side effect. */
+    console.error(`Stripe webhook ${event.type} failed:`, e.message);
+  }
+
+  return res.status(200).json({ received: true });
+}

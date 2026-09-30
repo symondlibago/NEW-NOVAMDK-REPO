@@ -23,6 +23,16 @@ const BlogPage = lazy(() => import("./pages/Blog"));
 const BlogPostPage = lazy(() => import("./pages/BlogPost"));
 const LegalPage = lazy(() => import("./components/LegalPage"));
 const DesignStudio = lazy(() => import("./components/studio/DesignStudio"));
+/* Dev-only checkout harness, so a payment can be tested without sitting through
+   an MDI questionnaire.
+ *
+ * The import sits inside the DEV branch, not just the route: Vite replaces
+ * import.meta.env.DEV with false when building, which lets Rollup drop the
+ * dynamic import entirely. Guarding only the <Route> left the chunk on the CDN,
+ * unreachable but shipped. */
+const CheckoutTestPage = import.meta.env.DEV
+  ? lazy(() => import("./pages/CheckoutTest"))
+  : null;
 
 /* Fires a single page_view per route change (pathname only — no query noise),
    and arms or silences GA4 first: the tag is only ever loaded on a public route,
@@ -94,6 +104,9 @@ function App() {
           <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route path="/legal/sitemap" element={<Navigate to="/sitemap" replace />} />
           <Route path="/legal/:policyId" element={<LegalPage />} />
+          {import.meta.env.DEV && (
+            <Route path="/checkout-test" element={<CheckoutTestPage />} />
+          )}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <DesignStudio />

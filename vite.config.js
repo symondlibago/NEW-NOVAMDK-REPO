@@ -11,6 +11,11 @@ function localApi() {
           let raw = ''
           for await (const chunk of req) raw += chunk
           try { req.body = raw ? JSON.parse(raw) : {} } catch { req.body = {} }
+          /* Kept alongside the parsed body because a signed webhook can only be
+             verified against the exact bytes that were signed. Re-serialising
+             the parsed object changes key order and whitespace, so Stripe's
+             signature would never match. */
+          req.rawBody = raw
 
           res.status = (code) => { res.statusCode = code; return res }
           res.json = (obj) => {

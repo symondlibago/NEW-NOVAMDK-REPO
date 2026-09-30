@@ -5,6 +5,7 @@ import { productsData } from "../components/data/products";
 import { treatmentLabel } from "../lib/ghl";
 import { readScanSource, sourceLabel } from "../lib/kioskLocations";
 import Seo from "../components/Seo";
+import StripeCheckout from "../components/checkout/StripeCheckout";
 
 const MDI_ORIGIN = "https://patient.novamdk.com";
 const PAYMENT_TRIGGER_EVENTS = ["finish"];
@@ -468,12 +469,20 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
       alive = false;
     };
   }, [pid, choices.length]);
-  /* Kurv is the primary processor, PayTechTrust (the card form below) the
-     backup. The quote says which should take this order; `kurvOff` overrides it
-     to the card form when Kurv turns the order away at the last moment (monthly
-     cap reached, Kurv unreachable), so the patient is never stuck. */
+  /* Stripe is the primary processor, with Kurv and then PayTechTrust (the card
+     form below) behind it. The quote says which should take this order;
+     `kurvOff` overrides Kurv to the card form when it turns the order away at
+     the last moment (monthly cap reached, Kurv unreachable), so the patient is
+     never stuck.
+   *
+     Written as a passthrough rather than a two-way test: the old version read
+     `=== "kurv" ? "kurv" : "nmi"`, which silently turned the server's "stripe"
+     into "nmi" and showed the PayTechTrust form instead. Anything the server
+     names that this file doesn't recognise now falls to "nmi" explicitly. */
   const [kurvOff, setKurvOff] = useState(false);
-  const processor = quote?.processor === "kurv" && !kurvOff ? "kurv" : "nmi";
+  const named = quote?.processor;
+  const processor =
+    named === "stripe" ? "stripe" : named === "kurv" && !kurvOff ? "kurv" : "nmi";
   // null until Kurv's page is opened: { url, ticket, checking }
   const [kurv, setKurv] = useState(null);
   const [kurvStarting, setKurvStarting] = useState(false);
@@ -811,6 +820,51 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
               <p className="text-[0.9rem] text-muted">
                 Finish any remaining screens and press Submit to send your request to a provider.
               </p>
+            )}
+          </div>
+        ) : processor === "stripe" ? (
+          /* One screen, and it owns the whole panel: the summary, the card
+             field and the button are all in here, so there is nothing above
+             or below it to scroll past. */
+          <div className="min-h-0 flex-1 overflow-y-auto p-5 md:p-6">
+            {choices.length > 1 && !pid ? (
+              /* A portal-resumed intake can arrive without a plan chosen. Same
+                 radio cards as the older layout, so the patient sees every
+                 price before picking; the amount charged still comes from the
+                 server quote, never from these labels. */
+              <>
+                <img src="/logo.png" alt="NovaMDK" className="mx-auto h-7 w-auto" />
+                <p className="mt-5 text-center text-[0.95rem] font-semibold">Choose your plan</p>
+                <div role="radiogroup" aria-label="Choose your plan" className="mt-3 space-y-2.5">
+                  {choices.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={false}
+                      onClick={() => onChoose?.(String(p.id))}
+                      className="flex w-full items-center justify-between gap-4 rounded-2xl border-2 border-line px-4 py-3.5 text-left transition-colors hover:border-primary/50"
+                    >
+                      <span className="text-[0.95rem] font-semibold leading-snug">{p.name}</span>
+                      <span className="shrink-0 text-[1.05rem] font-bold">{p.price}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : quoteFailed ? (
+              <p className="py-10 text-center text-[0.88rem] font-medium text-red-600">
+                We couldn&rsquo;t load your order total. Please refresh the page.
+              </p>
+            ) : (
+              <StripeCheckout
+                product={product}
+                productName={productName}
+                pid={pid}
+                quote={quote}
+                treatment={treatment}
+                submitted={submitted}
+                onPaid={onPaid}
+              />
             )}
           </div>
         ) : kurv ? (

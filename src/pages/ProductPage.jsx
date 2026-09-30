@@ -318,6 +318,10 @@ export default function ProductPage() {
           try {
             if (r?.opportunityId) sessionStorage.setItem("ghl_opportunity", r.opportunityId);
             if (r?.contactId) sessionStorage.setItem("ghl_contact", r.contactId);
+            /* So checkout can put a receipt address on the payment without
+               asking for one. Their own email, their own tab, cleared when it
+               closes; the server re-checks it and falls back to the CRM. */
+            if (profile?.email) sessionStorage.setItem("nv_email", profile.email);
           } catch { /* private mode */ }
         }).catch((e) => {
           console.error("NovaMDK: GoHighLevel sync threw", e);
