@@ -28,13 +28,16 @@ const LINE = "#e7dcc7";
 | post happens to carry, and at 12% the copy stopped being readable the moment
 | a dark image came through the feed.
 */
+/* The blur stays: here the backdrop really is a photograph, and without it the
+   copy sits on a sharp image. What went is the brightness() that rode with it.
+   It was there to lift a dark photograph toward the light end, and a heavier
+   white fill does the same job for nothing: 0.60 instead of 0.52. That halves
+   the filter chain on the four cards that carry one, and the chain is evaluated
+   again on every frame the page scrolls. */
 const PANEL = {
-  background: "rgba(255,255,255,0.52)",
-  /* brightness lifts a dark photograph toward the light end before the fill
-     goes over it, so the panel lands in the same tonal range whatever the post
-     is illustrated with. Over an already-light image it barely registers. */
-  backdropFilter: "blur(12px) brightness(1.18)",
-  WebkitBackdropFilter: "blur(12px) brightness(1.18)",
+  background: "rgba(255,255,255,0.60)",
+  backdropFilter: "blur(12px)",
+  WebkitBackdropFilter: "blur(12px)",
   boxShadow:
     "inset 0 2px 4px rgba(255,255,255,0.45), inset 0 -2px 4px rgba(0,0,0,0.16)",
 };
@@ -52,10 +55,13 @@ const PANEL = {
 | Frost 4 is almost no blur, so the tan band reads through the chip rather than
 | the chip sitting on it as a solid lozenge.
 */
+/* No backdrop-filter here, and nothing is lost by that: these chips sit on the
+   flat tan band, and blurring a single uniform colour returns the same uniform
+   colour. The frost was costing a per-frame blur on every chip in the row to
+   produce a pixel-identical result. The fill and the refracted rim, which are
+   what actually make the chip read as glass, are untouched. */
 const CHIP = {
   background: "rgba(202,176,141,0.20)",
-  backdropFilter: "blur(7px)",
-  WebkitBackdropFilter: "blur(7px)",
   boxShadow:
     "inset 0 1.5px 3px rgba(255,255,255,0.34), inset 0 -1.5px 3px rgba(0,0,0,0.10)",
 };
@@ -119,11 +125,17 @@ function OverlayCard({ post }) {
       to={`/blog/${post.slug}`}
       className="group @container relative block aspect-4/3 h-full overflow-hidden rounded-2xl"
     >
+      {/* No hover zoom on this one. The frosted panel samples this image, so
+          scaling it meant re-blurring the panel on every frame of a 700ms
+          transition, four cards' worth. SplitCard keeps its zoom: nothing
+          frosted sits over that photo. decoding="async" keeps the decode of a
+          large upload off the main thread. */}
       <img
         src={post.image}
         alt={post.imageAlt || ""}
         loading="lazy"
-        className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover"
       />
 
       <div
@@ -186,6 +198,7 @@ function SplitCard({ post }) {
           src={post.image}
           alt={post.imageAlt || ""}
           loading="lazy"
+          decoding="async"
           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.05]"
         />
       </span>

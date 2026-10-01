@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import ThemeProvider from "./theme/ThemeContext";
 import ScrollToTop from "./components/Nav/ScrollToTop";
 import { trackPageView, applyRouteConsent } from "./lib/analytics";
+import { trackPixelPageView } from "./lib/metaPixel";
 import SmoothScroll from "./components/SmoothScroll";
 import RouteTransition from "./components/transition/RouteTransition";
 import Platform from "./pages/Platform";
@@ -41,6 +42,10 @@ function RouteAnalytics() {
   const { pathname } = useLocation();
   useEffect(() => {
     if (applyRouteConsent(pathname)) trackPageView(pathname);
+    /* The Meta pixel keeps its own counsel about which routes it may run on,
+       rather than riding on GA4's answer: it is held off the same private
+       routes, and off the drug pages too when that flag is set. */
+    trackPixelPageView(pathname);
   }, [pathname]);
   return null;
 }

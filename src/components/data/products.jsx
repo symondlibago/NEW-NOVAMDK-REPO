@@ -1165,6 +1165,11 @@ export const productsData = [
        /product/scream-cream URL resolving, so printed QR codes, the sitemap's
        previous entry and any link already in the wild still land here. */
     name: "Euphoria Cream O",
+    /* Who the formulation is intended for, shown as a tag on the cards. Only
+       set where the answer is unambiguous: the two bremelanotide products in
+       this category are prescribed to both, so they carry no tag rather than a
+       guessed one. */
+    audience: "For women",
     slugAliases: ["scream-cream"],
     /* Still the old file: the code encodes the old URL, which the alias above
        resolves. Regenerate it against /product/euphoria-cream-o when new
@@ -1262,6 +1267,7 @@ export const productsData = [
     categorySlug: "sexual-health",
     categoryName: "Sexual Health",
     name: "Olympus Peak",
+    audience: "For men",
     qrImg: "/qr/Olympus Peak.png",
     size: "20 IU / 1 mg / 20 mg",
     subtitle: "A compounded sublingual tablet containing oxytocin, bremelanotide, and tadalafil.",

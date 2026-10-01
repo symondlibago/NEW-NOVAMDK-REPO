@@ -682,16 +682,7 @@ export default function ProductPage() {
       )}
 
       {showQR && (
-        <KioskQrModal
-          product={product}
-          loading={loading}
-          err={err}
-          onClose={() => setShowQR(false)}
-          onContinueHere={() => {
-            setShowQR(false);
-            setShowInfo(true);
-          }}
-        />
+        <KioskQrModal product={product} onClose={() => setShowQR(false)} />
       )}
 
       {showInfo && (
@@ -713,10 +704,14 @@ export default function ProductPage() {
 
 const fmtCountdown = (s) => `${Math.floor(s / 60)}:${String(Math.max(0, s % 60)).padStart(2, "0")}`;
 
-/* Kiosk hand-off — two ways to continue: scan to finish privately on your own
-   phone (recommended), or continue right here on the public kiosk. Auto-closes
-   after 60s so the screen resets for the next patient. */
-function KioskQrModal({ product, onClose, onContinueHere, loading = false, err = "" }) {
+/* Kiosk hand-off — scan to finish on your own phone, which is now the only way
+   to continue. The "continue here on the kiosk" option was removed at client
+   request (2026-10-01): an intake answered on a screen in a public space is
+   read over the patient's shoulder, and the session it leaves behind belongs to
+   whoever stands there next. The QR carries ?start=1, so the phone picks the
+   flow up at the patient details modal. Auto-closes after 60s so the screen
+   resets for the next patient. */
+function KioskQrModal({ product, onClose }) {
   const qrSrc = product.qrImg || `/qr/${product.id}.avif`;
   const [imgError, setImgError] = useState(false);
   const [qrFailed, setQrFailed] = useState(false);
@@ -742,12 +737,13 @@ function KioskQrModal({ product, onClose, onContinueHere, loading = false, err =
     });
   }, [locId, product.id]);
 
-  // Don't auto-close while a "continue here" request is in flight.
+  /* Runs unconditionally now. It used to pause while a "continue here" request
+     was in flight; with that button gone nothing on this screen can be mid
+     request. */
   useEffect(() => {
-    if (loading) return;
     const t = setInterval(() => setSecondsLeft((s) => s - 1), 1000);
     return () => clearInterval(t);
-  }, [loading]);
+  }, []);
   useEffect(() => {
     if (secondsLeft <= 0) onClose();
   }, [secondsLeft, onClose]);
@@ -769,16 +765,16 @@ function KioskQrModal({ product, onClose, onContinueHere, loading = false, err =
           <X size={18} />
         </button>
 
-        <h3 className="mt-1 font-display text-[1.4rem] font-extrabold leading-tight">How would you like to continue?</h3>
+        {/* Was "How would you like to continue?", which asked a question that
+            no longer has two answers. */}
+        <h3 className="mt-1 font-display text-[1.4rem] font-extrabold leading-tight">Continue on your phone</h3>
         <p className="mx-auto mt-1.5 max-w-[34ch] text-[0.86rem] text-muted">
           Finishing on <span className="font-semibold text-ink">{product.name}</span>.
         </p>
 
-        {/* Recommended — scan to your phone */}
+        {/* No "Recommended" badge any more: there is nothing left to recommend
+            it over. */}
         <div className="relative mt-6 rounded-2xl border-2 border-primary/30 bg-surface-2/40 p-5">
-          <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-primary px-3 py-0.5 text-[0.6rem] font-bold uppercase tracking-[0.12em] text-on-primary">
-            Recommended
-          </span>
           {/* Drawn here rather than served as a file so the link can carry this
               kiosk's placement. Falls back to the saved image, then to the
               build-time placeholder, so a scan is never a blank square. */}
@@ -804,29 +800,6 @@ function KioskQrModal({ product, onClose, onContinueHere, loading = false, err =
             <Lock size={12} className="text-primary" /> Private to your own device
           </span>
         </div>
-
-        {/* divider */}
-        <div className="my-4 flex items-center gap-3 text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-muted">
-          <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
-        </div>
-
-        {/* Continue here on the kiosk */}
-        <button
-          onClick={onContinueHere}
-          disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-surface px-6 py-3 text-[0.95rem] font-semibold text-ink transition-all hover:-translate-y-0.5 hover:border-primary hover:bg-surface-2 disabled:opacity-70 disabled:hover:translate-y-0"
-        >
-          {loading ? (
-            <><Loader2 size={15} className="animate-spin" /> Starting consultation…</>
-          ) : (
-            "Continue here on the kiosk"
-          )}
-        </button>
-        {err && (
-          <p className="mx-auto mt-2.5 max-w-[34ch] rounded-lg bg-surface-2 px-3 py-2 text-[0.74rem] leading-snug text-muted">
-            {err}
-          </p>
-        )}
 
         <p className="mt-5 border-t border-line pt-3 text-[0.72rem] text-muted">
           This screen resets in <span className="font-semibold text-ink">{fmtCountdown(secondsLeft)}</span>
@@ -905,7 +878,22 @@ function PatientInfoModal({
   onClose, onSubmit, loading = false, err = "", productId, productName, categorySlug,
 }) {
   useLockBodyScroll(); // mobile: page behind the modal must not scroll
-  const [step, setStep] = useState(0); // 0 = email gate, then steps 1–3
+  /* -1 = the bot check, 0 = email gate, then steps 1-3. It is skipped outright
+     when no Turnstile site key is configured, so a local run without one does
+     not stall on a widget that can never load. */
+  const [step, setStep] = useState(turnstileOn ? -1 : 0);
+
+  /* The pass is held on screen before the form replaces it, so the check reads
+     as something that finished rather than a flicker. */
+  const SUCCESS_HOLD_MS = 900;
+  const [verified, setVerified] = useState(false);
+  /* A ref, not state: Turnstile issues a fresh token every time it refreshes,
+     and only the first one should schedule anything. Set synchronously in the
+     handler so a double-invoked effect or a second token landing in the same
+     tick cannot queue two timers. */
+  const passed = useRef(false);
+  const advanceTimer = useRef(null);
+  useEffect(() => () => clearTimeout(advanceTimer.current), []);
   /* The server's verdict on where this patient lives, for the returning patient
      who never fills in an address here. { state, served }. */
   const [serverBlock, setServerBlock] = useState(null);
@@ -935,7 +923,9 @@ function PatientInfoModal({
   const [consent, setConsent] = useState({ required: false, fee: false, marketing: false });
   const [consentAt, setConsentAt] = useState("");
   const toggleConsent = (k) => () => setConsent((c) => ({ ...c, [k]: !c[k] }));
-  const consentValid = consent.required && consent.fee;
+  /* The email step now gates on the documents alone: the fee box moved to
+     step 1, under the mobile number. */
+  const consentValid = consent.required;
 
   /* Human check, email step only: the server trades it for a pass that covers
      the rest of the modal. `humanKey` remounts the widget for a fresh token
@@ -946,15 +936,19 @@ function PatientInfoModal({
   const humanValid = !turnstileOn || Boolean(humanToken);
 
   /* MDI's shape is unchanged: it stores the two flags separately and the single
-     box now covers both, so existing patient files keep reading the same way. */
+     box now covers both, so existing patient files keep reading the same way.
+
+     The fee consent is omitted entirely until it has actually been given, not
+     sent as false. The email step writes this record before the fee box has
+     been reached, and a literal `medical_fee: false` there would overwrite a
+     returning patient's stored agreement with a refusal they never made. */
   const consentRecord = (at) => ({
     telehealth_informed_consent: consent.required,
     terms_and_privacy: consent.required,
     /* The consultation and its fee, agreed separately from the documents. It
        belongs on the patient file rather than only in our CRM: it is what the
        clinician's own engagement with the patient rests on. */
-    medical_fee: consent.fee,
-    medical_fee_version: FEE_CONSENT_VERSION,
+    ...(consent.fee ? { medical_fee: true, medical_fee_version: FEE_CONSENT_VERSION } : null),
     accepted_at: at || consentAt,
     documents: {
       privacy_policy: "/legal/privacy-policy",
@@ -975,10 +969,13 @@ function PatientInfoModal({
   });
 
   const emailValid = /^\S+@\S+\.\S+$/.test(form.email.trim());
+  /* consent.fee is part of this step now that its box sits under the mobile
+     number, so Continue stays disabled until it is ticked. */
   const step1Valid =
     form.first_name.trim().length > 0 &&
     form.last_name.trim().length > 0 &&
-    form.phone_number.replace(/\D/g, "").length >= 10;
+    form.phone_number.replace(/\D/g, "").length >= 10 &&
+    consent.fee;
 
   /* The Terms already require 18, so catching it here saves a minor from filling
      in an address and being turned away by the questionnaire afterwards. */
@@ -1006,6 +1003,9 @@ function PatientInfoModal({
   const submit = async (e) => {
     e.preventDefault();
     if (loading) return;
+    /* Nothing to submit on the bot check, and a stray Enter keypress must not
+       slip past it. */
+    if (step === -1) return;
     if (step === 0) {
       if (!emailValid || !consentValid || !humanValid) return;
       const at = new Date().toISOString();
@@ -1069,6 +1069,11 @@ function PatientInfoModal({
     "w-full rounded-xl border border-line bg-bg px-3.5 py-3 text-[0.95rem] text-ink placeholder:text-muted/60 focus:border-primary focus:outline-none";
   const labelCls = "flex flex-col gap-1 text-left text-[0.7rem] font-semibold uppercase tracking-wide text-muted";
   const TITLES = {
+    /* Its own screen, not a widget under the email field (client request,
+       2026-10-01). It is only a bot check, so it says so and gets out of the
+       way: nothing is asked of the patient and the step advances itself the
+       moment Turnstile hands back a token. */
+    [-1]: ["Quick security check", "One moment while we confirm you're not a bot."],
     0: ["What's your email address?", ""],
     1: ["First, a few details", "So your care team can reach you about your visit."],
     2: ["About you", "These go on your private patient file — your intake will skip them."],
@@ -1156,9 +1161,22 @@ function PatientInfoModal({
           <X size={18} />
         </button>
 
-        <span className="grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
-          <UserRound size={22} />
-        </span>
+        {/* The bot check leads with the brand and the domain, the way an
+            interstitial of this kind does: it is the one screen that has to say
+            whose site is asking before the patient has typed anything. The rest
+            of the flow keeps the patient avatar, which is about them, not us. */}
+        {step === -1 ? (
+          <>
+            <img src="/logo.png" alt="NovaMDK" className="h-10 w-auto" />
+            <p className="mt-2.5 font-mono text-[0.74rem] tracking-[0.04em] text-muted">
+              www.novamdk.com
+            </p>
+          </>
+        ) : (
+          <span className="grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
+            <UserRound size={22} />
+          </span>
+        )}
         <h3 className="mt-3 font-display text-[1.35rem] font-extrabold leading-tight">{TITLES[step][0]}</h3>
         {TITLES[step][1] && <p className="mt-1 text-[0.86rem] text-muted">{TITLES[step][1]}</p>}
         {step > 0 && (
@@ -1166,6 +1184,59 @@ function PatientInfoModal({
         )}
 
         <form onSubmit={submit} className="mt-4 flex flex-col gap-3">
+          {/* Rendered once and never unmounted, only hidden once the check has
+              passed. A Turnstile token is good for 300 seconds, and the patient
+              now has the whole email step and step 1 to get through before it is
+              spent. Left mounted, the widget's own refresh-expired behaviour
+              issues a new token and calls onToken again, so it stays fresh; torn
+              down with the step, it could not, and a slow patient would hit
+              "verification failed" at submit with nothing to re-run. */}
+          <div className={step === -1 && !verified ? "" : "hidden"}>
+            <Turnstile
+              key={humanKey}
+              action="start_visit"
+              onToken={(t) => {
+                setHumanToken(t);
+                if (!t) return;
+                setHumanBroken(false);
+                /* Only the first token does this. Later ones are refreshes of a
+                   token that expired while the patient was still filling the
+                   form, and they must change nothing on screen. */
+                if (passed.current) return;
+                passed.current = true;
+                setVerified(true);
+                /* Still guarded on the step: by the time this fires the patient
+                   could have closed and reopened, and nothing should drag them
+                   backwards out of a field. */
+                advanceTimer.current = setTimeout(
+                  () => setStep((s) => (s === -1 ? 0 : s)),
+                  SUCCESS_HOLD_MS
+                );
+              }}
+              onError={() => setHumanBroken(true)}
+            />
+            {humanBroken && (
+              <p role="alert" className="mt-2 text-[0.8rem] leading-relaxed text-muted">
+                The security check didn&rsquo;t load. Refresh the page, or turn off an ad blocker
+                for this site, and try again.
+              </p>
+            )}
+          </div>
+
+          {/* The pass, said plainly, where the widget was. Held for
+              SUCCESS_HOLD_MS so it is actually read before the form arrives. */}
+          {step === -1 && verified && (
+            <div
+              role="status"
+              className="flex items-center gap-2.5 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5"
+            >
+              <span className="grid h-6 w-6 flex-none place-items-center rounded-full bg-primary text-on-primary">
+                <Check size={14} strokeWidth={3} />
+              </span>
+              <span className="text-[0.92rem] font-semibold text-ink">Success</span>
+            </div>
+          )}
+
           {step === 0 && (
             <>
               <input
@@ -1184,31 +1255,11 @@ function PatientInfoModal({
                   <ConsentLink href="/legal/terms-and-conditions">Terms &amp; Conditions</ConsentLink>, and{" "}
                   <ConsentLink href="/legal/telehealth-consent">Telehealth Consent</ConsentLink>.
                 </ConsentCheck>
-                {/* Required: it discloses a fee, so it has to be an explicit
-                    tick rather than something buried in the documents above. */}
-                <ConsentCheck checked={consent.fee} onToggle={toggleConsent("fee")}>
-                  {FEE_CONSENT_COPY}
-                </ConsentCheck>
                 {/* Optional. Never gates Continue, and starts unticked. */}
                 <ConsentCheck checked={consent.marketing} onToggle={toggleConsent("marketing")}>
                   {MARKETING_CONSENT_COPY}
                 </ConsentCheck>
               </div>
-              <Turnstile
-                key={humanKey}
-                action="start_visit"
-                onToken={(t) => {
-                  setHumanToken(t);
-                  if (t) setHumanBroken(false);
-                }}
-                onError={() => setHumanBroken(true)}
-              />
-              {humanBroken && (
-                <p role="alert" className="text-[0.8rem] leading-relaxed text-muted">
-                  The security check didn&rsquo;t load. Refresh the page, or turn off an ad blocker
-                  for this site, and try again.
-                </p>
-              )}
             </>
           )}
 
@@ -1219,6 +1270,12 @@ function PatientInfoModal({
                 <input value={form.last_name} onChange={set("last_name")} placeholder="Last name" autoComplete="family-name" className={inputCls} />
               </div>
               <input type="tel" value={form.phone_number} onChange={set("phone_number")} placeholder="Mobile number" autoComplete="tel" className={inputCls} />
+              {/* Moved here from the email step (client request, 2026-10-01).
+                  Still required: it discloses a fee, so it has to be an explicit
+                  tick rather than something buried in the documents. */}
+              <ConsentCheck checked={consent.fee} onToggle={toggleConsent("fee")}>
+                {FEE_CONSENT_COPY}
+              </ConsentCheck>
             </>
           )}
 
@@ -1280,7 +1337,9 @@ function PatientInfoModal({
             </>
           )}
 
-          <div className="mt-1 flex gap-2.5">
+          {/* No buttons on the bot check: it has nothing to confirm and
+              advances on its own. */}
+          <div className={step === -1 ? "hidden" : "mt-1 flex gap-2.5"}>
             {step > 0 && (
               <button
                 type="button"
@@ -1420,8 +1479,20 @@ function NvSelect({ value, onChange, options, placeholder = "Select…" }) {
 }
 
 /* Street-address input with live suggestions (OpenStreetMap/Nominatim — free,
-   no API key). Picking a suggestion also fills city, state, and ZIP. Swap the
-   fetch for Google Places when an API key lands. */
+   no API key). Picking a suggestion also fills city, state, and ZIP.
+ *
+ * Worth knowing before trusting it: OSM's US house-number coverage is patchy.
+ * Checked 2026-10-01 against a real address, 1583 W Lorane Way: Nominatim has
+ * the road, in Anaheim CA 92802, and no house number anywhere on it, so no
+ * query shape returns that address. Free text, spelled-out "West", a city and
+ * state appended, and the documented structured form all return either the bare
+ * road or nothing. An address OSM does hold answers the same partial query with
+ * five usable results, so it is the data that is missing, not the request.
+ *
+ * Nominatim's own usage policy also says not to use it for autocomplete and
+ * caps callers at one request a second. Swap the fetch for Google Places,
+ * Smarty or Melissa when a key lands: that is the fix for the coverage, and
+ * typing the address by hand always works in the meantime. */
 function AddressAutocomplete({ value, onChange, onPick, className }) {
   const [sugs, setSugs] = useState([]);
   const [open, setOpen] = useState(false);
@@ -1450,13 +1521,37 @@ function AddressAutocomplete({ value, onChange, onPick, className }) {
       } catch {
         /* suggestions are best-effort — typing manually always works */
       }
-    }, 350);
+      /* 500ms rather than 350: Nominatim allows one request a second, and at
+         350 a burst of typing with short pauses went over it. */
+    }, 500);
   };
+
+  /* The leading house number out of whatever the patient has typed. */
+  const typedNumber = (v) => (String(v || "").match(/^\s*(\d+[a-zA-Z]?)\b/) || [])[1] || "";
+
+  /* Whether a result can actually supply a street line, or is only a road.
+     OSM has the street for most of the US and the house number for much less
+     of it, so Nominatim answers "1583 W Lorane Way" with the road Lorane Way
+     and no number at all. */
+  const hasNumber = (s) => Boolean((s.address || {}).house_number);
 
   const pick = (s) => {
     const a = s.address || {};
+    /* A road-only result must not touch the street line.
+     *
+     * This used to join [house_number, road] unconditionally. On a road result
+     * house_number is undefined, so picking the suggestion for
+     * "1583 W Lorane Way" wrote back a bare "Lorane Way" and silently dropped
+     * the number the patient had typed, which is how an address ends up
+     * pointing at a street instead of a house. The suggestion is still worth
+     * offering, because the city, state and ZIP that come with it are right and
+     * are the fields people get wrong, so those are filled and what they typed
+     * is left exactly as it is. */
+    const street = hasNumber(s)
+      ? [a.house_number, a.road].filter(Boolean).join(" ")
+      : String(value || "").trim() || a.road || "";
     onPick({
-      street: [a.house_number, a.road].filter(Boolean).join(" "),
+      street,
       city: a.city || a.town || a.village || a.hamlet || "",
       state: a.state || "",
       zip: (a.postcode || "").slice(0, 5),
@@ -1484,7 +1579,15 @@ function AddressAutocomplete({ value, onChange, onPick, className }) {
                 className="flex w-full items-start gap-2 rounded-lg px-3 py-2.5 text-left text-[0.88rem] leading-snug text-ink transition-colors hover:bg-surface-2"
               >
                 <MapPin size={14} className="mt-0.5 shrink-0 text-primary" />
-                <span className="min-w-0">{s.display_name}</span>
+                {/* A road-only row is shown with the number already typed in
+                    front of it, because otherwise it reads as the wrong address
+                    and gets ignored: "Lorane Way, Anaheim…" under someone who
+                    typed 1583 looks like a miss rather than their own street.
+                    Picking it keeps their line and fills the rest. */}
+                <span className="min-w-0">
+                  {!hasNumber(s) && typedNumber(value) ? `${typedNumber(value)} ` : ""}
+                  {s.display_name}
+                </span>
               </button>
             </li>
           ))}

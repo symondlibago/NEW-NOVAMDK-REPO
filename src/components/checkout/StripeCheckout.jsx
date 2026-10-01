@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   CalendarDays,
+  Check,
   CreditCard,
   Loader2,
   Lock,
@@ -79,6 +80,24 @@ const LABEL =
   "mb-1.5 block font-mono text-[0.66rem] font-semibold uppercase tracking-[0.12em] text-muted";
 const ICON = "pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/70";
 
+/* What the patient is agreeing to, as four short assurances rather than the
+   numbered three-step list this replaced (John, 2026-10-01: the steps under the
+   product "don't look good"). Numbered steps read as a process the patient has
+   to work through and took three stacked paragraphs to do it; the large
+   telehealth checkouts all use a tight grid of short claims instead, which says
+   the same things in half the height.
+
+   Still written as what happens rather than what they will get. Whether
+   treatment is appropriate is the provider's call, hence "only filled if", and
+   there is no refund or delivery promise because neither is something the code
+   knows. */
+const ASSURANCES = [
+  "Reviewed by a licensed provider",
+  "Charged once, no subscription",
+  "Shipped discreetly to your door",
+  "Only filled if a provider approves",
+];
+
 export default function StripeCheckout({
   product,
   productName,
@@ -87,6 +106,11 @@ export default function StripeCheckout({
   treatment,
   submitted,
   onPaid,
+  /* The intake sheet already supplies the cream surface and the rounding, so a
+     second bordered box inside it drew a seam down the card and stranded the
+     scrollbar on the gap between the two. Standalone, in the dev harness, the
+     panel is still the component's own. */
+  flush = false,
 }) {
   // "boot" | "ready" | "paying" | "done" | "dead"
   const [status, setStatus] = useState("boot");
@@ -336,14 +360,18 @@ export default function StripeCheckout({
     finish();
   };
 
+  const SHELL = flush
+    ? "p-6 sm:p-8"
+    : "rounded-3xl border border-primary/25 bg-surface-2/30 p-6 sm:p-8";
   /* The same panel the form uses, so a failure or a success doesn't look like
-     it belongs to a different screen. */
-  const PANEL = "rounded-3xl border border-primary/25 bg-surface-2/30 p-6 sm:p-8";
+     it belongs to a different screen. m-auto because both states are short:
+     in the full-height sheet they centre instead of clinging to the top. */
+  const PANEL = `m-auto w-full ${SHELL}`;
 
   if (status === "dead") {
     return (
       <div className={`${PANEL} text-center`}>
-        <img src="/logo.png" alt="NovaMDK" className="mx-auto h-8 w-auto" />
+        <img src="/logo.png" alt="NovaMDK" className="mx-auto h-12 w-auto sm:h-14" />
         <p className="mt-5 text-[0.92rem] font-semibold text-red-600">
           We couldn&rsquo;t load the secure card form.
         </p>
@@ -358,7 +386,7 @@ export default function StripeCheckout({
   if (status === "done") {
     return (
       <div className={`${PANEL} text-center`}>
-        <img src="/logo.png" alt="NovaMDK" className="mx-auto h-8 w-auto" />
+        <img src="/logo.png" alt="NovaMDK" className="mx-auto h-12 w-auto sm:h-14" />
         <ShieldCheck size={34} className="mx-auto mt-6 text-primary" />
         <p className="mt-3 font-journal text-[1.4rem] font-semibold">Payment received</p>
         <p className="mt-1.5 text-[0.88rem] text-muted">Taking you back to your visit…</p>
@@ -371,76 +399,102 @@ export default function StripeCheckout({
      and printing it twice read as a mistake rather than a summary. */
   const hasFee = Number(quote?.shipping) > 0;
 
+  /* The product page's own highlights, not copy written for the checkout. They
+     are already cleared for public use and already what the patient read on the
+     way here, so the last screen cannot end up claiming something different. */
+  const highlights = (product?.highlights || [])
+    .map((h) => h?.text)
+    .filter(Boolean)
+    .slice(0, 3);
+
   return (
     /* The panel is the component's own, not the container's, so it looks the
        same in the intake popup and in the dev harness. Two tints of the house
        cream rather than white: the tinted total has to read as deeper than the
        panel around it. */
-    <form
-      onSubmit={pay}
-      className="rounded-3xl border border-primary/25 bg-surface-2/30 p-5 sm:p-7"
-    >
-      <img src="/logo.png" alt="NovaMDK" className="mx-auto h-9 w-auto sm:h-11" />
+    <form onSubmit={pay} className={`flex-1 ${SHELL}`}>
+      <img src="/logo.png" alt="NovaMDK" className="mx-auto h-9 w-auto sm:h-10" />
 
-      {/* What they're buying. The dosage form sits under the name because it's
-          the thing patients check twice: a spray and an injection of the same
-          drug are easy to confuse at the last screen. */}
-      <div className="mt-6 flex items-center gap-4">
+      {/* The order, as a line in a basket rather than a hero.
+          The big centred photo and headline name were the thing John called out
+          (2026-10-01): hims, AgelessRx and Ready RX all put a small thumbnail,
+          the name and the price on one row and give the space to the receipt and
+          the card instead. The dosage form stays directly under the name because
+          it is what patients check twice: a spray and an injection of the same
+          drug are easy to confuse on the last screen. */}
+      <div className="mt-6 flex items-center gap-3.5">
         {image ? (
           <img
             src={image}
             alt=""
-            className="h-20 w-20 flex-none rounded-2xl bg-surface-2 object-contain p-1.5"
+            className="h-16 w-16 flex-none rounded-xl bg-surface-2 object-contain p-1"
             loading="eager"
           />
         ) : null}
         <div className="min-w-0 flex-1">
           {/* font-journal, so the name keeps this serif whichever palette the
               Design Studio is set to. */}
-          <p className="font-journal text-[1.3rem] font-semibold leading-tight sm:text-[1.5rem]">
+          <p className="font-journal text-[1.05rem] font-semibold leading-tight sm:text-[1.15rem]">
             {name}
           </p>
-          <p className="mt-1 text-[0.85rem] leading-snug text-muted">
+          <p className="mt-0.5 text-[0.8rem] leading-snug text-muted">
             {product?.dosageForm ? `${product.dosageForm} · ` : ""}One-time payment
           </p>
         </div>
+        <span className="flex-none text-[0.95rem] font-semibold">{usd(quote?.amount ?? total)}</span>
       </div>
 
-      {/* The total, given the weight it deserves: it is the one number the
-          patient is agreeing to. */}
-      <div className="mt-6 rounded-2xl bg-surface-2/80 px-4 py-4">
-        {hasFee && (
-          <dl className="mb-3.5 space-y-2 border-b border-line-strong/40 pb-3.5 text-[0.85rem]">
-            <div className="flex justify-between gap-4">
-              <dt className="min-w-0 truncate text-muted">{name}</dt>
-              <dd className="shrink-0 font-medium">{usd(quote.amount)}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted">Telehealth consultation fee</dt>
-              <dd className="shrink-0 font-medium">{usd(quote.shipping)}</dd>
-            </div>
-          </dl>
-        )}
-        <div className="flex items-center gap-3">
-          <Receipt size={20} className="flex-none text-primary" />
-          <span className="flex-1 text-[0.95rem] font-semibold">Total due today</span>
-          <span className="h-8 w-px flex-none bg-line-strong/40" />
-          <span className="flex-none font-display text-[1.6rem] font-extrabold leading-none text-primary sm:text-[1.8rem]">
-            {usd(total)}
-          </span>
+      {highlights.length > 0 && (
+        <ul className="mt-3.5 flex flex-wrap gap-1.5">
+          {highlights.map((text) => (
+            <li
+              key={text}
+              className="rounded-full border border-line bg-surface-2/70 px-2.5 py-0.5 text-[0.68rem] font-medium text-muted"
+            >
+              {text}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* An itemised receipt, always, not only when there is a second line to
+          show: a total with nothing above it reads like a number we picked.
+
+          No shipping row. The quote's second amount is a telehealth
+          consultation fee, not postage, so nothing here knows what delivery
+          costs or whether it is charged at all, and a "Shipping: Included" line
+          was inventing an answer. */}
+      <dl className="mt-5 space-y-2 border-t border-line-strong/40 pt-4 text-[0.85rem]">
+        <div className="flex justify-between gap-4">
+          <dt className="min-w-0 truncate text-muted">Subtotal</dt>
+          <dd className="shrink-0 font-medium">{usd(quote?.amount ?? total)}</dd>
         </div>
-      </div>
+        {hasFee && (
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted">Telehealth consultation fee</dt>
+            <dd className="shrink-0 font-medium">{usd(quote.shipping)}</dd>
+          </div>
+        )}
+      </dl>
 
-      {/* Says what the money does, before they part with it. A payment fact,
-          deliberately not a clinical one. */}
-      <p className="mt-3 text-center text-[0.78rem] leading-relaxed text-muted">
-        Charged once, today. Your visit then goes to a licensed provider for review.
-      </p>
+      {/* The one number they are agreeing to, on its own tinted line. */}
+      <div className="mt-4 flex items-center gap-3 rounded-2xl bg-surface-2/80 px-4 py-3.5">
+        <Receipt size={18} className="flex-none text-primary" />
+        {/* min-w-0, or the label refuses to shrink and a four figure total
+            pushes the amount off the edge of a 320px screen. */}
+        <span className="min-w-0 flex-1 truncate text-[0.92rem] font-semibold">Total due today</span>
+        <span className="flex-none font-display text-[1.4rem] font-extrabold leading-none text-primary sm:text-[1.55rem]">
+          {usd(total)}
+        </span>
+      </div>
 
       {/* Stripe's iframes mount into these. Labelled rather than bare boxes:
           three unlabelled rectangles is a guessing game, and the security code
           in particular gets mistaken for a PIN. */}
       <div className={status === "boot" ? "hidden" : "mt-6 flex flex-col gap-3.5"}>
+        {/* A named section, as every one of these checkouts has: it marks where
+            the summary stops and the thing being filled in starts. */}
+        <p className="font-journal text-[1rem] font-semibold text-ink">Payment</p>
         <div>
           <span className={LABEL}>Card number</span>
           <div className="relative">
@@ -505,6 +559,19 @@ export default function StripeCheckout({
         )}
       </button>
 
+      {/* Under the button, not above it. These four are the last thing read
+          before the card goes in, and on every one of the sites John named the
+          reassurance sits here rather than between the price and the fields,
+          where it pushed the card form down the screen. */}
+      <ul className="mt-5 grid gap-x-4 gap-y-2 sm:grid-cols-2">
+        {ASSURANCES.map((text) => (
+          <li key={text} className="flex items-start gap-2">
+            <Check size={14} className="mt-0.5 flex-none text-primary" />
+            <span className="text-[0.76rem] leading-snug text-muted">{text}</span>
+          </li>
+        ))}
+      </ul>
+
       <div className="mt-5 flex items-center gap-3">
         <span className="h-px flex-1 bg-line-strong/40" />
         <ShieldCheck size={15} className="flex-none text-primary/70" />
@@ -512,6 +579,16 @@ export default function StripeCheckout({
       </div>
       <p className="mt-2.5 text-center text-[0.73rem] leading-relaxed text-muted">
         Payments are processed by Stripe. Your card details are encrypted and never reach NovaMDK.
+        A receipt goes to the email address you gave us.
+      </p>
+      {/* A way out that isn't the back button. A patient who stalls at the card
+          field currently has nowhere to go, and abandoning here means losing a
+          questionnaire they have already finished. */}
+      <p className="mt-2 text-center text-[0.73rem] leading-relaxed text-muted">
+        Questions before you pay? Email{" "}
+        <a href="mailto:support@novamdk.com" className="font-semibold text-primary underline">
+          support@novamdk.com
+        </a>
       </p>
     </form>
   );

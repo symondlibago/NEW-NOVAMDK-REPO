@@ -67,7 +67,11 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
     return () => { alive = false; };
   }, [onUnauthorized]);
 
-  const shell = "nv-scroll min-h-0 flex-1 overflow-y-auto px-6 py-10 md:px-10";
+  /* Tighter vertical padding on phones. John's own account is one unfinished
+     intake and one active visit, and that has to land inside a single screen
+     with nothing to scroll: desktop keeps the roomier spacing, so every trim
+     below is mobile only. */
+  const shell = "nv-scroll min-h-0 flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-10";
   const page = "mx-auto w-full max-w-5xl";
 
   if (error) {
@@ -116,15 +120,15 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
         {/* Unfinished intakes lead. Plain card, no photo: it's a task to clear,
             not something to browse, and a picture would only slow that down. */}
         {unfinished.length > 0 && (
-          <section className="mt-10">
+          <section className="mt-6 md:mt-10">
             <Label>Incomplete</Label>
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-3 space-y-3 md:mt-4">
               {unfinished.map((d) => {
                 const t = treatmentFor(d.questionnaire_id);
                 return (
                   <li
                     key={d.id}
-                    className="rounded-2xl border border-primary/35 bg-primary/[0.03] p-6 sm:flex sm:items-center sm:gap-8"
+                    className="rounded-2xl border border-primary/35 bg-primary/[0.03] p-5 sm:flex sm:p-6 sm:items-center sm:gap-8"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-[1.05rem] font-semibold leading-snug text-ink">
@@ -153,7 +157,7 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
             up so the card fills the width instead of stacking into a tall
             column with empty gutters either side. */}
         {active.length > 0 && (
-          <section className="mt-10">
+          <section className="mt-6 md:mt-10">
             <div className="flex items-baseline justify-between gap-4">
               <Label>Active</Label>
               <button
@@ -163,7 +167,7 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
                 See all
               </button>
             </div>
-            <ul className="mt-4 space-y-4">
+            <ul className="mt-3 space-y-4 md:mt-4">
               {active.map((c) => {
                 const t = treatmentFor(c.questionnaire_id, c.treatments[0]?.name);
                 return (
@@ -172,10 +176,10 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
                     className="overflow-hidden rounded-2xl border border-line bg-surface nv-shadow"
                   >
                     <div className="flex flex-col md:flex-row">
-                      <div className="grid shrink-0 place-items-center bg-surface-2 px-6 py-10 md:w-[34%] md:py-6">
-                        <img src={t.image} alt="" loading="lazy" className="h-44 w-auto object-contain" />
+                      <div className="grid shrink-0 place-items-center bg-surface-2 px-6 py-4 md:w-[34%] md:py-6">
+                        <img src={t.image} alt="" loading="lazy" className="h-28 w-auto object-contain md:h-44" />
                       </div>
-                      <div className="flex min-w-0 flex-1 flex-col justify-center p-6 md:p-8">
+                      <div className="flex min-w-0 flex-1 flex-col justify-center p-5 md:p-8">
                         {t.category && (
                           <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-muted">
                             {t.category}
@@ -195,7 +199,7 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
                         </p>
                         <button
                           onClick={openVisit(c)}
-                          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-bg px-7 py-3 text-[0.9rem] font-semibold text-ink transition-colors hover:border-primary hover:text-primary md:w-auto md:self-start"
+                          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full border border-line-strong md:mt-6 bg-bg px-7 py-3 text-[0.9rem] font-semibold text-ink transition-colors hover:border-primary hover:text-primary md:w-auto md:self-start"
                         >
                           View treatment details <ArrowRight size={15} />
                         </button>
@@ -211,7 +215,7 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
         {/* Plain rows: the next move here belongs to the clinician, so these
             need acknowledging, not a card each. */}
         {pending.length > 0 && (
-          <section className="mt-10">
+          <section className="mt-6 md:mt-10">
             <Label>With your care team</Label>
             <ul className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
               {pending.map((c) => {

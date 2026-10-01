@@ -811,9 +811,17 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
 
   return (
     <div className="fixed inset-0 z-120 flex items-end justify-center bg-ink/65 backdrop-blur-sm md:items-center md:p-6">
-      <div className="flex max-h-full w-full max-w-lg flex-col overflow-hidden bg-surface nv-shadow-lg md:rounded-3xl md:border md:border-line">
+      {/* h-full on phones, where this is a sheet rather than a dialog. With
+          only max-h-full it took the height of its content, which left the
+          checkout as a short strip across the bottom two fifths of the screen
+          with the dimmed questionnaire still showing above it: it read as a
+          notification rather than as the step you are on. Desktop keeps the
+          centred auto-height card. */}
+      <div className="flex h-full max-h-full w-full max-w-lg flex-col overflow-hidden bg-surface nv-shadow-lg md:h-auto md:rounded-3xl md:border md:border-line">
         {status === "done" ? (
-          <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
+          /* m-auto, so this sits in the middle of the taller sheet rather than
+             at the top of a mostly empty one. */
+          <div className="m-auto flex flex-col items-center gap-3 px-6 py-14 text-center">
             <CheckCircle2 size={44} className="text-primary" />
             <h2 className="text-[1.25rem] font-bold">Payment received</h2>
             {!submitted && (
@@ -827,8 +835,24 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
              field and the button are all in here, so there is nothing above
              or below it to scroll past. */
           /* No padding: StripeCheckout brings its own panel, so it fills this
-             card edge to edge rather than sitting as a second box inside it. */
-          <div className="min-h-0 flex-1 overflow-y-auto">
+             card edge to edge rather than sitting as a second box inside it.
+             flex-col, so that panel can stretch to the full height of the sheet
+             instead of stopping wherever its content ends. */
+          /* data-lenis-prevent, for the same reason the branch below carries it:
+             the site's Lenis smooth scroll swallows wheel and touch events, so
+             without it this panel can only be moved by dragging the scrollbar.
+             The attribute, not the class list, is what makes this scrollable.
+
+             nv-scroll-brand is the thin gold scrollbar the old layout used and
+             this branch never picked up, which is why a default grey bar turned
+             up down the side of the card. The cream here rather than only on the
+             panel, so the scrollbar track sits on the same surface instead of on
+             a white gap. overscroll-contain stops the page behind scrolling on
+             when this reaches its end. */
+          <div
+            data-lenis-prevent
+            className="nv-scroll-brand flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-surface-2/30"
+          >
             {choices.length > 1 && !pid ? (
               /* A portal-resumed intake can arrive without a plan chosen. Same
                  radio cards as the older layout, so the patient sees every
@@ -868,6 +892,7 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
                 treatment={treatment}
                 submitted={submitted}
                 onPaid={onPaid}
+                flush
               />
             )}
           </div>

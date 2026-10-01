@@ -115,7 +115,7 @@ function DrawerThumb({ src, alt }) {
   );
 }
 
-function ProductThumb({ src }) {
+function ProductThumb({ src, tag = "" }) {
   const tight = useTightArt(src);
 
   /* The image is absolutely positioned rather than laid out in the tile.
@@ -135,6 +135,14 @@ function ProductThumb({ src }) {
           tight ? "p-[20%]" : "p-4"
         }`}
       />
+      {/* Sits on the art rather than under the name, so the card is read in one
+          look. Inside this span because it is already the relative box, and
+          above the image in the stack since the image fills inset-0. */}
+      {tag && (
+        <span className="absolute left-2 top-2 rounded-full bg-surface/90 px-2 py-0.5 text-[0.64rem] font-semibold uppercase tracking-[0.08em] text-primary-deep nv-shadow backdrop-blur-sm">
+          {tag}
+        </span>
+      )}
     </span>
   );
 }
@@ -181,7 +189,10 @@ function TreatmentPanel({ cat, onNavigate }) {
               onClick={onNavigate}
               className="group flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:nv-shadow"
             >
-              <ProductThumb src={p.img} />
+              {/* Only the products whose formulation is intended for one sex
+                  carry a tag. Absent on everything else, so it means something
+                  where it does appear. */}
+              <ProductThumb src={p.img} tag={p.audience} />
               <span className="flex grow items-center px-3 py-2.5 text-[0.86rem] font-medium leading-snug text-ink/85 transition-colors group-hover:text-ink">
                 {displayTitle(p)}
               </span>
@@ -443,9 +454,6 @@ export default function Navbar() {
                     Kiosk <ArrowRight size={16} className="text-muted" />
                   </Link>
                   */}
-                  <Link to="/portal" onClick={() => setMobileOpen(false)} className="flex items-center justify-between border-b border-line py-5 text-[17px] font-medium text-ink">
-                    Patient Portal <ArrowRight size={16} className="text-muted" />
-                  </Link>
 
                   {/* Get a Recommendation — starts the free 2-minute questionnaire */}
                   <Link
@@ -458,6 +466,14 @@ export default function Navbar() {
 
                   {/* bottom actions — Contact lives here as a button under Get started */}
                   <div className="mt-auto flex flex-col gap-2.5 pb-4 pt-8">
+                    {/* Same pill as Get started under it, so it belongs to this
+                        set of buttons rather than inventing a shape of its own.
+                        Only the border and tint are gold, which lifts it off the
+                        plain category rows without putting a second solid button
+                        next to Get a Recommendation. */}
+                    <Link to="/portal" onClick={() => setMobileOpen(false)} className="flex w-full items-center justify-center gap-2 rounded-full border border-primary/50 bg-primary/5 py-3.5 text-[15px] font-semibold text-ink transition-colors hover:bg-primary/10">
+                      <LogIn size={16} /> Patient Portal
+                    </Link>
                     <Link to="/treatments" onClick={() => setMobileOpen(false)} className="flex w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-surface py-3.5 text-[15px] font-semibold text-ink transition-colors hover:bg-surface-2">
                       Get started <ArrowRight size={16} />
                     </Link>

@@ -66,10 +66,16 @@ function Stepper({ timeline }) {
         {timeline.steps.map((s) => (
           <li key={s.key} className="flex-1">
             {/* The bar carries the state; the dot-and-line version breaks up badly
-                at narrow widths where five labels have to share the row. */}
+                at narrow widths where five labels have to share the row.
+
+                The step the visit has actually reached is filled solid, same as
+                the rail on the home screen. At 45% it read as half done, so the
+                same visit appeared to be three steps along on one screen and two
+                and a half on the other. Empty track is bg-line-strong here too,
+                for the same reason. */}
             <div
               className={`h-1.5 rounded-full ${
-                s.done ? "bg-primary" : s.current ? "bg-primary/45" : "bg-line"
+                s.done || s.current ? "bg-primary" : "bg-line-strong"
               }`}
             />
             <p

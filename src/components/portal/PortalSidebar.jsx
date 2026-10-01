@@ -69,45 +69,53 @@ export default function PortalSidebar({
           </button>
         </div>
 
-        <nav className="nv-scroll flex-1 space-y-1 overflow-y-auto p-3" data-lenis-prevent>
-          {tabs.map(({ key, label, icon }) => {
-            const Icon = icon;
-            const active = tab === key;
-            return (
-              <button
-                key={key}
-                onClick={() => onTab(key)}
-                aria-current={active ? "page" : undefined}
-                title={collapsed ? label : undefined}
-                className={`${item} ${collapsed ? "md:justify-center md:px-0" : ""} ${
-                  active ? "text-ink" : "text-muted hover:bg-surface-2 hover:text-ink"
-                }`}
-              >
-                {/* One shared highlight that slides between items, rather than each
-                    item fading its own background in and out. */}
-                {active && (
-                  <motion.span
-                    layoutId="portal-nav-pill"
-                    className="absolute inset-0 rounded-xl bg-primary/10"
-                    transition={{ type: "spring", stiffness: 420, damping: 36 }}
-                  />
-                )}
-                <Icon size={18} className={`relative z-10 shrink-0 ${active ? "text-primary" : ""}`} />
-                <span className={`relative z-10 ${collapsed ? "md:hidden" : ""}`}>{label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        {/* Nav and sign out share one scroller, so sign out sits directly under
+            the last tab instead of being pushed to the foot of the sidebar by a
+            growing nav. flex-1 and the Lenis opt-out move to the wrapper with
+            the scrolling. */}
+        <div className="nv-scroll flex-1 overflow-y-auto" data-lenis-prevent>
+          <nav className="space-y-1 p-3">
+            {tabs.map(({ key, label, icon }) => {
+              const Icon = icon;
+              const active = tab === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => onTab(key)}
+                  aria-current={active ? "page" : undefined}
+                  title={collapsed ? label : undefined}
+                  className={`${item} ${collapsed ? "md:justify-center md:px-0" : ""} ${
+                    active ? "text-ink" : "text-muted hover:bg-surface-2 hover:text-ink"
+                  }`}
+                >
+                  {/* One shared highlight that slides between items, rather than each
+                      item fading its own background in and out. */}
+                  {active && (
+                    <motion.span
+                      layoutId="portal-nav-pill"
+                      className="absolute inset-0 rounded-xl bg-primary/10"
+                      transition={{ type: "spring", stiffness: 420, damping: 36 }}
+                    />
+                  )}
+                  <Icon size={18} className={`relative z-10 shrink-0 ${active ? "text-primary" : ""}`} />
+                  <span className={`relative z-10 ${collapsed ? "md:hidden" : ""}`}>{label}</span>
+                </button>
+              );
+            })}
+          </nav>
 
-        <div className="shrink-0 border-t border-line p-3">
-          <button
-            onClick={onSignOut}
-            title={collapsed ? "Sign out" : undefined}
-            className={`${item} ${collapsed ? "md:justify-center md:px-0" : ""} text-muted hover:bg-surface-2 hover:text-ink`}
-          >
-            <LogOut size={18} className="shrink-0" />
-            <span className={collapsed ? "md:hidden" : ""}>Sign out</span>
-          </button>
+          {/* The divider stays: it is what keeps leaving from reading as one
+              more place to go. */}
+          <div className="border-t border-line p-3">
+            <button
+              onClick={onSignOut}
+              title={collapsed ? "Sign out" : undefined}
+              className={`${item} ${collapsed ? "md:justify-center md:px-0" : ""} text-muted hover:bg-surface-2 hover:text-ink`}
+            >
+              <LogOut size={18} className="shrink-0" />
+              <span className={collapsed ? "md:hidden" : ""}>Sign out</span>
+            </button>
+          </div>
         </div>
       </aside>
     </>
