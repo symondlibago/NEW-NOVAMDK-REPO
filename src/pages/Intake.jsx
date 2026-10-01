@@ -826,13 +826,17 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
           /* One screen, and it owns the whole panel: the summary, the card
              field and the button are all in here, so there is nothing above
              or below it to scroll past. */
-          <div className="min-h-0 flex-1 overflow-y-auto p-5 md:p-6">
+          /* No padding: StripeCheckout brings its own panel, so it fills this
+             card edge to edge rather than sitting as a second box inside it. */
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {choices.length > 1 && !pid ? (
               /* A portal-resumed intake can arrive without a plan chosen. Same
                  radio cards as the older layout, so the patient sees every
                  price before picking; the amount charged still comes from the
                  server quote, never from these labels. */
-              <>
+              /* Padded here rather than on the wrapper, because the branch
+                 below brings its own panel and must not be inset. */
+              <div className="p-5 md:p-6">
                 <img src="/logo.png" alt="NovaMDK" className="mx-auto h-7 w-auto" />
                 <p className="mt-5 text-center text-[0.95rem] font-semibold">Choose your plan</p>
                 <div role="radiogroup" aria-label="Choose your plan" className="mt-3 space-y-2.5">
@@ -850,9 +854,9 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
                     </button>
                   ))}
                 </div>
-              </>
+              </div>
             ) : quoteFailed ? (
-              <p className="py-10 text-center text-[0.88rem] font-medium text-red-600">
+              <p className="px-6 py-12 text-center text-[0.88rem] font-medium text-red-600">
                 We couldn&rsquo;t load your order total. Please refresh the page.
               </p>
             ) : (

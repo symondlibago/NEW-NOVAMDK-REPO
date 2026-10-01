@@ -360,6 +360,48 @@ export async function markOpportunityPaid(opportunityId) {
   return data?.opportunity || null;
 }
 
+/* A card that was declined.
+ *
+ * The counterpart to markOpportunityPaid, and the one board write that
+ * deliberately leaves `status` alone. Status is what every GHL revenue and
+ * conversion report reads, and a declined card is neither: it was never won,
+ * and it isn't lost while the patient can still reach for another card. The
+ * "open" it was created with is already the right answer. Writing it would also
+ * risk clobbering a "won" when a late failure event for an earlier attempt
+ * lands after the successful one.
+ *
+ * Nothing moves a card back out of here: a later success calls
+ * markOpportunityPaid, which moves it to Paid, exactly as that path clears the
+ * payment-failed tag.
+ *
+ * Never throws, same reasoning as markOpportunityLost below: losing the board
+ * write must not cost the tag that records the same decline.
+ */
+const FAILED_STAGE_NAME = process.env.GHL_FAILED_STAGE_NAME || "Payment Failed";
+
+export async function markOpportunityFailed(opportunityId) {
+  if (!opportunityId) return null;
+  try {
+    const { stages, pipelineName } = await resolvePipeline();
+    const failed = stages.find((s) => s.name?.toLowerCase() === FAILED_STAGE_NAME.toLowerCase());
+    if (!failed) {
+      console.warn(
+        `GHL pipeline "${pipelineName}" has no "${FAILED_STAGE_NAME}" stage, so the declined card keeps its column and only the tag records it.`
+      );
+      return null;
+    }
+
+    const data = await ghlFetch(`/opportunities/${opportunityId}`, {
+      method: "PUT",
+      body: { pipelineStageId: failed.id },
+    });
+    return data?.opportunity || null;
+  } catch (e) {
+    console.error("GHL mark-failed failed:", e.message, e.details ?? "");
+    return null;
+  }
+}
+
 /* A visit that ended without treatment.
  *
  * Deliberately not moveOpportunityForward: that one is forward-only, and an exit

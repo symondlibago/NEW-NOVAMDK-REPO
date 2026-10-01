@@ -1,5 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Loader2, Lock } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarDays,
+  CreditCard,
+  Loader2,
+  Lock,
+  Receipt,
+  ShieldCheck,
+} from "lucide-react";
+import { declineMessage } from "./declineMessage";
 
 /* The whole checkout, on one screen.
  *
@@ -61,8 +70,14 @@ function loadStripeJs() {
 const usd = (n) =>
   typeof n === "number" ? n.toLocaleString("en-US", { style: "currency", currency: "USD" }) : "";
 
+/* focus-within, because the input itself lives inside Stripe's iframe and never
+   receives our focus styles. The left padding leaves room for the icon sitting
+   over the field: it cannot go inside the iframe, so it is positioned on top. */
 const FIELD =
-  "rounded-xl border border-line bg-bg px-3.5 py-3.5 transition-colors focus-within:border-primary";
+  "rounded-xl border border-line bg-bg py-3.5 pl-11 pr-3.5 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15";
+const LABEL =
+  "mb-1.5 block font-mono text-[0.66rem] font-semibold uppercase tracking-[0.12em] text-muted";
+const ICON = "pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/70";
 
 export default function StripeCheckout({
   product,
@@ -170,7 +185,9 @@ export default function StripeCheckout({
          surfaces Stripe's own field-level wording while they type. */
       card.on("change", (e) => {
         if (!alive.current) return;
-        setMessage(e.error?.message || "");
+        /* Cleared the moment the field becomes valid again, hence the ternary
+           rather than a default: no error means no message, not a decline. */
+        setMessage(e.error ? declineMessage(e.error) : "");
       });
       card.on("ready", () => {
         clearTimeout(watchdog);
@@ -282,14 +299,27 @@ export default function StripeCheckout({
     const { error, paymentIntent } = result || {};
 
     if (error) {
-      /* card_error and validation_error carry wording meant for the patient.
-         Anything else is ours to debug, so it stays in the console. */
-      const patientFacing = error.type === "card_error" || error.type === "validation_error";
-      if (!patientFacing) console.error("Stripe confirm failed:", error);
-      setMessage(
-        (patientFacing && error.message) || "We couldn't take that payment. Please try again."
-      );
+      /* The code pair is what identifies a decline in the Stripe dashboard and
+         carries nothing about the patient, so it's worth having in the console
+         when someone reports "my card didn't work". Anything that isn't a card
+         problem is ours to debug and gets logged whole. */
+      if (error.type === "card_error") {
+        console.warn(`Stripe declined: ${error.code || "?"} / ${error.decline_code || "none"}`);
+      } else if (error.type !== "validation_error") {
+        console.error("Stripe confirm failed:", error);
+      }
+      setMessage(declineMessage(error));
       setStatus("ready");
+      /* Record a decline the same way a success is recorded: from here as well
+         as from the webhook, so the Payment Failed column doesn't rest on one
+         subscribed event. Not awaited, because the patient already has their
+         message and can be retyping a card while this runs.
+
+         card_error only. That is the issuer saying no. A validation_error is
+         just a half-filled form, and the intent is left in exactly the same
+         status by both, so the server cannot tell them apart afterwards:
+         sending those too would tag patients who mistyped a card number. */
+      if (error.type === "card_error") void settle(intentId.current);
       return;
     }
 
@@ -297,6 +327,7 @@ export default function StripeCheckout({
       console.warn("Stripe payment ended as", paymentIntent?.status);
       setMessage("That payment didn't complete. Please try again.");
       setStatus("ready");
+      void settle(paymentIntent?.id || intentId.current);
       return;
     }
 
@@ -305,10 +336,15 @@ export default function StripeCheckout({
     finish();
   };
 
+  /* The same panel the form uses, so a failure or a success doesn't look like
+     it belongs to a different screen. */
+  const PANEL = "rounded-3xl border border-primary/25 bg-surface-2/30 p-6 sm:p-8";
+
   if (status === "dead") {
     return (
-      <div className="text-center">
-        <p className="text-[0.9rem] font-medium text-red-600">
+      <div className={`${PANEL} text-center`}>
+        <img src="/logo.png" alt="NovaMDK" className="mx-auto h-8 w-auto" />
+        <p className="mt-5 text-[0.92rem] font-semibold text-red-600">
           We couldn&rsquo;t load the secure card form.
         </p>
         <p className="mt-2 text-[0.85rem] leading-relaxed text-muted">
@@ -321,41 +357,112 @@ export default function StripeCheckout({
 
   if (status === "done") {
     return (
-      <div className="py-6 text-center">
-        <p className="font-display text-[1.2rem] font-extrabold">Payment received</p>
+      <div className={`${PANEL} text-center`}>
+        <img src="/logo.png" alt="NovaMDK" className="mx-auto h-8 w-auto" />
+        <ShieldCheck size={34} className="mx-auto mt-6 text-primary" />
+        <p className="mt-3 font-journal text-[1.4rem] font-semibold">Payment received</p>
         <p className="mt-1.5 text-[0.88rem] text-muted">Taking you back to your visit…</p>
       </div>
     );
   }
 
-  return (
-    <form onSubmit={pay} className="flex flex-col gap-4">
-      <img src="/logo.png" alt="NovaMDK" className="mx-auto h-7 w-auto" />
+  /* A breakdown earns its space only when there is something to break down.
+     With no consultation fee the item price and the total are the same number,
+     and printing it twice read as a mistake rather than a summary. */
+  const hasFee = Number(quote?.shipping) > 0;
 
-      {/* Product image, name and price: one row, so nothing has to scroll. */}
-      <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface-2 p-3">
+  return (
+    /* The panel is the component's own, not the container's, so it looks the
+       same in the intake popup and in the dev harness. Two tints of the house
+       cream rather than white: the tinted total has to read as deeper than the
+       panel around it. */
+    <form
+      onSubmit={pay}
+      className="rounded-3xl border border-primary/25 bg-surface-2/30 p-5 sm:p-7"
+    >
+      <img src="/logo.png" alt="NovaMDK" className="mx-auto h-9 w-auto sm:h-11" />
+
+      {/* What they're buying. The dosage form sits under the name because it's
+          the thing patients check twice: a spray and an injection of the same
+          drug are easy to confuse at the last screen. */}
+      <div className="mt-6 flex items-center gap-4">
         {image ? (
-          <img src={image} alt="" className="h-14 w-14 flex-none rounded-xl object-cover" loading="eager" />
+          <img
+            src={image}
+            alt=""
+            className="h-20 w-20 flex-none rounded-2xl bg-surface-2 object-contain p-1.5"
+            loading="eager"
+          />
         ) : null}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[0.92rem] font-semibold leading-snug">{name}</p>
-          <p className="mt-0.5 text-[0.76rem] text-muted">One-time payment</p>
+          {/* font-journal, so the name keeps this serif whichever palette the
+              Design Studio is set to. */}
+          <p className="font-journal text-[1.3rem] font-semibold leading-tight sm:text-[1.5rem]">
+            {name}
+          </p>
+          <p className="mt-1 text-[0.85rem] leading-snug text-muted">
+            {product?.dosageForm ? `${product.dosageForm} · ` : ""}One-time payment
+          </p>
         </div>
-        <span className="flex-none text-[1rem] font-bold">{usd(total)}</span>
       </div>
 
-      <div className="flex items-baseline justify-between border-t border-line pt-3">
-        <span className="text-[0.9rem] font-bold">Due today</span>
-        <span className="text-[1.15rem] font-bold text-primary">{usd(total)}</span>
+      {/* The total, given the weight it deserves: it is the one number the
+          patient is agreeing to. */}
+      <div className="mt-6 rounded-2xl bg-surface-2/80 px-4 py-4">
+        {hasFee && (
+          <dl className="mb-3.5 space-y-2 border-b border-line-strong/40 pb-3.5 text-[0.85rem]">
+            <div className="flex justify-between gap-4">
+              <dt className="min-w-0 truncate text-muted">{name}</dt>
+              <dd className="shrink-0 font-medium">{usd(quote.amount)}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted">Telehealth consultation fee</dt>
+              <dd className="shrink-0 font-medium">{usd(quote.shipping)}</dd>
+            </div>
+          </dl>
+        )}
+        <div className="flex items-center gap-3">
+          <Receipt size={20} className="flex-none text-primary" />
+          <span className="flex-1 text-[0.95rem] font-semibold">Total due today</span>
+          <span className="h-8 w-px flex-none bg-line-strong/40" />
+          <span className="flex-none font-display text-[1.6rem] font-extrabold leading-none text-primary sm:text-[1.8rem]">
+            {usd(total)}
+          </span>
+        </div>
       </div>
 
-      {/* Stripe's iframes mount into these. Heights are fixed so the panel
-          doesn't jump as they load. */}
-      <div className={status === "boot" ? "hidden" : "space-y-3"}>
-        <div ref={numberRef} className={FIELD} />
-        <div className="grid grid-cols-2 gap-3">
-          <div ref={expiryRef} className={FIELD} />
-          <div ref={cvcRef} className={FIELD} />
+      {/* Says what the money does, before they part with it. A payment fact,
+          deliberately not a clinical one. */}
+      <p className="mt-3 text-center text-[0.78rem] leading-relaxed text-muted">
+        Charged once, today. Your visit then goes to a licensed provider for review.
+      </p>
+
+      {/* Stripe's iframes mount into these. Labelled rather than bare boxes:
+          three unlabelled rectangles is a guessing game, and the security code
+          in particular gets mistaken for a PIN. */}
+      <div className={status === "boot" ? "hidden" : "mt-6 flex flex-col gap-3.5"}>
+        <div>
+          <span className={LABEL}>Card number</span>
+          <div className="relative">
+            <CreditCard size={17} className={ICON} />
+            <div ref={numberRef} className={FIELD} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3.5">
+          <div>
+            <span className={LABEL}>Expiry</span>
+            <div className="relative">
+              <CalendarDays size={17} className={ICON} />
+              <div ref={expiryRef} className={FIELD} />
+            </div>
+          </div>
+          <div>
+            <span className={LABEL}>Security code</span>
+            <div className="relative">
+              <Lock size={16} className={ICON} />
+              <div ref={cvcRef} className={FIELD} />
+            </div>
+          </div>
         </div>
       </div>
       {status === "boot" && (
@@ -366,29 +473,45 @@ export default function StripeCheckout({
       )}
 
       {message && (
-        <p role="alert" className="text-[0.85rem] font-medium text-red-600">
+        <p
+          role="alert"
+          className="mt-3 rounded-xl bg-red-50 px-3.5 py-2.5 text-[0.84rem] font-medium leading-relaxed text-red-700"
+        >
           {message}
         </p>
       )}
 
+      {/* The lock sits on the button, where it reassures at the moment of the
+          click. The arrow is the only decoration: it says this goes somewhere,
+          which matters when the button is also the end of the questionnaire. */}
       <button
         type="submit"
         disabled={status !== "ready"}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 text-[0.95rem] font-bold text-on-primary transition-opacity disabled:opacity-50"
+        className="mt-6 flex w-full items-center gap-3 rounded-2xl bg-primary px-5 py-4 text-[1rem] font-bold text-on-primary transition-opacity disabled:opacity-45"
       >
         {status === "paying" ? (
-          <>
-            <Loader2 size={16} className="animate-spin" />
+          <span className="flex flex-1 items-center justify-center gap-2">
+            <Loader2 size={17} className="animate-spin" />
             Processing…
-          </>
+          </span>
         ) : (
-          <>Pay {usd(total)}</>
+          <>
+            <span className="flex flex-1 items-center justify-center gap-2.5">
+              <Lock size={16} />
+              Pay {usd(total)}
+            </span>
+            <ArrowRight size={18} className="flex-none" />
+          </>
         )}
       </button>
 
-      <p className="flex items-center justify-center gap-1.5 text-[0.72rem] text-muted">
-        <Lock size={11} />
-        Secured by Stripe. Your card details never reach NovaMDK.
+      <div className="mt-5 flex items-center gap-3">
+        <span className="h-px flex-1 bg-line-strong/40" />
+        <ShieldCheck size={15} className="flex-none text-primary/70" />
+        <span className="h-px flex-1 bg-line-strong/40" />
+      </div>
+      <p className="mt-2.5 text-center text-[0.73rem] leading-relaxed text-muted">
+        Payments are processed by Stripe. Your card details are encrypted and never reach NovaMDK.
       </p>
     </form>
   );

@@ -5,6 +5,7 @@ import {
   tagContact,
   untagContact,
   markOpportunityPaid,
+  markOpportunityFailed,
   updateContactFields,
   updateOpportunityFields,
   contactById,
@@ -119,6 +120,24 @@ async function syncTag(contactId, { failed }) {
   } catch (e) {
     console.error(`GHL ${failed ? "tag" : "untag"} ${FAILED_TAG} failed:`, e.message);
   }
+}
+
+/* A declined card, recorded in both of the places staff look: the tag on the
+ * contact and the Payment Failed column on the board.
+ *
+ * The tag alone was all this did for Kurv and NMI, which meant a declined
+ * payment left the card sitting in Intake Submitted looking like a patient who
+ * simply hadn't paid yet. Every processor routes its failures through here so
+ * the three cannot drift apart.
+ *
+ * Both halves swallow their own errors, so this never costs the patient the
+ * decline message the modal is waiting to show. */
+async function markFailed(contactId, opportunityId) {
+  if (!ghlConfigured()) return;
+  await Promise.allSettled([
+    syncTag(contactId, { failed: true }),
+    opportunityId ? markOpportunityFailed(opportunityId) : null,
+  ]);
 }
 
 /* Moving the card to Paid belongs here, not in the browser.
@@ -348,7 +367,7 @@ async function stripeSettle(req, res) {
 
   if (intent.status !== "succeeded") {
     console.warn(`Stripe payment ${intent.id} is ${intent.status}, not settling`);
-    await syncTag(contactId, { failed: true });
+    await markFailed(contactId, orderId);
     return res.status(200).json({ ok: false, declined: true, error: "declined", message: "" });
   }
 
@@ -468,7 +487,7 @@ async function kurvNotice(req, res) {
     await settleKurvSale({ reference, amount: s.amount, contactId, opportunityId, via: "notice" });
   } else if (s.state === "failed") {
     console.warn(`Kurv payment attempt declined: ref ${reference}`);
-    await syncTag(contactId, { failed: true });
+    await markFailed(contactId, opportunityId);
   }
   return res.status(200).json({ ok: true });
 }
@@ -599,7 +618,7 @@ export default async function handler(req, res) {
     `NMI sale ${declined ? "declined" : `errored (response=${code})`} for product ${pid}: ${gatewayText}`
   );
 
-  await syncTag(clean(contact_id, 60), { failed: true });
+  await markFailed(clean(contact_id, 60), orderId);
 
   /* 200 rather than 4xx: this is a real answer to a well-formed request, and
      the modal needs to render the reason instead of a network error. The

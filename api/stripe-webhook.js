@@ -1,5 +1,11 @@
-import { verifyWebhook } from "./_stripe.js";
-import { ghlConfigured, tagContact, untagContact, markOpportunityPaid } from "./_ghl.js";
+import { stripe, verifyWebhook } from "./_stripe.js";
+import {
+  ghlConfigured,
+  tagContact,
+  untagContact,
+  markOpportunityPaid,
+  markOpportunityFailed,
+} from "./_ghl.js";
 
 /* Stripe's own account of what happened to a payment.
  *
@@ -67,8 +73,33 @@ async function recordPaid(intent) {
 
 async function recordFailed(intent) {
   if (!ghlConfigured()) return;
-  const contactId = clean((intent.metadata || {}).contact_id, 60);
-  if (contactId) await Promise.allSettled([tagContact(contactId, [FAILED_TAG])]);
+  const meta = intent.metadata || {};
+  const contactId = clean(meta.contact_id, 60);
+  const orderId = clean(meta.opportunity_id, 60);
+
+  /* A failure event describes one attempt, not the payment.
+   *
+   * A patient whose first card is declined and whose second clears produces
+   * both events on the same intent, and Stripe makes no promise about the order
+   * it delivers them in. Taken at face value, a late failure would drag a card
+   * that is already paid back out of the Paid column. The intent's status now,
+   * rather than at the moment the event was queued, is the only thing that
+   * settles it. An unreadable intent falls through to recording the failure,
+   * which is what the event said and the overwhelmingly likelier case. */
+  const current = await stripe(`/payment_intents/${encodeURIComponent(intent.id)}`, {
+    method: "GET",
+  });
+  if (current.ok && current.data?.status === "succeeded") {
+    console.info(
+      `Stripe webhook: ${intent.id} has since succeeded, so the earlier decline is ignored`
+    );
+    return;
+  }
+
+  const jobs = [];
+  if (contactId) jobs.push(tagContact(contactId, [FAILED_TAG]));
+  if (orderId) jobs.push(markOpportunityFailed(orderId));
+  await Promise.allSettled(jobs);
 }
 
 export default async function handler(req, res) {
