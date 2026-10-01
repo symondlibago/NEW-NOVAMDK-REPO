@@ -46,6 +46,11 @@ const CONFIRM_TIMEOUT_MS = 90_000;
    there is nothing to fall back to. */
 const LOAD_TIMEOUT_MS = 15_000;
 
+/* The statuses that mean the card was accepted. requires_capture is a hold,
+   which is what checkout places now; succeeded is a straight charge, and also
+   what a hold becomes once captured. */
+const PAID_STATUS = new Set(["succeeded", "requires_capture"]);
+
 let loader = null;
 /** Loads Stripe.js once per page, however many times this mounts. */
 function loadStripeJs() {
@@ -329,6 +334,23 @@ export default function StripeCheckout({
          carries nothing about the patient, so it's worth having in the console
          when someone reports "my card didn't work". Anything that isn't a card
          problem is ours to debug and gets logged whole. */
+      /* Already paid for, not a failure.
+       *
+       * Confirming an intent that is already authorised or captured returns
+       * payment_intent_unexpected_state with the unhelpful "A processing error
+       * occurred." It is what a second press of Pay produces, so the honest
+       * response is to ask the server what it holds rather than to report a
+       * problem the patient does not have. */
+      if (error.code === "payment_intent_unexpected_state") {
+        console.warn("Stripe confirm on an intent that had already gone through; asking the server");
+        const verdict = await settle(intentId.current);
+        if (!alive.current) return;
+        if (verdict?.ok) {
+          finish();
+          return;
+        }
+      }
+
       if (error.type === "card_error") {
         console.warn(`Stripe declined: ${error.code || "?"} / ${error.decline_code || "none"}`);
       } else if (error.type !== "validation_error") {
@@ -349,7 +371,9 @@ export default function StripeCheckout({
       return;
     }
 
-    if (paymentIntent?.status !== "succeeded") {
+    /* requires_capture is a SUCCESS, the same as succeeded.
+ */
+    if (!PAID_STATUS.has(paymentIntent?.status)) {
       console.warn("Stripe payment ended as", paymentIntent?.status);
       setMessage("That payment didn't complete. Please try again.");
       setStatus("ready");
