@@ -118,6 +118,22 @@ async function recordHoldLost(intent) {
     console.info(`Stripe webhook: ${intent.id} canceled after capture, nothing to do`);
     return;
   }
+  /* We cancelled it ourselves, so nothing went wrong with the card.
+   *
+   * Two of our own paths release a hold on purpose and both pass
+   * cancellation_reason "abandoned": a denied case giving the patient their
+   * money straight back, and checkout clearing a stale hold before placing a
+   * fresh one. Neither is a payment failure. Without this check the denied
+   * visit would be dragged out of the Denied column into Payment Failed and
+   * GoHighLevel would email a refused patient asking them to pay again.
+   *
+   * Inverted on purpose: anything that is NOT our own "abandoned" is treated as
+   * a lost payment, so an expiry, a reversal or a reason Stripe adds later all
+   * still get chased. */
+  if (intent.cancellation_reason === "abandoned") {
+    console.info(`Stripe webhook: ${intent.id} released by us, not a payment failure`);
+    return;
+  }
   const meta = intent.metadata || {};
   const contactId = clean(meta.contact_id, 60);
   const orderId = clean(meta.opportunity_id, 60);

@@ -53,6 +53,57 @@ const CAPTURE_ON = new Set(["case_approved", "case_completed"]);
  * Never throws. The board write that brought us here has already happened and
  * must not be undone by a payment problem.
  */
+/* Gives the patient their money back when a case is cancelled or denied.
+ *
+ * The hold model's whole promise, and the checkout says it in as many words:
+ * if the provider decides the treatment is not right for you, the hold is
+ * released and you are not charged. Without this the code only declined to
+ * capture, which left the reservation standing until the bank dropped it on its
+ * own up to 7 days later. On a debit card that is the patient's grocery money
+ * locked up for a week over a visit that was refused.
+ *
+ * A captured payment is deliberately NOT refunded here. Taking money back out
+ * of the business is a decision with a policy behind it, so it is logged loudly
+ * for staff instead of being automated. Awaiting John, 2026-10-02.
+ *
+ * Never throws. */
+async function releaseHold(opportunityId, contactId) {
+  if (!stripeEnabled() || !opportunityId) return;
+
+  const hold = await findHold(opportunityId);
+  if (!hold) {
+    /* Either there was never a hold, or it has already been captured. The
+       second of those is money the practice has taken for a visit that is now
+       cancelled, which somebody has to decide about, so say so plainly. */
+    console.warn(
+      `MDI case cancelled on opportunity ${opportunityId}: no hold to release. ` +
+        `If this visit was already captured, that payment needs a refund decision by hand.`
+    );
+    return;
+  }
+
+  const released = await stripe(`/payment_intents/${hold.id}/cancel`, {
+    method: "POST",
+    body: { cancellation_reason: "abandoned" },
+  });
+  if (released.ok) {
+    console.info(
+      `Stripe hold ${hold.id} released on a cancelled case: ` +
+        `$${(hold.amount / 100).toFixed(2)} returned to the patient (opportunity ${opportunityId})`
+    );
+    /* No failed tag and no Payment Failed move. Nothing went wrong with the
+       card: the visit was refused and the money went back. Tagging it as a
+       payment failure would put a patient who did nothing wrong in the chase
+       list, and GHL would email them asking them to pay again. */
+    return;
+  }
+  console.error(
+    `Could not release hold ${hold.id} on cancelled opportunity ${opportunityId}: ` +
+      `${released.data?.error?.message || `HTTP ${released.status}`}. ` +
+      `The patient's funds stay reserved until the authorisation expires.`
+  );
+}
+
 async function captureHold(opportunityId, contactId) {
   if (!stripeEnabled() || !opportunityId) return;
 
@@ -561,10 +612,14 @@ export default async function handler(req, res) {
           }
           const moved = lost ? await markOpportunityLost(id) : await moveOpportunityForward(id, stage);
           /* After the move, not before: if the capture fails it sends the card
-             to Payment Failed, and that has to be the write that lands last.
-             Never on a cancelled case: that hold is the patient's to get back,
-             which the Stripe webhook's canceled branch handles. */
-          if (!lost && CAPTURE_ON.has(event)) await captureHold(id, contact.id);
+             to Payment Failed, and that has to be the write that lands last. */
+          if (lost) {
+            /* Refused visit: the reservation goes straight back rather than
+               waiting out the authorisation. */
+            await releaseHold(id, contact.id);
+          } else if (CAPTURE_ON.has(event)) {
+            await captureHold(id, contact.id);
+          }
           return moved;
         })()
       );
