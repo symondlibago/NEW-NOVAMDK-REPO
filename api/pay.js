@@ -23,7 +23,7 @@ import {
   parseReference,
   addToMonth,
 } from "./_kurv.js";
-import { stripe, stripeEnabled, stripeMode, toCents, holdExpiresAt } from "./_stripe.js";
+import { stripe, stripeEnabled, stripeMode, toCents, holdExpiresAt, findHold } from "./_stripe.js";
 
 /* Charges a card through the NMI gateway (PayTechTrust is an NMI white-label),
  * and on GET, quotes what that charge will be.
@@ -276,6 +276,33 @@ async function stripeIntent(req, res) {
     const contact = await contactById(contactId);
     const found = clean(contact?.email, 120);
     if (found && EMAIL_RE.test(found)) receiptEmail = found;
+  }
+
+  /* Release any hold already standing for this order before placing another.
+   *
+   * Every checkout that reaches the card form creates its own PaymentIntent,
+   * and every one that authorises reserves its own money. A patient who opens
+   * the checkout twice, or who reloads after a decline, therefore ends up with
+   * two live holds against the same visit, and on a debit card each one is
+   * taken out of their available balance straight away. Two reservations for
+   * one $0.50 visit is what this looked like in testing on 2026-10-02.
+   *
+   * Only one of them could ever be captured, so the other is pure harm: the
+   * patient's money sits locked up for up to 7 days for nothing. Cancelling
+   * the old one costs nothing, because a hold is not money we have. */
+  if (orderId) {
+    const stale = await findHold(orderId);
+    if (stale) {
+      const released = await stripe(`/payment_intents/${stale.id}/cancel`, {
+        method: "POST",
+        body: { cancellation_reason: "abandoned" },
+      });
+      console.info(
+        released.ok
+          ? `Released the previous hold ${stale.id} on opportunity ${orderId} before placing a new one`
+          : `Could not release the previous hold ${stale.id}: ${released.data?.error?.message || released.status}`
+      );
+    }
   }
 
   const created = await stripe("/payment_intents", {

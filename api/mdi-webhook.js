@@ -21,6 +21,27 @@ import { stripe, stripeEnabled, findHold, holdExpiresAt } from "./_stripe.js";
 
 const FAILED_TAG = "payment-failed";
 
+/* The events that mean a clinician has prescribed, and so that the money the
+ * patient reserved at checkout is now ours to take.
+ *
+ * case_approved alone was wrong, and wrong in production rather than only in
+ * testing. The note on CASE_EVENTS below records a real case going from
+ * processing to completed four minutes later without ever passing through
+ * approved, and MDI's Test Bench can set completed directly too. Both events
+ * mean the decision has been made: portal.js maps MDI's `approved` AND
+ * `completed` statuses onto the same rx_approved step, and in the 2026-10-02
+ * test `prescription_submitted`, `offering_submitted` and `partner_charged` all
+ * arrived before `case_completed`, so by then the prescription exists and MDI
+ * has already billed us for the work.
+ *
+ * Firing on both is safe rather than double-charging: findHold only ever
+ * returns an intent still awaiting capture, so whichever event arrives second
+ * finds nothing to do.
+ *
+ * A cancelled case is excluded at the call site, not here. `case_cancelled`
+ * carries `lost: true` and must release the hold, never take it. */
+const CAPTURE_ON = new Set(["case_approved", "case_completed"]);
+
 /* Takes the money the patient reserved at checkout, now that a provider has
  * approved the case.
  *
@@ -540,8 +561,10 @@ export default async function handler(req, res) {
           }
           const moved = lost ? await markOpportunityLost(id) : await moveOpportunityForward(id, stage);
           /* After the move, not before: if the capture fails it sends the card
-             to Payment Failed, and that has to be the write that lands last. */
-          if (event === "case_approved") await captureHold(id, contact.id);
+             to Payment Failed, and that has to be the write that lands last.
+             Never on a cancelled case: that hold is the patient's to get back,
+             which the Stripe webhook's canceled branch handles. */
+          if (!lost && CAPTURE_ON.has(event)) await captureHold(id, contact.id);
           return moved;
         })()
       );
