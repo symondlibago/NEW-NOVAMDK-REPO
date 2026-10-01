@@ -339,7 +339,25 @@ async function resolvePipeline() {
   return pipelineCache;
 }
 
-export async function markOpportunityPaid(opportunityId) {
+/* Stage and status are separate things in GHL, and the dashboard's conversion
+ * rate counts status === "won" — the stage a card sits in doesn't feed it.
+ * Moving to Paid without this left every paid visit as the "open" it was
+ * created with, which is why the dashboard read 0% against a board full of
+ * paid cards.
+ *
+ * Since 2026-10-02 the two happen at different moments, which is why they are
+ * separate calls. Checkout only places a hold, so authorisation moves the card
+ * to Paid, where staff look, and leaves the status alone. Capture, when a
+ * provider approves, is the first point money has actually moved, so that is
+ * what sets "won". Marked won at authorisation instead, a hold that later
+ * expired or was reversed would leave revenue reporting claiming money the
+ * practice was never paid.
+ *
+ * `opts.won` keeps the old one-shot behaviour for the processors that still
+ * charge outright rather than holding: Kurv and NMI both settle in one step and
+ * have no authorise-then-capture stage to split.
+ */
+export async function markOpportunityPaid(opportunityId, { won = true } = {}) {
   if (!opportunityId) return null;
 
   const { stages, pipelineName } = await resolvePipeline();
@@ -348,16 +366,36 @@ export async function markOpportunityPaid(opportunityId) {
     throw new Error(`GHL pipeline "${pipelineName}" has no "${PAID_STAGE_NAME}" stage.`);
   }
 
-  /* Stage and status are separate things in GHL, and the dashboard's conversion
-     rate counts status === "won" — the stage a card sits in doesn't feed it.
-     Moving to Paid without this left every paid visit as the "open" it was
-     created with, which is why the dashboard read 0% against a board full of
-     paid cards. Payment is the conversion; anything after it is fulfilment. */
   const data = await ghlFetch(`/opportunities/${opportunityId}`, {
     method: "PUT",
-    body: { pipelineStageId: paid.id, status: "won" },
+    body: { pipelineStageId: paid.id, ...(won && { status: "won" }) },
   });
   return data?.opportunity || null;
+}
+
+/**
+ * Money is in. Sets the status only, deliberately moving no card.
+ *
+ * By the time a capture clears, the provider has approved and the board has
+ * already carried the card on to Approved or beyond. Writing a stage here would
+ * drag it backwards out of the clinical column it belongs in, so this touches
+ * nothing but the field the revenue reports actually read.
+ *
+ * Never throws: the money has already moved, and a CRM hiccup must not look
+ * like a failed capture to whatever called this.
+ */
+export async function markOpportunityWon(opportunityId) {
+  if (!opportunityId) return null;
+  try {
+    const data = await ghlFetch(`/opportunities/${opportunityId}`, {
+      method: "PUT",
+      body: { status: "won" },
+    });
+    return data?.opportunity || null;
+  } catch (e) {
+    console.error("GHL mark-won failed:", e.message, e.details ?? "");
+    return null;
+  }
 }
 
 /* A card that was declined.

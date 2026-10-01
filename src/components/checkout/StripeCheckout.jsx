@@ -4,12 +4,13 @@ import {
   CalendarDays,
   Check,
   CreditCard,
+  HelpCircle,
   Loader2,
   Lock,
   Receipt,
   ShieldCheck,
 } from "lucide-react";
-import { declineMessage } from "./declineMessage";
+import { declineMessage, HOLD_NOTICE, PAYMENT_DUE } from "./declineMessage";
 
 /* The whole checkout, on one screen.
  *
@@ -93,7 +94,7 @@ const ICON = "pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 tex
    knows. */
 const ASSURANCES = [
   "Reviewed by a licensed provider",
-  "Charged once, no subscription",
+  "Only charged once a provider approves",
   "Shipped discreetly to your door",
   "Only filled if a provider approves",
 ];
@@ -115,6 +116,7 @@ export default function StripeCheckout({
   // "boot" | "ready" | "paying" | "done" | "dead"
   const [status, setStatus] = useState("boot");
   const [message, setMessage] = useState("");
+  const [explainDue, setExplainDue] = useState(false);
 
   const numberRef = useRef(null);
   const expiryRef = useRef(null);
@@ -482,11 +484,28 @@ export default function StripeCheckout({
         <Receipt size={18} className="flex-none text-primary" />
         {/* min-w-0, or the label refuses to shrink and a four figure total
             pushes the amount off the edge of a 320px screen. */}
-        <span className="min-w-0 flex-1 truncate text-[0.92rem] font-semibold">Total due today</span>
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[0.92rem] font-semibold">
+          <span className="min-w-0 truncate">Total due today</span>
+          {/* type=button, or it submits the form it sits in and tries to pay. */}
+          <button
+            type="button"
+            onClick={() => setExplainDue(true)}
+            aria-label={PAYMENT_DUE.title}
+            className="grid h-4 w-4 flex-none place-items-center rounded-full text-muted transition-colors hover:text-primary"
+          >
+            <HelpCircle size={15} />
+          </button>
+        </span>
         <span className="flex-none font-display text-[1.4rem] font-extrabold leading-none text-primary sm:text-[1.55rem]">
           {usd(total)}
         </span>
       </div>
+
+      {/* Directly under the amount, where the question it answers gets asked. */}
+      <p className="mt-2.5 flex items-start gap-2 text-[0.78rem] leading-relaxed text-muted">
+        <ShieldCheck size={14} className="mt-0.5 flex-none text-primary" />
+        <span>{HOLD_NOTICE}</span>
+      </p>
 
       {/* Stripe's iframes mount into these. Labelled rather than bare boxes:
           three unlabelled rectangles is a guessing game, and the security code
@@ -590,6 +609,43 @@ export default function StripeCheckout({
           support@novamdk.com
         </a>
       </p>
+
+      {/* The question mark on the total opens this.
+          z-130, because the intake sheet this checkout usually sits inside is
+          z-120 and a dialog behind its own trigger is no dialog at all.
+          data-lenis-prevent for the same reason everything else scrollable here
+          carries it: Lenis swallows wheel and touch otherwise. */}
+      {explainDue && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={PAYMENT_DUE.title}
+          data-lenis-prevent
+          onClick={() => setExplainDue(false)}
+          className="fixed inset-0 z-130 flex overflow-y-auto bg-ink/65 p-6 backdrop-blur-sm"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="m-auto w-full max-w-md rounded-3xl border border-line bg-surface p-6 nv-shadow-lg"
+          >
+            <p className="font-journal text-[1.15rem] font-semibold">{PAYMENT_DUE.title}</p>
+            <div className="mt-3 space-y-2.5">
+              {PAYMENT_DUE.paragraphs.map((text) => (
+                <p key={text} className="text-[0.85rem] leading-relaxed text-muted">
+                  {text}
+                </p>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setExplainDue(false)}
+              className="mt-5 w-full rounded-full border border-line-strong bg-surface px-5 py-3 text-[0.9rem] font-semibold text-ink transition-colors hover:bg-surface-2"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

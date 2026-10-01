@@ -18,6 +18,30 @@
  * rather than copied from the docs: the lookup is by string, so a misremembered
  * code would quietly fall through to the generic message with nothing failing.
  */
+/* Shown on the button and under the total. The card is only held at checkout
+   and charged when a provider approves, and some bank statements do not
+   distinguish the two, so a patient can see a pending line and think they have
+   already been billed. Saying it plainly up front is cheaper than answering it
+   in support, and it is a good reason to go through with the visit. */
+export const HOLD_NOTICE =
+  "Your card is held, not charged. We only take payment once a licensed provider approves your treatment.";
+
+/* The long version, behind the question mark on the total.
+ *
+ * Our own wording, not Ready RX's. Theirs describes a renewal schedule we do
+ * not run, and their copy is their own counsel's to stand behind. Each line
+ * here is something this code actually does: the hold at checkout, the capture
+ * on approval, the release on a decline, and the 7 day limit Stripe puts on an
+ * authorisation. */
+export const PAYMENT_DUE = {
+  title: "When is payment due?",
+  paragraphs: [
+    "You only pay if you are prescribed. We place an authorization hold on your card now, and no charge goes through until a licensed provider approves your treatment.",
+    "If the provider decides this treatment is not right for you, the hold is released and you are not charged anything.",
+    "A hold lasts up to 7 days. If your visit has not been reviewed by then, your bank releases the funds on its own and we will ask you to pay again before anything ships.",
+  ],
+};
+
 export const GENERIC_DECLINE =
   "Your card was declined. Try another card, or call your bank to approve the payment.";
 

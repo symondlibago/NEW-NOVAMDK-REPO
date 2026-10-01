@@ -23,7 +23,7 @@ import {
   parseReference,
   addToMonth,
 } from "./_kurv.js";
-import { stripe, stripeEnabled, stripeMode, toCents } from "./_stripe.js";
+import { stripe, stripeEnabled, stripeMode, toCents, holdExpiresAt } from "./_stripe.js";
 
 /* Charges a card through the NMI gateway (PayTechTrust is an NMI white-label),
  * and on GET, quotes what that charge will be.
@@ -149,7 +149,7 @@ async function markFailed(contactId, opportunityId) {
  * taken, no card moved, no conversion counted, and nothing in the CRM to show
  * a paying patient was waiting. The server already knows the charge cleared, so
  * the server owns the write. */
-async function markPaid(opportunityId, transactionId) {
+async function markPaid(opportunityId, transactionId, { won = true } = {}) {
   if (!ghlConfigured()) return;
   if (!opportunityId) {
     console.error(
@@ -159,7 +159,7 @@ async function markPaid(opportunityId, transactionId) {
     return;
   }
   try {
-    await markOpportunityPaid(opportunityId);
+    await markOpportunityPaid(opportunityId, { won });
   } catch (e) {
     console.error(`GHL Paid move failed for opportunity ${opportunityId}:`, e.message, e.details ?? "");
   }
@@ -284,6 +284,21 @@ async function stripeIntent(req, res) {
       currency: "usd",
       description: DESCRIPTION,
       receipt_email: receiptEmail || undefined,
+      /* Hold now, take the money when a provider approves (client decision,
+       * 2026-10-02). Nothing is charged at checkout: the issuer reserves the
+       * amount and we capture it from the case_approved webhook.
+       *
+       * Two things this buys. A declined visit costs the patient nothing, so
+       * there is no refund to process and no card fee to eat, and a card with
+       * no funds is refused here at the hold rather than after a provider has
+       * spent time on the case. Verified against Stripe: insufficient_funds,
+       * expired_card and generic declines all fail at authorisation.
+       *
+       * The cost is a deadline. An online card hold is valid 7 days, after
+       * which the funds are released and the intent is canceled, so review has
+       * to happen inside that. Stripe reports the exact moment on the charge as
+       * payment_method_details.card.capture_before. */
+      capture_method: "manual",
       /* Card only, deliberately, rather than automatic_payment_methods.
        *
        * Letting Stripe offer everything it could put Bank (ACH), Cash App Pay
@@ -354,7 +369,12 @@ async function stripeSettle(req, res) {
 
   /* Read the payment back from Stripe rather than believing the browser: a
      client that says "paid" is not evidence of a payment. */
-  const found = await stripe(`/payment_intents/${encodeURIComponent(id)}`, { method: "GET" });
+  /* latest_charge expanded so holdExpiresAt can report the capture deadline:
+     on the current API version the intent carries only the charge's id. */
+  const found = await stripe(
+    `/payment_intents/${encodeURIComponent(id)}?expand[]=latest_charge`,
+    { method: "GET" }
+  );
   const intent = found.data;
   if (!found.ok || !intent?.id) {
     console.error("Stripe intent unreadable:", found.status, intent?.error?.message || "");
@@ -365,22 +385,56 @@ async function stripeSettle(req, res) {
   const contactId = clean(meta.contact_id, 60);
   const orderId = clean(meta.opportunity_id, 60);
 
-  if (intent.status !== "succeeded") {
+  /* `requires_capture` is a SUCCESS here, not a decline.
+   *
+   * Since the switch to holding the card, a confirmed payment lands on
+   * requires_capture rather than succeeded: the issuer has reserved the money
+   * and we take it when a provider approves. This check used to be
+   * `!== "succeeded"`, which would have read every single successful hold as a
+   * declined card, tagged the patient, moved their card to Payment Failed and
+   * told them to try another card while their money sat reserved. The one line
+   * that absolutely had to change with the flow.
+   *
+   * succeeded is still accepted, both for the orders captured before this
+   * changed and for the moment the capture itself lands. */
+  const authorized = intent.status === "requires_capture";
+  if (intent.status !== "succeeded" && !authorized) {
     console.warn(`Stripe payment ${intent.id} is ${intent.status}, not settling`);
     await markFailed(contactId, orderId);
     return res.status(200).json({ ok: false, declined: true, error: "declined", message: "" });
   }
 
+  if (authorized) {
+    const dies = holdExpiresAt(intent);
+    console.info(
+      `Stripe hold ${intent.id} placed: $${(intent.amount / 100).toFixed(2)}` +
+        (dies ? `, capture by ${dies.toISOString()}` : "")
+    );
+  }
+
   await Promise.allSettled([
     syncTag(contactId, { failed: false }),
-    markPaid(orderId, intent.id).then(() =>
+    /* Authorised, not paid: the card moves to Paid so staff see it, but the
+       status stays open until the capture clears. */
+    markPaid(orderId, intent.id, { won: !authorized }).then(() =>
       req.body?.submitted === true
         ? markComplete(contactId, orderId, clean(req.body?.treatment, 120))
         : null
     ),
   ]);
-  console.info(`Stripe payment ${intent.id} settled: $${(intent.amount / 100).toFixed(2)}`);
-  return res.status(200).json({ ok: true, transactionId: intent.id, amount: intent.amount / 100 });
+  console.info(
+    `Stripe payment ${intent.id} ${authorized ? "authorised" : "settled"}: ` +
+      `$${(intent.amount / 100).toFixed(2)}`
+  );
+  /* `ok` either way: the patient's part is done. They do not need to know
+     whether the money has moved or is merely reserved, only that the card was
+     accepted and their visit is on its way to a provider. */
+  return res.status(200).json({
+    ok: true,
+    transactionId: intent.id,
+    amount: intent.amount / 100,
+    held: authorized,
+  });
 }
 
 async function kurvStart(req, res) {

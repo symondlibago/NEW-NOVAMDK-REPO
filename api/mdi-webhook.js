@@ -11,10 +11,69 @@ import {
   fieldValueOf,
   contactById,
   opportunityForEncounter,
+  markOpportunityWon,
+  markOpportunityFailed,
   SEARCH_FIELD_ID,
   FIELD,
 } from "./_ghl.js";
 import { mdi } from "./_mdi.js";
+import { stripe, stripeEnabled, findHold, holdExpiresAt } from "./_stripe.js";
+
+const FAILED_TAG = "payment-failed";
+
+/* Takes the money the patient reserved at checkout, now that a provider has
+ * approved the case.
+ *
+ * This is the other half of the 2026-10-02 flow change: the card is only held
+ * at checkout, so this is the moment it is actually charged. It runs from
+ * `case_approved`, which MDI already sends and which is already signature
+ * checked above, so no new webhook and no new endpoint.
+ *
+ * Never throws. The board write that brought us here has already happened and
+ * must not be undone by a payment problem.
+ */
+async function captureHold(opportunityId, contactId) {
+  if (!stripeEnabled() || !opportunityId) return;
+
+  const hold = await findHold(opportunityId);
+  if (!hold) {
+    /* The ordinary case for most approvals, not a fault: findHold only returns
+       intents still awaiting capture, so anything already captured, paid
+       through Kurv or NMI, started inside MDI rather than on the website, or
+       taken before this flow existed lands here. */
+    console.info(`MDI case_approved: no hold awaiting capture on opportunity ${opportunityId}`);
+    return;
+  }
+
+  const cap = await stripe(`/payment_intents/${hold.id}/capture`, { method: "POST" });
+  if (cap.ok && cap.data?.status === "succeeded") {
+    console.info(
+      `Stripe hold ${hold.id} captured on approval: ` +
+        `$${((cap.data.amount_received || 0) / 100).toFixed(2)} (opportunity ${opportunityId})`
+    );
+    /* Status only. The card is sitting in Approved by now and dragging it back
+       to Paid would undo the column the provider's decision just earned. */
+    await markOpportunityWon(opportunityId);
+    return;
+  }
+
+  /* The hold did not survive to the approval. Either it ran past its 7 days, or
+     the cardholder had their bank release it. Nothing was taken and nothing can
+     be: a released authorisation cannot be captured afterwards, which Stripe
+     confirms with exactly this error. The patient has to pay again, so this
+     goes where any other payment failure goes and GHL can chase them from
+     there. */
+  const dies = holdExpiresAt(hold);
+  console.error(
+    `Stripe capture FAILED for ${hold.id} (opportunity ${opportunityId}): ` +
+      `${cap.data?.error?.message || `HTTP ${cap.status}`}` +
+      (dies ? ` [hold was due to expire ${dies.toISOString()}]` : "")
+  );
+  await Promise.allSettled([
+    contactId ? tagContact(contactId, [FAILED_TAG]) : null,
+    markOpportunityFailed(opportunityId),
+  ]);
+}
 
 /* Receives MDI's webhooks and mirrors the nonclinical status into GHL.
 
@@ -479,7 +538,11 @@ export default async function handler(req, res) {
             }
             id = match.id;
           }
-          return lost ? markOpportunityLost(id) : moveOpportunityForward(id, stage);
+          const moved = lost ? await markOpportunityLost(id) : await moveOpportunityForward(id, stage);
+          /* After the move, not before: if the capture fails it sends the card
+             to Payment Failed, and that has to be the write that lands last. */
+          if (event === "case_approved") await captureHold(id, contact.id);
+          return moved;
         })()
       );
     }

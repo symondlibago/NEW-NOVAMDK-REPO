@@ -4,6 +4,7 @@ import {
   tagContact,
   untagContact,
   markOpportunityPaid,
+  markOpportunityWon,
   markOpportunityFailed,
 } from "./_ghl.js";
 
@@ -49,25 +50,80 @@ const clean = (v, max) => {
 /* The same CRM work the browser's settle call does. Split out so the two paths
    cannot drift apart. Never throws: Stripe retries a non-2xx for days, and a
    GHL hiccup is not a reason to be sent the same event again. */
-async function recordPaid(intent) {
+/* The same CRM work the browser's settle call does, for an AUTHORISATION.
+ *
+ * Fires on amount_capturable_updated, which is Stripe saying the hold is in
+ * place. The card moves to Paid so staff can see it, and the status stays open
+ * because no money has moved yet. */
+async function recordHeld(intent) {
   if (!ghlConfigured()) return;
   const meta = intent.metadata || {};
   const contactId = clean(meta.contact_id, 60);
   const orderId = clean(meta.opportunity_id, 60);
 
-  /* Exactly what the browser's settle path does and no more: clear the failed
-     tag and move the card to Paid. Deliberately not touching the intake stage,
-     which is the questionnaire's business and is written by ghl-encounter. */
   const jobs = [];
   if (contactId) jobs.push(untagContact(contactId, [FAILED_TAG]));
   if (orderId) {
-    jobs.push(markOpportunityPaid(orderId));
+    jobs.push(markOpportunityPaid(orderId, { won: false }));
+  } else {
+    console.error(
+      `Stripe ${intent.id} carried no opportunity id, so the card was not moved. ` +
+        `The patient's card is on hold — this one needs moving by hand.`
+    );
+  }
+  await Promise.allSettled(jobs);
+}
+
+/* Money actually received.
+ *
+ * Under the hold-then-capture flow this now fires at CAPTURE, when the provider
+ * has approved, rather than at checkout. So it is the first and only moment the
+ * practice has really been paid, which is why it is what sets "won" and what
+ * revenue reporting counts. The card is left where it is: by now it has moved
+ * on to Approved and dragging it back to Paid would undo that.
+ *
+ * Still clears the failed tag and still moves the card, because the processors
+ * that charge outright (Kurv, NMI) and any payment taken before this change
+ * reach succeeded without ever having been held. */
+async function recordPaid(intent) {
+  if (!ghlConfigured()) return;
+  const meta = intent.metadata || {};
+  const contactId = clean(meta.contact_id, 60);
+  const orderId = clean(meta.opportunity_id, 60);
+  /* A captured hold has been through recordHeld already, so its card is in the
+     right place and only the status is outstanding. */
+  const wasHeld = intent.capture_method === "manual";
+
+  const jobs = [];
+  if (contactId) jobs.push(untagContact(contactId, [FAILED_TAG]));
+  if (orderId) {
+    jobs.push(wasHeld ? markOpportunityWon(orderId) : markOpportunityPaid(orderId));
   } else {
     console.error(
       `Stripe ${intent.id} carried no opportunity id, so the Paid move was skipped. ` +
         `The charge went through — this card needs moving by hand.`
     );
   }
+  await Promise.allSettled(jobs);
+}
+
+/* A hold that was released without ever being captured: it ran past its 7 days,
+   or someone cancelled it. Nothing was taken and nothing can be now, so the
+   patient has to pay again and this belongs with the other payment failures.
+   Guarded on amount_received, because a cancel after a successful capture is
+   not a lost payment. */
+async function recordHoldLost(intent) {
+  if (!ghlConfigured()) return;
+  if ((intent.amount_received || 0) > 0) {
+    console.info(`Stripe webhook: ${intent.id} canceled after capture, nothing to do`);
+    return;
+  }
+  const meta = intent.metadata || {};
+  const contactId = clean(meta.contact_id, 60);
+  const orderId = clean(meta.opportunity_id, 60);
+  const jobs = [];
+  if (contactId) jobs.push(tagContact(contactId, [FAILED_TAG]));
+  if (orderId) jobs.push(markOpportunityFailed(orderId));
   await Promise.allSettled(jobs);
 }
 
@@ -121,9 +177,23 @@ export default async function handler(req, res) {
   const intent = event.data?.object || {};
   try {
     switch (event.type) {
+      case "payment_intent.amount_capturable_updated":
+        console.info(
+          `Stripe webhook: ${intent.id} held, ` +
+            `$${((intent.amount_capturable || 0) / 100).toFixed(2)} reserved awaiting approval`
+        );
+        await recordHeld(intent);
+        break;
       case "payment_intent.succeeded":
         console.info(`Stripe webhook: ${intent.id} succeeded, $${((intent.amount || 0) / 100).toFixed(2)}`);
         await recordPaid(intent);
+        break;
+      case "payment_intent.canceled":
+        console.warn(
+          `Stripe webhook: ${intent.id} canceled, ` +
+            `$${((intent.amount_received || 0) / 100).toFixed(2)} received`
+        );
+        await recordHoldLost(intent);
         break;
       case "payment_intent.payment_failed":
         console.warn(

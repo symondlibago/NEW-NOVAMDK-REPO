@@ -68,6 +68,76 @@ export async function stripe(path, { method = "POST", body, idempotencyKey } = {
   return { ok: res.ok, status: res.status, data };
 }
 
+/* How far back to look for an uncaptured hold. A card authorisation is good
+   for 7 days and then dies, so a day either side of that is the whole window in
+   which one can possibly exist. */
+const HOLD_WINDOW_DAYS = 8;
+const HOLD_PAGES = 5;
+
+/**
+ * The uncaptured hold placed for a given GoHighLevel opportunity, or null.
+ *
+ * Deliberately /payment_intents (list) rather than /payment_intents/search.
+ * Search is eventually consistent and, measured on 2026-10-02, did NOT return
+ * an intent created seconds earlier. Providers here have approved a case four
+ * minutes after intake, so a search-based lookup would have quietly captured
+ * nothing on exactly the fastest, most normal cases. List is immediate: it
+ * found the same hold in about two seconds.
+ *
+ * @returns {Promise<object|null>} the PaymentIntent awaiting capture
+ */
+export async function findHold(opportunityId) {
+  const id = typeof opportunityId === "string" ? opportunityId.trim() : "";
+  if (!id) return null;
+  const since = Math.floor(Date.now() / 1000) - HOLD_WINDOW_DAYS * 86400;
+  let after = null;
+  for (let page = 0; page < HOLD_PAGES; page++) {
+    /* latest_charge expanded, so a capture failure can log the deadline the
+       hold was up against. That is the line that explains the failure. */
+    const qs =
+      `limit=100&created[gte]=${since}&expand[]=data.latest_charge` +
+      (after ? `&starting_after=${after}` : "");
+    const r = await stripe(`/payment_intents?${qs}`, { method: "GET" });
+    if (!r.ok) {
+      console.error(`Stripe hold lookup failed for ${id}: ${r.status}`);
+      return null;
+    }
+    const list = r.data?.data || [];
+    const hit = list.find(
+      (p) => p.status === "requires_capture" && p.metadata?.opportunity_id === id
+    );
+    if (hit) return hit;
+    if (!r.data?.has_more || list.length === 0) return null;
+    after = list[list.length - 1].id;
+  }
+  /* Only reachable at a volume this practice is nowhere near, but silence here
+     would be money quietly never collected. */
+  console.error(
+    `Stripe hold lookup gave up after ${HOLD_PAGES} pages for opportunity ${id}. ` +
+      `Raise HOLD_PAGES: a hold may exist and will expire uncaptured.`
+  );
+  return null;
+}
+
+/**
+ * When a hold expires, as a Date, or null if Stripe didn't say.
+ *
+ * The deadline lives on the CHARGE, not the intent, and current API versions
+ * return `latest_charge` as a bare id rather than the old expanded `charges`
+ * array. So this only has an answer where the caller asked for the charge to be
+ * expanded, which is why every read that wants the deadline passes
+ * `expand[]=latest_charge`. Both shapes are handled: the legacy array still
+ * turns up on older stored objects.
+ */
+export function holdExpiresAt(intent) {
+  const charge =
+    (intent?.latest_charge && typeof intent.latest_charge === "object" ? intent.latest_charge : null) ||
+    intent?.charges?.data?.[0] ||
+    null;
+  const at = charge?.payment_method_details?.card?.capture_before;
+  return typeof at === "number" ? new Date(at * 1000) : null;
+}
+
 /**
  * Checks a webhook really came from Stripe.
  *
