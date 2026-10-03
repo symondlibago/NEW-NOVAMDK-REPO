@@ -574,15 +574,26 @@ export default async function handler(req, res) {
         return res.status(502).json({ error: 'Could not start your next check-in' });
       }
 
+      /* method and body, not a bare payload.
+       *
+       * mdi-auth.js has its own local helper whose second argument IS the
+       * body, and copying that shape onto the shared one in _mdi.js is what
+       * broke this first time round: the payload was read as fetch options, no
+       * method was set, so it ran GET /vouchers, came back 200 with a list of
+       * vouchers and no id, and the patient saw "Could not start your next
+       * check-in". */
       const made = await mdi('/vouchers', {
-        hold_status: true,
-        patient_id: patientId,
-        questionnaire_id: fill.questionnaireId,
-        /* Left empty deliberately. MDI drops case_offerings on a voucher
-           anyway, and the dose is picked inside the questionnaire, which is
-           the whole point of the patient answering it again. */
-        case_offerings: [],
-        disease: [],
+        method: 'POST',
+        body: {
+          hold_status: true,
+          patient_id: patientId,
+          questionnaire_id: fill.questionnaireId,
+          /* Left empty deliberately. MDI drops case_offerings on a voucher
+             anyway, and the dose is picked inside the questionnaire, which is
+             the whole point of the patient answering it again. */
+          case_offerings: [],
+          disease: [],
+        },
       });
       if (!made.ok) {
         console.error('next_fill voucher failed:', made.status);
