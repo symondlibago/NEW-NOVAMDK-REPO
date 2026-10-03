@@ -611,10 +611,7 @@ export default async function handler(req, res) {
        *
        * A first visit gets its contact and its opportunity from the product
        * page, and /intake only ever reads those two ids back out of session
-       * storage. A later month of a plan starts in the portal and never touches
-       * the product page, so without this the whole month happens with no card
-       * at all: no row on the board, no stage moves, and the prepaid step with
-       * nothing to mark Paid. That is exactly what happened on the first live
+       * storage.  That is exactly what happened on the first live
        * run of month 2, 2026-10-03.
        *
        * value 0 deliberately. The money for all three months was taken on month
