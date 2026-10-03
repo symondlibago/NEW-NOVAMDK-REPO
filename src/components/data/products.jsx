@@ -181,6 +181,10 @@ export const productsData = [
     categorySlug: "weight-loss",
     categoryName: "Weight Loss",
     name: "Semaglutide/Cyanocobalamin (B12) — Starter",
+    /* The tag on the card art, same field the For women / For men tags use:
+       it is the card's label, whatever the label happens to say. These two are
+       the only products sold as a 1, 2 or 3 month plan. */
+    audience: "Subscription",
     size: "1 mL vial (2 mg)",
     qrImg: "/qr/Semaglutide.png",
     subtitle: "Semaglutide is a GLP-1 receptor agonist that acts on pathways involved in appetite and food intake. This compounded formulation also contains cyanocobalamin, a form of vitamin B12. If prescribed, your healthcare provider will determine your dose and treatment schedule.",
@@ -342,6 +346,8 @@ export const productsData = [
     categorySlug: "weight-loss",
     categoryName: "Weight Loss",
     name: "Tirzepatide/Niacinamide — Starter",
+    // Card tag, as on product 1.
+    audience: "Subscription",
     size: "2.5 mL vial (20 mg)",
     qrImg: "/qr/Tirzepatide.png",
     subtitle: "Tirzepatide is a dual GIP and GLP-1 receptor agonist that acts on pathways involved in appetite and food intake. This compounded formulation contains niacinamide. If prescribed, your healthcare provider will determine your dose and treatment schedule.",
