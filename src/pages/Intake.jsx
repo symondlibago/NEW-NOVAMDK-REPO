@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useNavigate, Navigate, Link } from "react-router-dom";
 import { ArrowLeft, Loader2, Lock, CreditCard, CheckCircle2, ShieldCheck } from "lucide-react";
 import { productsData } from "../components/data/products";
@@ -6,6 +6,8 @@ import { treatmentLabel } from "../lib/ghl";
 import { readScanSource, sourceLabel } from "../lib/kioskLocations";
 import Seo from "../components/Seo";
 import StripeCheckout from "../components/checkout/StripeCheckout";
+import PlanTerms from "../components/checkout/PlanTerms";
+import PrepaidFill from "../components/checkout/PrepaidFill";
 
 const MDI_ORIGIN = "https://patient.novamdk.com";
 const PAYMENT_TRIGGER_EVENTS = ["finish"];
@@ -443,14 +445,23 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
   const [message, setMessage] = useState("");
   /* The order summary comes from the server, not the bundled catalogue, so the
      shipping line and total shown are exactly what /api/pay will charge. */
-  const [quote, setQuote] = useState(null);
+  const [priceList, setPriceList] = useState(null);
   const [quoteFailed, setQuoteFailed] = useState(false);
   const [imgBroken, setImgBroken] = useState(false);
+  /* How many months of treatment they are buying. One month unless they say
+     otherwise, which is what every order placed before plans existed was. */
+  const [months, setMonths] = useState(1);
+
+  /* A new product means the old term may not even be on offer, since the
+     expensive ones are deliberately single month only. */
+  useEffect(() => {
+    setMonths(1);
+  }, [pid]);
 
   useEffect(() => {
     // A quote for the previous plan must never be payable while the new one
     // loads, and with no plan chosen yet there is nothing to quote.
-    setQuote(null);
+    setPriceList(null);
     setQuoteFailed(false);
     if (!pid) {
       if (!choices.length) setQuoteFailed(true);
@@ -461,7 +472,7 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
       .then((r) => r.json())
       .then((q) => {
         if (!alive) return;
-        if (q?.ok) setQuote(q);
+        if (q?.ok) setPriceList(q);
         else setQuoteFailed(true);
       })
       .catch(() => alive && setQuoteFailed(true));
@@ -469,6 +480,20 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
       alive = false;
     };
   }, [pid, choices.length]);
+
+  /* The quote for the term they picked, taken from the `terms` list the one
+     fetch above already returned.
+   *
+   * Deliberately not a second request per term. Every term was priced by the
+   * server in that one answer, so switching between them needs no round trip
+   * and there is no moment where the panel has no total, which is what clearing
+   * the quote and refetching produced: the chooser vanished on its own click.
+   * Nothing is computed here, only chosen. */
+  const quote = useMemo(() => {
+    if (!priceList) return null;
+    const term = (priceList.terms || []).find((t) => t.months === months);
+    return term ? { ...priceList, ...term } : priceList;
+  }, [priceList, months]);
   /* Stripe is the primary processor, with Kurv and then PayTechTrust (the card
      form below) behind it. The quote says which should take this order;
      `kurvOff` overrides Kurv to the card form when it turns the order away at
@@ -481,8 +506,18 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
      names that this file doesn't recognise now falls to "nmi" explicitly. */
   const [kurvOff, setKurvOff] = useState(false);
   const named = quote?.processor;
+  /* "prepaid" is not a processor, it is the absence of one: a month of a plan
+     that has already been paid for. Named here all the same so that every
+     effect keyed on `processor` skips it, rather than Collect.js being loaded
+     and a Kurv link opened for a checkout with no money in it. */
   const processor =
-    named === "stripe" ? "stripe" : named === "kurv" && !kurvOff ? "kurv" : "nmi";
+    named === "prepaid"
+      ? "prepaid"
+      : named === "stripe"
+        ? "stripe"
+        : named === "kurv" && !kurvOff
+          ? "kurv"
+          : "nmi";
   // null until Kurv's page is opened: { url, ticket, checking }
   const [kurv, setKurv] = useState(null);
   const [kurvStarting, setKurvStarting] = useState(false);
@@ -620,6 +655,7 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
         body: JSON.stringify({
           payment_token: token,
           pid,
+          months,
           contact_id: stored("ghl_contact"),
           opportunity_id: stored("ghl_opportunity"),
           billing: { first_name: firstName.trim(), last_name: lastName.trim(), zip: zip.trim() },
@@ -658,15 +694,21 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
      One link per plan, reused if they go Back and continue again, so Kurv
      isn't left with a trail of duplicates. `submitted` can't change while this
      popup is up (it covers MDI's Submit button), so capturing it early is safe. */
-  const kurvRequest = useRef(null); // { pid, promise }
+  /* Keyed on the term as well as the product: a Kurv link is opened for a
+     fixed amount, so reusing one after the patient changed their plan would
+     send them off to pay last term's price. */
+  const kurvRequest = useRef(null); // { pid, months, promise }
   const requestKurv = () => {
-    if (kurvRequest.current?.pid === pid) return kurvRequest.current.promise;
+    if (kurvRequest.current?.pid === pid && kurvRequest.current?.months === months) {
+      return kurvRequest.current.promise;
+    }
     const promise = fetch("/api/pay", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "kurv_start",
         pid,
+        months,
         contact_id: stored("ghl_contact"),
         opportunity_id: stored("ghl_opportunity"),
         submitted,
@@ -678,7 +720,7 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
         console.error("Kurv start failed:", e.message);
         return null;
       });
-    kurvRequest.current = { pid, promise };
+    kurvRequest.current = { pid, months, promise };
     return promise;
   };
 
@@ -830,6 +872,26 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
               </p>
             )}
           </div>
+        ) : processor === "prepaid" ? (
+          /* A month of a plan that has already been paid for. No card, no
+             processor, no total: the only thing left is to record the month
+             against the plan, which the server does after checking the
+             entitlement from the portal session again. Ahead of the processor
+             branches because none of them applies. */
+          <div
+            data-lenis-prevent
+            className="nv-scroll-brand flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-surface-2/30"
+          >
+            <PrepaidFill
+              product={product}
+              productName={productName}
+              pid={pid}
+              quote={quote}
+              treatment={treatment}
+              submitted={submitted}
+              onPaid={onPaid}
+            />
+          </div>
         ) : processor === "stripe" ? (
           /* One screen, and it owns the whole panel: the summary, the card
              field and the button are all in here, so there is nothing above
@@ -889,6 +951,8 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
                 productName={productName}
                 pid={pid}
                 quote={quote}
+                months={months}
+                onMonths={setMonths}
                 treatment={treatment}
                 submitted={submitted}
                 onPaid={onPaid}
@@ -1039,7 +1103,11 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
                     <span className="h-2 w-2 rounded-full bg-primary" />
                   </span>
                   <div>
-                    <p className="text-[0.95rem] font-semibold">1 month plan</p>
+                    <p className="text-[0.95rem] font-semibold">
+                      {(Number(quote?.months) || 1) === 1
+                        ? "1 month plan"
+                        : `${quote.months} month plan`}
+                    </p>
                     {quote?.shipping > 0 && (
                       <span className="mt-1 inline-block rounded-md bg-bg px-2 py-0.5 text-[0.72rem] text-muted">
                         {usd(quote.shipping)} telehealth consultation fee
@@ -1050,6 +1118,16 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
                 <span className="text-[1.05rem] font-bold">{quote ? usd(quote.amount) : "…"}</span>
               </div>
               )}
+
+              {/* The PayTechTrust form is the last fallback, but a patient who
+                  lands on it should still be offered the plan rather than
+                  quietly sold a single month. */}
+              <PlanTerms
+                terms={quote?.terms}
+                months={months}
+                onChange={setMonths}
+                disabled={status !== "ready"}
+              />
 
               <p className={`${sectionLabel} mt-7`}>Order summary</p>
               {quoteFailed ? (

@@ -25,16 +25,45 @@ for (const p of extractProducts({ includeHidden: true })) {
     continue;
   }
   // Rounded to cents here so the endpoint never has to think about floats.
-  priced.push([p.id, Math.round(amount * 100) / 100, p.name]);
+  priced.push({
+    id: p.id,
+    amount: Math.round(amount * 100) / 100,
+    name: p.name,
+    questionnaireId: p.questionnaireId || "",
+    nextRung: p.nextRung || null,
+  });
 }
 
 if (!priced.length) {
   throw new Error("generate-prices: no priced products found in products.jsx — is the parser out of sync?");
 }
 
+const byId = new Map(priced.map((p) => [p.id, p]));
+for (const p of priced) {
+  /* A rung pointing at a product that isn't priced would send a prepaid month
+     to a questionnaire nothing can charge for, so it fails the build rather
+     than shipping. */
+  if (p.nextRung && !byId.has(p.nextRung)) {
+    throw new Error(
+      `generate-prices: product ${p.id} has nextRung ${p.nextRung}, which is not a priced product`
+    );
+  }
+  if (p.nextRung && !byId.get(p.nextRung).questionnaireId) {
+    throw new Error(
+      `generate-prices: product ${p.id} points at rung ${p.nextRung}, which has no questionnaireId`
+    );
+  }
+}
+
 const body = priced
-  .sort((a, b) => a[0] - b[0])
-  .map(([id, amount, name]) => `  ${id}: { amount: ${amount.toFixed(2)}, name: ${JSON.stringify(name)} },`)
+  .sort((a, b) => a.id - b.id)
+  .map(
+    (p) =>
+      `  ${p.id}: { amount: ${p.amount.toFixed(2)}, name: ${JSON.stringify(p.name)}` +
+      `, questionnaireId: ${JSON.stringify(p.questionnaireId)}` +
+      (p.nextRung ? `, nextRung: ${p.nextRung}` : "") +
+      ` },`
+  )
   .join("\n");
 
 writeFileSync(
@@ -43,7 +72,13 @@ writeFileSync(
  *
  * Regenerated on every build from src/components/data/products.jsx, so a price
  * change in the catalogue can't drift from what the card is actually charged.
- * Keyed by product id, which is what /intake carries in its ?pid= param. */
+ * Keyed by product id, which is what /intake carries in its ?pid= param.
+ *
+ * questionnaireId and nextRung ride along because a multi-month plan has to
+ * decide on the SERVER which questionnaire a prepaid month opens: a prepaid
+ * fill costs nothing, so a browser allowed to name the product could turn a
+ * cheap plan into free months of an expensive one. A product with no nextRung
+ * repeats itself. */
 export const PRICES = {
 ${body}
 };

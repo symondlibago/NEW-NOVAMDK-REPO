@@ -13,6 +13,7 @@ import {
   opportunityForEncounter,
   markOpportunityWon,
   markOpportunityFailed,
+  recordFillShipped,
   SEARCH_FIELD_ID,
   FIELD,
 } from "./_ghl.js";
@@ -76,7 +77,9 @@ async function releaseHold(opportunityId, contactId) {
        second of those is money the practice has taken for a visit that is now
        cancelled, which somebody has to decide about, so say so plainly. */
     console.warn(
-      `MDI case cancelled on opportunity ${opportunityId}: no hold to release. ` +
+      `MDI case cancelled on opportunity ${opportunityId}` +
+        (contactId ? ` (contact ${contactId})` : "") +
+        `: no hold to release. ` +
         `If this visit was already captured, that payment needs a refund decision by hand.`
     );
     return;
@@ -619,6 +622,20 @@ export default async function handler(req, res) {
             await releaseHold(id, contact.id);
           } else if (CAPTURE_ON.has(event)) {
             await captureHold(id, contact.id);
+          }
+          /* A fill has left the pharmacy, so a multi-month plan moves on.
+           *
+           * After the move, not before: recordFillShipped counts the cards
+           * sitting at or past Shipped, and this one has to be there to be
+           * counted. Shipped only, never Delivered: the next intake is due 21
+           * days from the day it shipped, and recomputing it when the parcel
+           * arrives would push the reminder later than the supply allows.
+           *
+           * The ship date is taken as now. MDI sends this as the carrier
+           * collects, and a repeat event hours later moves the due date by
+           * hours against 21 days of runway. */
+          if (!lost && stage === "Shipped") {
+            await recordFillShipped(contact.id);
           }
           return moved;
         })()

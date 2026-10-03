@@ -6,6 +6,7 @@ import {
   markOpportunityPaid,
   markOpportunityWon,
   markOpportunityFailed,
+  recordPlan,
 } from "./_ghl.js";
 
 /* Stripe's own account of what happened to a payment.
@@ -61,8 +62,14 @@ async function recordHeld(intent) {
   const contactId = clean(meta.contact_id, 60);
   const orderId = clean(meta.opportunity_id, 60);
 
+  /* Same write the browser's settle call makes, for the tab that closed before
+     the confirmation came back. recordPlan resets fills_used, which is safe
+     here and only here: a hold is placed before anything has shipped. */
+  const planMonths = Number(meta.plan_months) || 1;
+
   const jobs = [];
   if (contactId) jobs.push(untagContact(contactId, [FAILED_TAG]));
+  if (contactId && planMonths > 1) jobs.push(recordPlan(contactId, planMonths));
   if (orderId) {
     jobs.push(markOpportunityPaid(orderId, { won: false }));
   } else {
@@ -96,6 +103,12 @@ async function recordPaid(intent) {
 
   const jobs = [];
   if (contactId) jobs.push(untagContact(contactId, [FAILED_TAG]));
+  /* Only for a payment that was never held. A captured hold already recorded
+     its plan at authorisation, and recordPlan zeroes fills_used, so repeating
+     it here would wipe the count if a capture ever landed after a fill. */
+  if (contactId && !wasHeld && Number(meta.plan_months) > 1) {
+    jobs.push(recordPlan(contactId, Number(meta.plan_months)));
+  }
   if (orderId) {
     jobs.push(wasHeld ? markOpportunityWon(orderId) : markOpportunityPaid(orderId));
   } else {

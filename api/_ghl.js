@@ -1,3 +1,5 @@
+import { nextIntakeDue } from "./_plans.js";
+
 const BASE = process.env.GHL_API_BASE || "https://services.leadconnectorhq.com";
 const TOKEN = process.env.GHL_API_TOKEN;
 const LOCATION_ID = process.env.GHL_LOCATION_ID;
@@ -20,6 +22,16 @@ export const FIELD = {
   EMAIL_MARKETING_CONSENT_VERSION: "email_marketing_consent_version",
   // MDI's permanent id for the person. One per patient, never changes, so the
   // Contact is the only place it belongs.
+  /* ---- multi-month plans. On the CONTACT rather than the opportunity: a plan
+     spans several visits by design, since each month is its own intake, so
+     there is no one card it belongs to ---- */
+  // How many 28-day fills this patient paid for, 1 to 3.
+  PLAN_MONTHS: "plan_months",
+  // How many of them the pharmacy has actually shipped.
+  FILLS_USED: "fills_used",
+  // When the next intake is due, as a real date so a GHL workflow can trigger
+  // off it. Cleared once the last fill ships, which is what ends the plan.
+  NEXT_INTAKE_DUE: "next_intake_due",
   MDI_PATIENT_ID: "mdi_patient_id",
   // The newest encounter, mirrored onto the Contact so a list can show it
   // without opening the opportunity. The per-visit copy lives below.
@@ -94,6 +106,24 @@ export const clinicStamp = (d = new Date()) =>
     minute: "2-digit",
     timeZoneName: "short",
   }).format(d);
+
+/* A plain calendar day, "2026-10-30", for GHL's DATE fields.
+ *
+ * Distinct from the two stamps either side of it because those land in TEXT
+ * fields and are written to be read. This one is written to be compared: GHL
+ * can only trigger a workflow off a real date field, and a date field rejects
+ * "Oct 30, 2026 10:32 PDT". Built in the clinic's timezone so a due date set
+ * late in a California evening isn't filed under tomorrow. */
+export const dueDate = (d = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: CLINIC_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const at = (type) => parts.find((p) => p.type === type)?.value || "";
+  return `${at("year")}-${at("month")}-${at("day")}`;
+};
 
 /* Sortable rather than friendly: "2026-09-11 10:32 PDT". A consent record gets
  * read in date order far more often than it gets read aloud, and this is the
@@ -533,6 +563,23 @@ export const SEARCH_FIELD_ID = {
      recent visit. */
   OPPORTUNITY_ENCOUNTER_ID:
     process.env.GHL_OPPORTUNITY_ENCOUNTER_FIELD_ID || "zITnI6V21UiTywG4QHD5",
+  /* The plan term, which has to be read back before a fill can be counted
+     against it. Same hand-copied arrangement as the four above and for the same
+     reason: the token is refused the customFields scope outright, so nothing
+     here can be looked up by name at runtime.
+
+     These three were read back on 2026-10-02 by writing a sentinel into each
+     field on a test contact and matching the values to the ids GHL returned
+     beside them, which is the only way round the missing scope. A blank id
+     means the term cannot be read, and recordFillShipped then declines to
+     guess rather than filing a 3 month patient as finished. */
+  PLAN_MONTHS: process.env.GHL_PLAN_MONTHS_FIELD_ID || "Ldzio5RqRLHw5Q3vP7zR",
+  /* Read by the portal so a patient can see where they are in their plan.
+     fills_used is a cached figure: recordFillShipped derives the truth from the
+     board and writes it here, so anything reading it gets the answer without a
+     board scan of its own. */
+  FILLS_USED: process.env.GHL_FILLS_USED_FIELD_ID || "CWzubH2eusLsWortaEUA",
+  NEXT_INTAKE_DUE: process.env.GHL_NEXT_INTAKE_DUE_FIELD_ID || "rhcTwkbFHvcGJiUbiw12",
 };
 
 /** The value of one custom field on a record GHL returned, or "". */
@@ -615,6 +662,137 @@ export async function opportunitiesForContact(contactId) {
   return (data?.opportunities || []).sort(
     (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
   );
+}
+
+/* ---- multi-month plans ----
+ *
+ * Two writes, and they are deliberately asymmetric. Buying a plan sets the
+ * term; shipping a fill COUNTS what has shipped rather than adding one to a
+ * counter. See recordFillShipped for why that matters. */
+
+/** The term a payment bought, recorded on the contact. Never throws. */
+export async function recordPlan(contactId, months) {
+  const term = Number(months);
+  if (!contactId || !Number.isInteger(term) || term < 1) return null;
+  try {
+    /* fills_used is reset here, not left alone. A patient buying a second plan
+       has the first one's count sitting on their contact, and without the reset
+       their new 3 months would read as already spent. */
+    await updateContactFields(contactId, {
+      [FIELD.PLAN_MONTHS]: term,
+      [FIELD.FILLS_USED]: 0,
+    });
+    console.info(`GHL contact ${contactId}: plan of ${term} month(s) recorded`);
+    return term;
+  } catch (e) {
+    console.error(`GHL plan write failed for ${contactId}:`, e.message);
+    return null;
+  }
+}
+
+const SHIPPED_STAGE_NAME = process.env.GHL_SHIPPED_STAGE_NAME || "Shipped";
+
+/* A fill has shipped, so the plan's counters move on.
+ *
+ * fills_used is COUNTED from the board, not incremented. MDI repeats its
+ * webhook events, so `order_status_changed: shipped` arriving twice for one
+ * order would add two to a counter and tell a 3 month patient they had used
+ * two thirds of a plan after a single delivery. Counting the cards that have
+ * actually reached Shipped cannot drift however many times the event lands,
+ * and it also self-corrects if someone moves a card by hand.
+ *
+ * next_intake_due is set only while a month is still owed. The last fill
+ * deliberately leaves it alone, which keeps the GoHighLevel side down to one
+ * trigger and one email: the date only ever arrives when there really is
+ * another intake to do, so the workflow needs no branch comparing fills_used to
+ * plan_months, which GHL cannot do between two fields anyway.
+ *
+ * The stale date left behind is harmless. By the time the last fill ships the
+ * previous month's date has passed, and a date reminder does not fire on a day
+ * that is already gone. Inviting a finished patient to renew is a separate
+ * email off a separate trigger, not something to squeeze through this field.
+ *
+ * Never throws: a shipped notification must not fail over a counter. */
+export async function recordFillShipped(contactId, { shippedAt = new Date() } = {}) {
+  if (!contactId) return null;
+  if (!SEARCH_FIELD_ID.PLAN_MONTHS) {
+    console.warn(
+      `GHL plan_months field id is not set, so the plan on contact ${contactId} ` +
+        `cannot be read. Set GHL_PLAN_MONTHS_FIELD_ID.`
+    );
+    return null;
+  }
+  try {
+    const contact = await contactById(contactId);
+    const planMonths = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_MONTHS)) || 0;
+    /* Not on a plan at all, which is every single-month order. Nothing to
+       count and no reminder to send: they were never promised another fill. */
+    if (planMonths < 2) return null;
+
+    const { stages } = await resolvePipeline();
+    const ordered = stages
+      .map((s, i) => ({ ...s, order: typeof s.position === "number" ? s.position : i }))
+      .sort((a, b) => a.order - b.order);
+    const shippedIndex = ordered.findIndex(
+      (s) => s.name?.toLowerCase() === SHIPPED_STAGE_NAME.toLowerCase()
+    );
+    if (shippedIndex === -1) {
+      console.error(`GHL pipeline has no "${SHIPPED_STAGE_NAME}" column, so fills cannot be counted`);
+      return null;
+    }
+
+    /* At or past Shipped. Delivered is past it, and a delivered fill is
+       obviously a used one, so the test is the position rather than the name. */
+    const cards = await opportunitiesForContact(contactId);
+    const positionOf = new Map(ordered.map((s, i) => [s.id, i]));
+    let used = cards.filter((c) => (positionOf.get(c.pipelineStageId) ?? -1) >= shippedIndex).length;
+    if (used === 0) used = 1; // the card driving this event, if the board lags
+
+    const remaining = Math.max(0, planMonths - used);
+    const due = remaining > 0 ? nextIntakeDue(shippedAt) : null;
+    await updateContactFields(contactId, {
+      [FIELD.FILLS_USED]: used,
+      ...(due && { [FIELD.NEXT_INTAKE_DUE]: dueDate(due) }),
+    });
+    console.info(
+      `GHL contact ${contactId}: fill ${used} of ${planMonths} shipped` +
+        (due ? `, next intake due ${dueDate(due)}` : ", plan complete, no reminder set")
+    );
+    return { used, planMonths, remaining };
+  } catch (e) {
+    console.error(`GHL fill count failed for ${contactId}:`, e.message);
+    return null;
+  }
+}
+
+/* Where a patient is in their plan, for showing them.
+ *
+ * Read from the cached fields rather than counted off the board: this answers a
+ * page load, and recordFillShipped has already done the counting. Returns null
+ * for anyone who never bought a plan, which is the ordinary case.
+ *
+ * Never throws: a portal page must still render if GHL is unreachable. */
+export async function planFor(contactId) {
+  if (!contactId || !SEARCH_FIELD_ID.PLAN_MONTHS) return null;
+  try {
+    const contact = await contactById(contactId);
+    const months = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_MONTHS)) || 0;
+    if (months < 2) return null;
+    const used = Number(fieldValueOf(contact, SEARCH_FIELD_ID.FILLS_USED)) || 0;
+    const due = fieldValueOf(contact, SEARCH_FIELD_ID.NEXT_INTAKE_DUE) || null;
+    return {
+      months,
+      used,
+      remaining: Math.max(0, months - used),
+      /* The month they are ON, which is the one they would recognise. One
+         before anything has shipped, not zero. */
+      current: Math.min(months, used + 1),
+      nextDue: due ? String(due).slice(0, 10) : null,
+    };
+  } catch (e) {
+    console.warn(`GHL plan read failed for ${contactId}:`, e.message);
+    return null;
+  }
 }
 
 /* Board columns the intake moves a visit through. Names rather than ids, like

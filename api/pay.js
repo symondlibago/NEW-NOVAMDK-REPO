@@ -9,6 +9,7 @@ import {
   updateContactFields,
   updateOpportunityFields,
   contactById,
+  recordPlan,
   INTAKE_STAGE,
   FIELD,
 } from "./_ghl.js";
@@ -24,6 +25,9 @@ import {
   addToMonth,
 } from "./_kurv.js";
 import { stripe, stripeEnabled, stripeMode, toCents, holdExpiresAt, findHold } from "./_stripe.js";
+import { PLAN_TERMS, DEFAULT_MONTHS, monthsFrom, termFor, priceTerm, planAllowed } from "./_plans.js";
+import { fillFor, isFollowOnRung, matchesFill } from "./_fills.js";
+import { readSession } from "./_session.js";
 
 /* Charges a card through the NMI gateway (PayTechTrust is an NMI white-label),
  * and on GET, quotes what that charge will be.
@@ -86,25 +90,69 @@ const TEST_PIDS = new Set(
 const TEST_AMOUNT = money(envAny("TEST_CHARGE_AMOUNT", "NMI_TEST_AMOUNT"));
 const TEST_SHIPPING = money(envAny("TEST_CHARGE_SHIPPING", "NMI_TEST_SHIPPING"));
 
-/* What the patient is shown. Real prices only, whatever test overrides exist. */
-function quoteFor(pid) {
+/* What the patient is shown. Real prices only, whatever test overrides exist.
+ *
+ * `months` is the plan term. The consultation fee is charged once per plan
+ * rather than once per month: the reintakes are part of what they bought. It is
+ * $0 at the time of writing, so this is a decision waiting to matter rather
+ * than one already affecting a total. */
+function quoteFor(pid, months = DEFAULT_MONTHS) {
   const item = PRICES[String(pid)];
   if (!item) return null;
-  return { amount: item.amount, shipping: SHIPPING_FEE, total: cents(item.amount + SHIPPING_FEE) };
+  /* A product too expensive to hold three months of can only be bought one
+     month at a time, whatever the request asked for. Enforced here rather than
+     only in the chooser, since the chooser is in the browser. */
+  const asked = planAllowed(item.amount) ? months : DEFAULT_MONTHS;
+  const term = termFor(asked) || termFor(DEFAULT_MONTHS);
+  const priced = priceTerm(item.amount, term);
+  return {
+    ...priced,
+    shipping: SHIPPING_FEE,
+    total: cents(priced.amount + SHIPPING_FEE),
+  };
 }
 
-/* What the card is actually charged. */
-function chargeFor(pid) {
-  const quote = quoteFor(pid);
+/* Every term priced, so the chooser renders from the server rather than doing
+   money arithmetic in the browser. The patient can only pick from this list and
+   the charge is priced again from the same function, so there is no figure on
+   the page that the server did not produce. */
+function termsFor(pid) {
+  const item = PRICES[String(pid)];
+  if (!item) return [];
+  const offered = planAllowed(item.amount) ? PLAN_TERMS : PLAN_TERMS.slice(0, 1);
+  return offered.map((term) => {
+    const q = quoteFor(pid, term.months);
+    return { months: q.months, perMonth: q.perMonth, amount: q.amount, total: q.total, saving: q.saving };
+  });
+}
+
+/* What the card is actually charged.
+ *
+ * The test override replaces the PER MONTH price and is then multiplied by the
+ * term, deliberately skipping the term discount. A 3 month test therefore costs
+ * $1.50 rather than $1.35, and a 1 month test stays exactly the $0.50 that has
+ * already been tested live. Discounting a 50 cent price and rounding it to the
+ * dollar, which is what real pricing does, would have moved the test amount
+ * around and Stripe refuses anything under $0.50. */
+function chargeFor(pid, months = DEFAULT_MONTHS) {
+  const quote = quoteFor(pid, months);
   if (!quote) return null;
   if (!TEST_PIDS.has(String(pid))) return quote;
 
-  const amount = TEST_AMOUNT > 0 ? TEST_AMOUNT : quote.amount;
+  const perMonth = TEST_AMOUNT > 0 ? TEST_AMOUNT : quote.perMonth;
+  const amount = cents(perMonth * quote.months);
   const shipping = TEST_SHIPPING ?? quote.shipping;
-  const charge = { amount, shipping, total: cents(amount + shipping) };
+  const charge = {
+    months: quote.months,
+    perMonth,
+    amount,
+    saving: 0,
+    shipping,
+    total: cents(amount + shipping),
+  };
   console.warn(
-    `TEST PRICING ACTIVE: product ${pid} charged $${charge.total.toFixed(2)} ` +
-      `($${amount.toFixed(2)} + $${shipping.toFixed(2)} shipping) instead of $${quote.total.toFixed(2)}. ` +
+    `TEST PRICING ACTIVE: product ${pid} x${quote.months} charged $${charge.total.toFixed(2)} ` +
+      `($${perMonth.toFixed(2)} a month + $${shipping.toFixed(2)} fee) instead of $${quote.total.toFixed(2)}. ` +
       `Unset TEST_CHARGE_PID once testing is done.`
   );
   return charge;
@@ -251,7 +299,15 @@ async function stripeIntent(req, res) {
   }
 
   const { pid, contact_id, opportunity_id, treatment, submitted } = req.body || {};
-  const charge = chargeFor(pid);
+  const months = monthsFrom(req.body?.months);
+  /* A prepaid month of a plan is settled through prepaid_fill, never charged.
+     Refused here as well as at the quote so no card can ever be taken for one,
+     whatever the browser asks for. */
+  if (isFollowOnRung(pid)) {
+    console.warn(`Refused a Stripe intent for plan-only product ${pid}`);
+    return res.status(403).json({ ok: false, error: "plan_only" });
+  }
+  const charge = chargeFor(pid, months);
   if (!charge) {
     console.error(`Refused Stripe intent for unpriced product id "${pid}"`);
     return res.status(400).json({ ok: false, error: "unknown_product" });
@@ -348,6 +404,11 @@ async function stripeIntent(req, res) {
         product_id: String(pid),
         opportunity_id: orderId || "",
         contact_id: contactId || "",
+        /* The term, so the entitlement can be rebuilt from Stripe alone.
+           The counters live on the GHL contact where staff can hand-edit them,
+           so the payment stays the immutable record of how many fills were
+           actually bought. */
+        plan_months: String(charge.months),
       },
     },
     /* Deliberately NO idempotency key.
@@ -368,8 +429,8 @@ async function stripeIntent(req, res) {
   }
 
   console.info(
-    `Stripe intent ${created.data.id} (${stripeMode()}): product ${pid}, ` +
-      `$${charge.total.toFixed(2)} incl. $${charge.shipping.toFixed(2)} shipping`
+    `Stripe intent ${created.data.id} (${stripeMode()}): product ${pid} x${charge.months}, ` +
+      `$${charge.total.toFixed(2)} incl. $${charge.shipping.toFixed(2)} fee`
   );
   return res.status(200).json({
     ok: true,
@@ -378,8 +439,69 @@ async function stripeIntent(req, res) {
     paymentIntentId: created.data.id,
     amount: charge.total,
     shipping: charge.shipping,
+    months: charge.months,
     submitted: submitted === true,
     treatment: clean(treatment, 120) || null,
+  });
+}
+
+/* Reprices an open payment when the patient changes their plan term.
+ *
+ * The alternative was to throw the PaymentIntent away and create another, which
+ * is what changing the term would otherwise do, since the intent is created
+ * when the card form mounts. That tears the Stripe card fields down and
+ * remounts them, so anything already typed is wiped, and it leaves an abandoned
+ * intent behind for every click of the chooser.
+ *
+ * Only an intent that has not been confirmed can be repriced, which is exactly
+ * the window this is for: once a card is submitted the amount is what the
+ * issuer authorised and Stripe refuses to move it. Priced from `pid` and
+ * `months` here, never from a figure in the request, same rule as creation. */
+async function stripeRetotal(req, res) {
+  if (blocked(req, res, { max: 20 })) return;
+  if (!stripeEnabled()) return res.status(503).json({ ok: false, error: "not_configured" });
+
+  const id = clean(req.body?.payment_intent_id, 80);
+  const { pid } = req.body || {};
+  const months = monthsFrom(req.body?.months);
+  const charge = chargeFor(pid, months);
+  if (!id) return res.status(400).json({ ok: false, error: "missing_payment_intent" });
+  if (!charge) return res.status(400).json({ ok: false, error: "unknown_product" });
+
+  const found = await stripe(`/payment_intents/${encodeURIComponent(id)}`, { method: "GET" });
+  const intent = found.data;
+  if (!found.ok || !intent?.id) {
+    console.error("Stripe intent unreadable for retotal:", found.status);
+    return res.status(502).json({ ok: false, error: "gateway_unreachable" });
+  }
+  /* Anything further along than this has money attached to it. The browser
+     falls back to opening a fresh payment, which is correct rather than a
+     failure: a confirmed intent belongs to the amount it authorised. */
+  if (intent.status !== "requires_payment_method" && intent.status !== "requires_confirmation") {
+    console.info(`Stripe intent ${id} is ${intent.status}, too late to reprice`);
+    return res.status(200).json({ ok: false, error: "already_confirmed" });
+  }
+
+  const updated = await stripe(`/payment_intents/${encodeURIComponent(id)}`, {
+    method: "POST",
+    body: {
+      amount: toCents(charge.total),
+      /* Rewritten, not merged: Stripe replaces the whole metadata object, and
+         the entitlement is read back off plan_months after the payment. */
+      metadata: { ...(intent.metadata || {}), plan_months: String(charge.months) },
+    },
+  });
+  if (!updated.ok) {
+    console.error("Stripe retotal rejected:", updated.status, updated.data?.error?.message || "");
+    return res.status(502).json({ ok: false, error: "gateway_unreachable" });
+  }
+
+  console.info(`Stripe intent ${id} repriced to ${charge.months} month(s), $${charge.total.toFixed(2)}`);
+  return res.status(200).json({
+    ok: true,
+    amount: charge.total,
+    shipping: charge.shipping,
+    months: charge.months,
   });
 }
 
@@ -439,6 +561,12 @@ async function stripeSettle(req, res) {
     );
   }
 
+  /* The term, read off the payment rather than the request: the browser's copy
+     is a label by the time we get here, and the intent is what the issuer
+     authorised. Absent on every payment taken before plans existed, which reads
+     as a single month, exactly right. */
+  const planMonths = Number(meta.plan_months) || 1;
+
   await Promise.allSettled([
     syncTag(contactId, { failed: false }),
     /* Authorised, not paid: the card moves to Paid so staff see it, but the
@@ -448,6 +576,10 @@ async function stripeSettle(req, res) {
         ? markComplete(contactId, orderId, clean(req.body?.treatment, 120))
         : null
     ),
+    /* Recorded at authorisation, not at capture. Staff need to see that this
+       patient holds a 3 month plan while the visit is still with a provider,
+       and the fills themselves are only counted once the pharmacy ships. */
+    planMonths > 1 && contactId ? recordPlan(contactId, planMonths) : null,
   ]);
   console.info(
     `Stripe payment ${intent.id} ${authorized ? "authorised" : "settled"}: ` +
@@ -464,12 +596,63 @@ async function stripeSettle(req, res) {
   });
 }
 
+/* Lets a month the patient already paid for through the checkout, with no card.
+ *
+ * Stands in for stripeSettle on months 2 and 3 of a plan: the same CRM work,
+ * minus everything to do with money, because the money was taken at month 1.
+ * The entitlement is re-established here from the portal session rather than
+ * carried from the portal in a token, so there is nothing in the request that
+ * granting this depends on.
+ *
+ * The card moves to Paid and the status is deliberately LEFT OPEN. Only
+ * status "won" feeds GoHighLevel's revenue and conversion reporting, and a
+ * three month plan creates three cards: marking each of them won would report
+ * one payment three times. The plan's money is counted once, on the card that
+ * actually took it. */
+async function prepaidFill(req, res) {
+  if (blocked(req, res, { max: 12 })) return;
+
+  const { pid } = req.body || {};
+  const fill = await fillFor(readSession(req));
+  if (!fill || !matchesFill(fill, pid)) {
+    console.warn(`Refused a prepaid fill for product ${pid}: no matching plan`);
+    return res.status(403).json({ ok: false, error: "plan_only" });
+  }
+  if (!fill.canSettle) {
+    /* Either every month has shipped, or they already have more visits open
+       than they have paid for. Both are a real answer, not a failure. */
+    console.warn(
+      `Refused a prepaid fill for ${pid}: ${fill.plan.used} of ${fill.plan.months} used, ` +
+        `${fill.inFlight} in flight`
+    );
+    return res.status(403).json({ ok: false, error: "no_fills_left" });
+  }
+
+  const orderId = clean(req.body?.opportunity_id, 60);
+  const contactId = clean(req.body?.contact_id, 60);
+
+  await Promise.allSettled([
+    syncTag(contactId, { failed: false }),
+    markPaid(orderId, `plan:${fill.plan.current}/${fill.plan.months}`, { won: false }).then(() =>
+      req.body?.submitted === true
+        ? markComplete(contactId, orderId, clean(req.body?.treatment, 120))
+        : null
+    ),
+  ]);
+  console.info(
+    `Prepaid fill accepted: month ${fill.plan.current} of ${fill.plan.months} ` +
+      `on opportunity ${orderId || "-"}, nothing charged`
+  );
+  return res.status(200).json({ ok: true, prepaid: true, month: fill.plan.current });
+}
+
 async function kurvStart(req, res) {
   if (blocked(req, res, { max: 8 })) return;
   const { pid, contact_id, opportunity_id, submitted, treatment } = req.body || {};
 
   // Priced here, never from the request, exactly as the card path does.
-  const charge = chargeFor(pid);
+  if (isFollowOnRung(pid)) return res.status(403).json({ ok: false, error: "plan_only" });
+  const charge = chargeFor(pid, monthsFrom(req.body?.months));
   if (!charge) return res.status(400).json({ ok: false, error: "unknown_product" });
 
   /* Re-checked rather than trusting the quote the modal loaded: the cap may
@@ -586,12 +769,44 @@ export default async function handler(req, res) {
     // Vercel fills req.query; the local vite shim (vite.config.js) only passes
     // the raw URL, which left every local checkout reading "Total unavailable".
     const pid = queryParam(req, "pid");
-    const quote = quoteFor(pid);
+    const months = monthsFrom(queryParam(req, "months"));
+
+    /* A later rung of a plan has no price, because it is never for sale.
+     *
+     * These products are hidden from the shop, but hidden only means unlinked:
+     * the id still reaches here, and without this a $169 maintenance vial could
+     * be bought by anyone who typed the number. The only way through is a plan
+     * that has already been paid for, which is established from the portal
+     * session cookie rather than from anything in the request. */
+    if (isFollowOnRung(pid)) {
+      const fill = await fillFor(readSession(req));
+      if (!fill || !fill.canSettle || !matchesFill(fill, pid)) {
+        console.warn(`Refused a quote for plan-only product ${pid}`);
+        return res.status(403).json({ ok: false, error: "plan_only" });
+      }
+      return res.status(200).json({
+        ok: true,
+        prepaid: true,
+        processor: "prepaid",
+        months: 1,
+        perMonth: 0,
+        amount: 0,
+        saving: 0,
+        shipping: 0,
+        total: 0,
+        /* No chooser on a month that is already paid for. */
+        terms: [],
+        month: fill.plan.current,
+        planMonths: fill.plan.months,
+      });
+    }
+
+    const quote = quoteFor(pid, months);
     if (!quote) return res.status(400).json({ ok: false, error: "unknown_product" });
     /* Which form the modal should show. Advisory only: the payment call decides
        again at the moment of payment, since the cap can be reached in between. */
     const processor = await processorFor(quote.total);
-    return res.status(200).json({ ok: true, ...quote, processor });
+    return res.status(200).json({ ok: true, ...quote, terms: termsFor(pid), processor });
   }
 
   if (req.method !== "POST") {
@@ -603,7 +818,9 @@ export default async function handler(req, res) {
   if (req.body?.action === "kurv_start") return kurvStart(req, res);
   if (req.body?.action === "kurv_confirm") return kurvConfirm(req, res);
   if (req.body?.action === "stripe_intent") return stripeIntent(req, res);
+  if (req.body?.action === "stripe_retotal") return stripeRetotal(req, res);
   if (req.body?.action === "stripe_settle") return stripeSettle(req, res);
+  if (req.body?.action === "prepaid_fill") return prepaidFill(req, res);
 
   // Tighter than the default: a checkout is not a page view, and card testing
   // is exactly what a loose limit invites.
@@ -625,7 +842,11 @@ export default async function handler(req, res) {
   /* The price is looked up here and never read off the request. The amount the
      modal displays is decoration; trusting it would let anyone pay $1 for a
      $1,350 treatment. An id we can't price is refused outright. */
-  const charge = chargeFor(pid);
+  if (isFollowOnRung(pid)) {
+    console.warn(`Refused a card payment for plan-only product ${pid}`);
+    return res.status(403).json({ ok: false, error: "plan_only" });
+  }
+  const charge = chargeFor(pid, monthsFrom(req.body?.months));
   if (!charge) {
     console.error(`Refused payment for unpriced product id "${pid}"`);
     return res.status(400).json({ ok: false, error: "unknown_product" });

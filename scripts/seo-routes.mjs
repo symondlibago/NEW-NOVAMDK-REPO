@@ -20,6 +20,10 @@ export function extractProducts({ includeHidden = false } = {}) {
   }
   const field = (block, name) => block.match(new RegExp(`${name}:\\s*"([^"]*)"`))?.[1] ?? "";
   const flag = (block, name) => new RegExp(`${name}:\\s*true`).test(block);
+  const number = (block, name) => {
+    const hit = block.match(new RegExp(`${name}:\\s*(\\d+)`))?.[1];
+    return hit ? Number(hit) : null;
+  };
   const lastIndex = idMatches[idMatches.length - 1].index;
   const arrayEnd = src.indexOf("\n];", lastIndex);
   const limit = arrayEnd === -1 ? src.length : arrayEnd;
@@ -38,6 +42,11 @@ export function extractProducts({ includeHidden = false } = {}) {
       price: field(block, "price"),
       slug: field(block, "slug"),
       hidden: flag(block, "hidden"),
+      /* Mirrored to the server by generate-prices: a prepaid month of a plan
+         opens the next rung's questionnaire, and which rung that is has to be
+         decided server side. */
+      questionnaireId: field(block, "questionnaireId"),
+      nextRung: number(block, "nextRung"),
     };
   });
 

@@ -11,6 +11,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { declineMessage, HOLD_NOTICE, PAYMENT_DUE } from "./declineMessage";
+import PlanTerms from "./PlanTerms";
 
 /* The whole checkout, on one screen.
  *
@@ -109,6 +110,10 @@ export default function StripeCheckout({
   productName,
   pid,
   quote,
+  /* The plan term, owned by the modal above because the quote is fetched there.
+     Absent in the dev harness, which simply shows no chooser. */
+  months,
+  onMonths,
   treatment,
   submitted,
   onPaid,
@@ -122,6 +127,16 @@ export default function StripeCheckout({
   const [status, setStatus] = useState("boot");
   const [message, setMessage] = useState("");
   const [explainDue, setExplainDue] = useState(false);
+  /* The open payment, and the term it is actually priced at.
+   *
+   * State rather than a ref because the render depends on it: while these two
+   * disagree, the figure on the screen is not the figure the card would be
+   * charged, and the only safe thing to do is refuse to take the payment. That
+   * disagreement is exactly the shape of the bug that told every patient with a
+   * successful hold that their card had failed, so it is held as an invariant
+   * here rather than assumed away. */
+  const [openIntent, setOpenIntent] = useState(null);
+  const [priced, setPriced] = useState(null);
 
   const numberRef = useRef(null);
   const expiryRef = useRef(null);
@@ -146,8 +161,13 @@ export default function StripeCheckout({
   const image = product?.img || product?.imgDetail || null;
   const total = quote?.total;
 
+  /* The term at the moment the payment is opened, read through a ref so that
+     changing it afterwards does not re-run the effect below. */
+  const chosen = useRef(months);
+  chosen.current = months;
+
   useEffect(() => {
-    if (!pid || !quote) return undefined;
+    if (!pid) return undefined;
     if (!PUBLISHABLE) {
       console.error("VITE_STRIPE_PUBLISHABLE_KEY is not set — the card form cannot load.");
       setStatus("dead");
@@ -171,6 +191,7 @@ export default function StripeCheckout({
                the address up from the CRM when this is missing, so a resumed
                intake in a fresh tab still gets a receipt. */
             receipt_email: sessionStorage.getItem("nv_email") || undefined,
+            months: chosen.current,
             treatment,
             submitted,
           }),
@@ -193,6 +214,8 @@ export default function StripeCheckout({
 
       secret.current = intent.clientSecret;
       intentId.current = intent.paymentIntentId;
+      setOpenIntent(intent.paymentIntentId);
+      setPriced(intent.months ?? 1);
 
       const stripe = Stripe(PUBLISHABLE);
       const elements = stripe.elements();
@@ -249,9 +272,53 @@ export default function StripeCheckout({
       }
       mounted.current = [];
     };
-    // treatment/submitted are captured for this payment and don't re-open it.
+    /* treatment/submitted are captured for this payment and don't re-open it,
+       and neither does the term: `quote` and `months` are deliberately absent.
+       Re-running this unmounts Stripe's card iframes and mounts fresh ones, so
+       a patient who picked 3 months after typing their card number would watch
+       it empty itself. The effect below reprices the open payment instead. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pid, quote]);
+  }, [pid]);
+
+  /* The patient changed the term, so the open payment is repriced in place.
+   *
+   * Updating the PaymentIntent rather than replacing it keeps the card fields
+   * mounted and leaves no abandoned intents behind. Only an intent nobody has
+   * confirmed yet can be repriced, which is the whole of the window the chooser
+   * is usable in.
+   *
+   * On any failure `priced` is left alone, which is what disables the Pay
+   * button: better to tell them to reload than to take an amount that is not
+   * the one on their screen. */
+  useEffect(() => {
+    if (!openIntent || !months || priced === null || priced === months) return undefined;
+    let cancelled = false;
+    (async () => {
+      const r = await fetch("/api/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "stripe_retotal",
+          payment_intent_id: openIntent,
+          pid,
+          months,
+        }),
+      })
+        .then((res) => res.json())
+        .catch(() => null);
+      if (cancelled || !alive.current) return;
+      if (r?.ok) {
+        setPriced(r.months);
+        setMessage("");
+      } else {
+        console.error("Stripe retotal failed:", r?.error || r);
+        setMessage("We couldn't update your plan. Please refresh the page and try again.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [openIntent, months, priced, pid]);
 
   /* Tells the server the payment landed, so it can tag the contact and move the
      card. Also the source of truth when confirmation times out: it reads the
@@ -290,6 +357,9 @@ export default function StripeCheckout({
     e.preventDefault();
     const { stripe, card } = sdk.current;
     if (!stripe || !card || !secret.current || status !== "ready") return;
+    /* Belt and braces with the disabled button: the amount the patient is
+       looking at has to be the amount the issuer is asked for. */
+    if (priced !== null && months && priced !== months) return;
     setMessage("");
     setStatus("paying");
 
@@ -425,6 +495,12 @@ export default function StripeCheckout({
      and printing it twice read as a mistake rather than a summary. */
   const hasFee = Number(quote?.shipping) > 0;
 
+  /* The term the patient has picked has not been priced onto the open payment
+     yet, or could not be. Either way the amount on screen and the amount the
+     card would be charged disagree, so nothing can be paid until they match. */
+  const repricing = priced !== null && months ? priced !== months : false;
+  const planMonths = Number(quote?.months) || 1;
+
   /* The product page's own highlights, not copy written for the checkout. They
      are already cleared for public use and already what the patient read on the
      way here, so the last screen cannot end up claiming something different. */
@@ -464,11 +540,21 @@ export default function StripeCheckout({
             {name}
           </p>
           <p className="mt-0.5 text-[0.8rem] leading-snug text-muted">
-            {product?.dosageForm ? `${product.dosageForm} · ` : ""}One-time payment
+            {product?.dosageForm ? `${product.dosageForm} · ` : ""}
+            {planMonths > 1 ? `${planMonths} month plan, paid once` : "One-time payment"}
           </p>
         </div>
         <span className="flex-none text-[0.95rem] font-semibold">{usd(quote?.amount ?? total)}</span>
       </div>
+
+      <PlanTerms
+        terms={quote?.terms}
+        months={months}
+        onChange={onMonths}
+        /* Locked once a card has been submitted: the amount is with the issuer
+           by then and the chooser would be writing a cheque it cannot cash. */
+        disabled={status !== "ready"}
+      />
 
       {highlights.length > 0 && (
         <ul className="mt-3.5 flex flex-wrap gap-1.5">
@@ -581,9 +667,11 @@ export default function StripeCheckout({
       {/* The lock sits on the button, where it reassures at the moment of the
           click. The arrow is the only decoration: it says this goes somewhere,
           which matters when the button is also the end of the questionnaire. */}
+      {/* repricing: the chosen term has not reached the open payment yet, so
+          the total on screen is not what the card would be charged. */}
       <button
         type="submit"
-        disabled={status !== "ready"}
+        disabled={status !== "ready" || repricing}
         className="mt-6 flex w-full items-center gap-3 rounded-2xl bg-primary px-5 py-4 text-[1rem] font-bold text-on-primary transition-opacity disabled:opacity-45"
       >
         {status === "paying" ? (

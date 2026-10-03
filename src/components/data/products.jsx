@@ -200,6 +200,19 @@ export const productsData = [
       "/products/detail/semaglutide-b12-3.avif",
     ],
     questionnaireId: "df9d89e6-db14-4b17-8c34-a178b75c8f95",
+    /* The rung a plan moves on to after this one.
+     *
+     * Month 1 of a plan is this product; every month after it is the one named
+     * here, and the patient answers that product's questionnaire in the portal
+     * rather than this one again. Client's decision, 2026-10-02.
+     *
+     * Read on the server off api/_prices.js, never from the browser: with flat
+     * pricing a prepaid fill costs nothing, so letting the browser name the
+     * product would turn a $39 LDN plan into two free months of Mounjaro.
+     *
+     * A product with no nextRung repeats itself, which is what the last rung of
+     * every ladder should do. */
+    nextRung: 2,
     highlights: [
       { text: "Weekly GLP-1 Dosing" },
       { text: "Added B12 Support" },
@@ -221,6 +234,12 @@ export const productsData = [
     categorySlug: "weight-loss",
     categoryName: "Weight Loss",
     name: "Semaglutide/Cyanocobalamin (B12) — Maintenance",
+    /* A later month of a plan, not something to buy on its own. The client's
+       rule, 2026-10-03: the maintenance questionnaire is only available to a
+       patient who subscribed for 2 or 3 months, so this is reached through the
+       portal once a month has been paid for. Hiding it takes it off the shop;
+       api/_fills.js is what stops it being bought by id. */
+    hidden: true,
     size: "2 mL vial (10 mg)",
     qrImg: "/qr/Semaglutide.png",
     subtitle: "Semaglutide is a GLP-1 receptor agonist that acts on pathways involved in appetite and food intake. This compounded formulation also contains cyanocobalamin, a form of vitamin B12. If prescribed, your healthcare provider will determine your dose and treatment schedule.",
@@ -334,6 +353,11 @@ export const productsData = [
     imgDetail: "/products/detail/tirzepatide-niacinamide.avif",
     imgGallery: ["/products/detail/tirzepatide-window.avif", "/products/detail/tirzepatide-studio.avif"],
     questionnaireId: "7ec64059-bbff-4448-a48a-39278f111bfa",
+    /* Up the ladder one step at a time: Starter, then Mid-Dose, then
+       Maintenance. Mid-Dose and Maintenance share one questionnaire, so from
+       month 2 on the patient answers the same form either way and the provider
+       decides the dose. See the note on product 1. */
+    nextRung: 6,
     highlights: [
       { text: "Dual GIP / GLP-1" },
       { text: "Niacinamide Support" },
@@ -355,6 +379,8 @@ export const productsData = [
     categorySlug: "weight-loss",
     categoryName: "Weight Loss",
     name: "Tirzepatide/Niacinamide — Mid-Dose",
+    // A later month of a plan. See the note on product 2.
+    hidden: true,
     size: "2 mL vial (34 mg)",
     qrImg: "/qr/Tirzepatide.png",
     subtitle: "Tirzepatide is a dual GIP and GLP-1 receptor agonist that acts on pathways involved in appetite and food intake. This compounded formulation contains niacinamide. If prescribed, your healthcare provider will determine your dose and treatment schedule.",
@@ -366,6 +392,8 @@ export const productsData = [
     imgDetail: "/products/detail/tirzepatide-niacinamide.avif",
     imgGallery: ["/products/detail/tirzepatide-window.avif", "/products/detail/tirzepatide-studio.avif"],
     questionnaireId: "71ceae4f-b7b1-4788-9556-52e32ba02b7e",
+    // Last rung of this ladder is 7, which then repeats itself.
+    nextRung: 7,
     highlights: [
       { text: "Dual GIP / GLP-1" },
       { text: "Mid-Dose Step" },
@@ -387,6 +415,8 @@ export const productsData = [
     categorySlug: "weight-loss",
     categoryName: "Weight Loss",
     name: "Tirzepatide/Niacinamide — Maintenance",
+    // A later month of a plan. See the note on product 2.
+    hidden: true,
     size: "4 mL vial (68 mg)",
     qrImg: "/qr/Tirzepatide.png",
     subtitle: "Tirzepatide is a dual GIP and GLP-1 receptor agonist that acts on pathways involved in appetite and food intake. This compounded formulation contains niacinamide. If prescribed, your healthcare provider will determine your dose and treatment schedule.",

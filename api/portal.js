@@ -1,6 +1,7 @@
 import { blocked, signReleaseToken } from './_guard.js';
 import { mdi, mdiUpload, mdiConfigured, listOf } from './_mdi.js';
 import { readSession, sessionsEnabled } from './_session.js';
+import { fillFor } from './_fills.js';
 
 const MESSAGE_PAGE = 100;
 const CHANNELS = new Set(['patient']);
@@ -517,6 +518,91 @@ export default async function handler(req, res) {
         // The voucher id is the intake token, same as ProductPage uses.
         token: voucher.id,
         questionnaire_id: draft.questionnaire_id,
+        release_token: signReleaseToken(patientId),
+      });
+    }
+
+    /* Where this patient is in a multi-month plan, or null.
+     *
+     * The plan lives in GoHighLevel because that is where it is paid for and
+     * where the reminder is sent from, while the portal session only knows an
+     * MDI patient id. The contact is found through the mdi_patient_id field,
+     * the same way the webhooks find it.
+     *
+     * Read only, and deliberately so: this tells the patient what they have,
+     * it does not let them use it. Starting the next prepaid intake is a
+     * separate decision that mints its own permission server side. */
+    if (resource === 'plan') {
+      const fill = await fillFor(patientId);
+      /* A 200 with no plan rather than an error: most patients are not on one,
+         and the portal should not show a failure for the ordinary case. */
+      if (!fill) return res.status(200).json({ plan: null });
+      return res.status(200).json({
+        plan: {
+          ...fill.plan,
+          /* Whether the button is offered at all. False while a month is still
+             being reviewed or on its way, which is most of the time. */
+          canStart: fill.canStart,
+        },
+      });
+    }
+
+    /* Opens the next month of a plan the patient has already paid for.
+     *
+     * Mints a voucher the same way the product page does, but for the rung the
+     * LADDER says comes next rather than one the browser named: a prepaid month
+     * costs nothing, so a request allowed to choose its own product would turn
+     * a cheap plan into free months of an expensive one. The entitlement is
+     * checked again at the payment step, so a voucher on its own buys nothing.
+     *
+     * Back through /intake rather than MDI's onboarding_url, for the same
+     * reason resume is: that page has no checkout, and the checkout is what
+     * records the month against the plan. */
+    if (resource === 'next_fill') {
+      const fill = await fillFor(patientId);
+      if (!fill) return res.status(403).json({ error: 'You are not on a plan' });
+      if (!fill.canStart) {
+        return res.status(409).json({
+          error:
+            fill.plan.remaining > 0
+              ? 'Your current month is still being reviewed'
+              : 'Every month of your plan has been used',
+        });
+      }
+      if (!fill.questionnaireId) {
+        console.error(`next_fill: no follow-on questionnaire for patient ${patientId}`);
+        return res.status(502).json({ error: 'Could not start your next check-in' });
+      }
+
+      const made = await mdi('/vouchers', {
+        hold_status: true,
+        patient_id: patientId,
+        questionnaire_id: fill.questionnaireId,
+        /* Left empty deliberately. MDI drops case_offerings on a voucher
+           anyway, and the dose is picked inside the questionnaire, which is
+           the whole point of the patient answering it again. */
+        case_offerings: [],
+        disease: [],
+      });
+      if (!made.ok) {
+        console.error('next_fill voucher failed:', made.status);
+        return res.status(502).json({ error: 'Could not start your next check-in' });
+      }
+      const voucher = made.data?.data || made.data;
+      if (!voucher?.id) {
+        console.error('next_fill voucher came back without an id');
+        return res.status(502).json({ error: 'Could not start your next check-in' });
+      }
+
+      console.info(
+        `Plan month ${fill.plan.current} of ${fill.plan.months} opened for patient ${patientId}: ` +
+          `product ${fill.pid}, voucher ${voucher.id}`
+      );
+      return res.status(200).json({
+        token: voucher.id,
+        pid: fill.pid,
+        questionnaire_id: fill.questionnaireId,
+        month: fill.plan.current,
         release_token: signReleaseToken(patientId),
       });
     }
