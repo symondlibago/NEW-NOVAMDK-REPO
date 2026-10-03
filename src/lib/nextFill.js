@@ -14,18 +14,29 @@ import { productsData } from "../components/data/products";
  * the month against the plan.
  */
 export async function nextFillUrl() {
-  const { token, pid, release_token: releaseToken } = await portalData({
-    resource: "next_fill",
-  });
+  const {
+    token,
+    pid,
+    release_token: releaseToken,
+    contact_id: contactId,
+    opportunity_id: opportunityId,
+  } = await portalData({ resource: "next_fill" });
 
   try {
     if (releaseToken) sessionStorage.setItem("mdi_release_token", releaseToken);
     else sessionStorage.removeItem("mdi_release_token");
+
     /* Anything left from an earlier visit in this tab belongs to a different
-       opportunity. No CRM write is better than one against the wrong visit. */
-    for (const key of ["ghl_contact", "ghl_opportunity", "mdi_encounter"]) {
-      sessionStorage.removeItem(key);
-    }
+       opportunity, so the old encounter goes. The contact and the card do NOT:
+       /intake only ever reads these two back out of session storage, and a
+       first visit gets them from the product page, which a later month of a
+       plan never sees. Clearing them, which is what this did at first, meant
+       the whole month ran with no card on the board and nothing to mark Paid. */
+    sessionStorage.removeItem("mdi_encounter");
+    if (contactId) sessionStorage.setItem("ghl_contact", contactId);
+    else sessionStorage.removeItem("ghl_contact");
+    if (opportunityId) sessionStorage.setItem("ghl_opportunity", opportunityId);
+    else sessionStorage.removeItem("ghl_opportunity");
   } catch { /* private mode */ }
 
   const params = new URLSearchParams({ token });

@@ -2,6 +2,8 @@ import { blocked, signReleaseToken } from './_guard.js';
 import { mdi, mdiUpload, mdiConfigured, listOf } from './_mdi.js';
 import { readSession, sessionsEnabled } from './_session.js';
 import { fillFor } from './_fills.js';
+import { createVisitOpportunity, INTAKE_STAGE } from './_ghl.js';
+import { PRICES } from './_prices.js';
 
 const MESSAGE_PAGE = 100;
 const CHANNELS = new Set(['patient']);
@@ -605,15 +607,55 @@ export default async function handler(req, res) {
         return res.status(502).json({ error: 'Could not start your next check-in' });
       }
 
+      /* The card for this visit, opened here because nothing else will.
+       *
+       * A first visit gets its contact and its opportunity from the product
+       * page, and /intake only ever reads those two ids back out of session
+       * storage. A later month of a plan starts in the portal and never touches
+       * the product page, so without this the whole month happens with no card
+       * at all: no row on the board, no stage moves, and the prepaid step with
+       * nothing to mark Paid. That is exactly what happened on the first live
+       * run of month 2, 2026-10-03.
+       *
+       * value 0 deliberately. The money for all three months was taken on month
+       * 1 and that card carries it; giving this one a price as well would
+       * report the same payment twice in GoHighLevel's revenue. */
+      const product = PRICES[String(fill.pid)] || {};
+      const label = [product.categoryName, product.name].filter(Boolean).join(' - ');
+      const made2 = await createVisitOpportunity({
+        contactId: fill.contactId,
+        treatment: label || `Plan month ${fill.plan.current}`,
+        value: 0,
+        source: 'Patient portal, plan month',
+        productLine: product.categoryName || undefined,
+        intakeStage: INTAKE_STAGE.STARTED,
+      }).catch((e) => {
+        console.error('next_fill could not open a card:', e.message);
+        return null;
+      });
+      const opportunityId = made2?.opportunity?.id || null;
+      if (!opportunityId) {
+        /* Not fatal. The visit can still go ahead and staff can place the card
+           by hand, which is better than refusing a patient the month they paid
+           for over a CRM write. */
+        console.error(
+          `next_fill opened no card for contact ${fill.contactId}; this visit needs one by hand`
+        );
+      }
+
       console.info(
         `Plan month ${fill.plan.current} of ${fill.plan.months} opened for patient ${patientId}: ` +
-          `product ${fill.pid}, voucher ${voucher.id}`
+          `product ${fill.pid}, voucher ${voucher.id}, opportunity ${opportunityId || '-'}`
       );
       return res.status(200).json({
         token: voucher.id,
         pid: fill.pid,
         questionnaire_id: fill.questionnaireId,
         month: fill.plan.current,
+        /* Handed to the browser because /intake reads both of these out of
+           session storage and has no other way to learn them. */
+        contact_id: fill.contactId,
+        opportunity_id: opportunityId,
         release_token: signReleaseToken(patientId),
       });
     }

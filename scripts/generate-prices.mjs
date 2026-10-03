@@ -29,6 +29,10 @@ for (const p of extractProducts({ includeHidden: true })) {
     id: p.id,
     amount: Math.round(amount * 100) / 100,
     name: p.name,
+    /* So the server can name a card the same way the browser does, which is
+       "{category} - {product}". A later month of a plan opens its visit from
+       the portal, where no page has the catalogue to hand. */
+    categoryName: p.categoryName || "",
     questionnaireId: p.questionnaireId || "",
     nextRung: p.nextRung || null,
   });
@@ -60,6 +64,7 @@ const body = priced
   .map(
     (p) =>
       `  ${p.id}: { amount: ${p.amount.toFixed(2)}, name: ${JSON.stringify(p.name)}` +
+      `, categoryName: ${JSON.stringify(p.categoryName)}` +
       `, questionnaireId: ${JSON.stringify(p.questionnaireId)}` +
       (p.nextRung ? `, nextRung: ${p.nextRung}` : "") +
       ` },`

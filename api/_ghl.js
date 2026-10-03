@@ -765,6 +765,34 @@ export async function recordFillShipped(contactId, { shippedAt = new Date() } = 
   }
 }
 
+/* What a visit was worth, written after the fact.
+ *
+ * A card is opened before the patient has chosen how many months they want, so
+ * it is created with the single month price off the catalogue. On a 3 month
+ * plan that is a third of what they actually paid, and since the opportunity's
+ * monetaryValue is what GoHighLevel reports as revenue, every plan would read
+ * low for ever. Called once the payment is known.
+ *
+ * The real catalogue total, never the test override: the board is a business
+ * record, and $0.50 test runs should not show up on it as the price of a
+ * treatment.
+ *
+ * Never throws. The money has already moved by the time this runs. */
+export async function setOpportunityValue(opportunityId, value) {
+  const amount = Number(value);
+  if (!opportunityId || !Number.isFinite(amount) || amount < 0) return null;
+  try {
+    const data = await ghlFetch(`/opportunities/${opportunityId}`, {
+      method: "PUT",
+      body: { monetaryValue: amount },
+    });
+    return data?.opportunity || null;
+  } catch (e) {
+    console.error(`GHL value write failed for opportunity ${opportunityId}:`, e.message);
+    return null;
+  }
+}
+
 /* Where a patient is in their plan, for showing them.
  *
  * Read from the cached fields rather than counted off the board: this answers a

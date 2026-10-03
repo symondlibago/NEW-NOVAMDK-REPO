@@ -10,6 +10,7 @@ import {
   updateOpportunityFields,
   contactById,
   recordPlan,
+  setOpportunityValue,
   INTAKE_STAGE,
   FIELD,
 } from "./_ghl.js";
@@ -580,6 +581,12 @@ async function stripeSettle(req, res) {
        patient holds a 3 month plan while the visit is still with a provider,
        and the fills themselves are only counted once the pharmacy ships. */
     planMonths > 1 && contactId ? recordPlan(contactId, planMonths) : null,
+    /* The card was opened with a single month's price, before the patient had
+       chosen a term. Put the real total on it now, or a 3 month plan reports
+       as a third of itself for ever. */
+    planMonths > 1 && orderId
+      ? setOpportunityValue(orderId, quoteFor(meta.product_id, planMonths)?.total)
+      : null,
   ]);
   console.info(
     `Stripe payment ${intent.id} ${authorized ? "authorised" : "settled"}: ` +
