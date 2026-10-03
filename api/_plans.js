@@ -30,9 +30,12 @@ import { PRICES } from "./_prices.js";
  * When the client does want the longer terms to cost less, which is what hims,
  * IvyRx and ReadyRx all do, this is the one place to put it: everything else,
  * the chooser, the quote, the charge and the receipt, reads it from here. */
+/* 1 and 3 only. John, 2026-10-03: "there's only 1 month and 3 months, no 2
+   months." Adding a term back is a line here and nothing else: the chooser,
+   the quote, the charge and the allowlist that validates what the browser
+   asked for all read this list. */
 export const PLAN_TERMS = [
   { months: 1, off: 0 },
-  { months: 2, off: 0 },
   { months: 3, off: 0 },
 ];
 
