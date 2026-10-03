@@ -1,4 +1,5 @@
-import { nextIntakeDue } from "./_plans.js";
+import { nextIntakeDue, ladderFor } from "./_plans.js";
+import { PRICES } from "./_prices.js";
 
 const BASE = process.env.GHL_API_BASE || "https://services.leadconnectorhq.com";
 const TOKEN = process.env.GHL_API_TOKEN;
@@ -27,6 +28,16 @@ export const FIELD = {
      there is no one card it belongs to ---- */
   // How many 28-day fills this patient paid for, 1 to 3.
   PLAN_MONTHS: "plan_months",
+  /* The product the plan was bought for, so the rung each month opens is
+     looked up rather than guessed. It used to be inferred from the patient's
+     newest case, which breaks the moment someone has two treatments running:
+     a tirzepatide plan could be offered a semaglutide questionnaire. */
+  PLAN_PRODUCT: "plan_product",
+  /* How many months we have handed out, including the one they bought. Counted
+     here rather than derived from their visits, for the same reason: a patient
+     with an unrelated treatment in progress had their next month refused
+     because the count included visits that were nothing to do with the plan. */
+  FILLS_CLAIMED: "fills_claimed",
   // How many of them the pharmacy has actually shipped.
   FILLS_USED: "fills_used",
   // When the next intake is due, as a real date so a GHL workflow can trigger
@@ -580,6 +591,11 @@ export const SEARCH_FIELD_ID = {
      board scan of its own. */
   FILLS_USED: process.env.GHL_FILLS_USED_FIELD_ID || "CWzubH2eusLsWortaEUA",
   NEXT_INTAKE_DUE: process.env.GHL_NEXT_INTAKE_DUE_FIELD_ID || "rhcTwkbFHvcGJiUbiw12",
+  /* Read back on 2026-10-03 the same way as the three above. Blank means the
+     field does not exist yet, and planFor then returns no plan rather than
+     half of one. */
+  PLAN_PRODUCT: process.env.GHL_PLAN_PRODUCT_FIELD_ID || "JFxmVKquKmtYuDI65Tu5",
+  FILLS_CLAIMED: process.env.GHL_FILLS_CLAIMED_FIELD_ID || "jRLnqQzHJcw6sAfMJnLF",
 };
 
 /** The value of one custom field on a record GHL returned, or "". */
@@ -671,21 +687,43 @@ export async function opportunitiesForContact(contactId) {
  * counter. See recordFillShipped for why that matters. */
 
 /** The term a payment bought, recorded on the contact. Never throws. */
-export async function recordPlan(contactId, months) {
+export async function recordPlan(contactId, months, productId) {
   const term = Number(months);
+  const pid = Number(productId);
   if (!contactId || !Number.isInteger(term) || term < 1) return null;
   try {
-    /* fills_used is reset here, not left alone. A patient buying a second plan
-       has the first one's count sitting on their contact, and without the reset
-       their new 3 months would read as already spent. */
+    /* Both counts are reset here, not left alone. A patient buying a second
+       plan has the first one's figures sitting on their contact, and without
+       the reset their new 3 months would read as already spent.
+     *
+     * fills_claimed starts at 1, not 0: the month they just bought is the
+     * first one they have been given. */
     await updateContactFields(contactId, {
       [FIELD.PLAN_MONTHS]: term,
+      ...(Number.isInteger(pid) && pid > 0 && { [FIELD.PLAN_PRODUCT]: pid }),
+      [FIELD.FILLS_CLAIMED]: 1,
       [FIELD.FILLS_USED]: 0,
     });
-    console.info(`GHL contact ${contactId}: plan of ${term} month(s) recorded`);
+    console.info(
+      `GHL contact ${contactId}: plan of ${term} month(s) on product ${pid || "?"} recorded`
+    );
     return term;
   } catch (e) {
     console.error(`GHL plan write failed for ${contactId}:`, e.message);
+    return null;
+  }
+}
+
+/** One more month handed out. Never throws. @returns the new count, or null. */
+export async function claimFill(contactId, claimed) {
+  const n = Number(claimed);
+  if (!contactId || !Number.isInteger(n) || n < 1) return null;
+  try {
+    await updateContactFields(contactId, { [FIELD.FILLS_CLAIMED]: n });
+    console.info(`GHL contact ${contactId}: ${n} fill(s) claimed`);
+    return n;
+  } catch (e) {
+    console.error(`GHL claim write failed for ${contactId}:`, e.message);
     return null;
   }
 }
@@ -729,6 +767,29 @@ export async function recordFillShipped(contactId, { shippedAt = new Date() } = 
        count and no reminder to send: they were never promised another fill. */
     if (planMonths < 2) return null;
 
+    /* Only cards on this plan's own ladder count.
+     *
+     * Counting every shipped card the patient had was wrong for anyone with a
+     * second treatment running: an unrelated delivery would spend a month of
+     * their plan. The ladder gives the exact product names to look for, and a
+     * card is named "{category} - {product}" by both this module and the
+     * browser, so the comparison is exact rather than a guess. Without the
+     * plan's product recorded there is no ladder, so nothing is counted. */
+    const planProduct = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_PRODUCT)) || 0;
+    if (!planProduct) {
+      console.warn(
+        `GHL contact ${contactId} is on a plan with no plan_product recorded, ` +
+          `so a shipped fill cannot be matched to it.`
+      );
+      return null;
+    }
+    const ours = new Set(
+      ladderFor(planProduct)
+        .map((id) => PRICES[String(id)])
+        .filter(Boolean)
+        .map((p) => [p.categoryName, p.name].filter(Boolean).join(" - "))
+    );
+
     const { stages } = await resolvePipeline();
     const ordered = stages
       .map((s, i) => ({ ...s, order: typeof s.position === "number" ? s.position : i }))
@@ -745,7 +806,11 @@ export async function recordFillShipped(contactId, { shippedAt = new Date() } = 
        obviously a used one, so the test is the position rather than the name. */
     const cards = await opportunitiesForContact(contactId);
     const positionOf = new Map(ordered.map((s, i) => [s.id, i]));
-    let used = cards.filter((c) => (positionOf.get(c.pipelineStageId) ?? -1) >= shippedIndex).length;
+    let used = cards.filter(
+      (c) =>
+        ours.has(String(c.name || "").trim()) &&
+        (positionOf.get(c.pipelineStageId) ?? -1) >= shippedIndex
+    ).length;
     if (used === 0) used = 1; // the card driving this event, if the board lags
 
     const remaining = Math.max(0, planMonths - used);
@@ -808,8 +873,14 @@ export async function planFor(contactId) {
     if (months < 2) return null;
     const used = Number(fieldValueOf(contact, SEARCH_FIELD_ID.FILLS_USED)) || 0;
     const due = fieldValueOf(contact, SEARCH_FIELD_ID.NEXT_INTAKE_DUE) || null;
+    const productId = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_PRODUCT)) || null;
+    /* At least one: the month they bought was handed to them by the purchase.
+       A plan recorded before this field existed reads as 1, which is right. */
+    const claimed = Math.max(1, Number(fieldValueOf(contact, SEARCH_FIELD_ID.FILLS_CLAIMED)) || 0);
     return {
       months,
+      productId,
+      claimed,
       used,
       remaining: Math.max(0, months - used),
       /* The month they are ON, which is the one they would recognise. One

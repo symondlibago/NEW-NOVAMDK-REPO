@@ -580,7 +580,7 @@ async function stripeSettle(req, res) {
     /* Recorded at authorisation, not at capture. Staff need to see that this
        patient holds a 3 month plan while the visit is still with a provider,
        and the fills themselves are only counted once the pharmacy ships. */
-    planMonths > 1 && contactId ? recordPlan(contactId, planMonths) : null,
+    planMonths > 1 && contactId ? recordPlan(contactId, planMonths, meta.product_id) : null,
     /* The card was opened with a single month's price, before the patient had
        chosen a term. Put the real total on it now, or a 3 month plan reports
        as a third of itself for ever. */
@@ -626,11 +626,12 @@ async function prepaidFill(req, res) {
     return res.status(403).json({ ok: false, error: "plan_only" });
   }
   if (!fill.canSettle) {
-    /* Either every month has shipped, or they already have more visits open
-       than they have paid for. Both are a real answer, not a failure. */
+    /* Either the plan is finished, or this is someone walking into a plan-only
+       product that was never handed to them. Both are a real answer, not a
+       failure. */
     console.warn(
-      `Refused a prepaid fill for ${pid}: ${fill.plan.used} of ${fill.plan.months} used, ` +
-        `${fill.inFlight} in flight`
+      `Refused a prepaid fill for ${pid}: ${fill.plan.claimed} of ${fill.plan.months} claimed, ` +
+        `${fill.plan.used} shipped`
     );
     return res.status(403).json({ ok: false, error: "no_fills_left" });
   }

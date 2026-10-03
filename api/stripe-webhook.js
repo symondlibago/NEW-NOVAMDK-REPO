@@ -69,7 +69,7 @@ async function recordHeld(intent) {
 
   const jobs = [];
   if (contactId) jobs.push(untagContact(contactId, [FAILED_TAG]));
-  if (contactId && planMonths > 1) jobs.push(recordPlan(contactId, planMonths));
+  if (contactId && planMonths > 1) jobs.push(recordPlan(contactId, planMonths, meta.product_id));
   if (orderId) {
     jobs.push(markOpportunityPaid(orderId, { won: false }));
   } else {
@@ -107,7 +107,7 @@ async function recordPaid(intent) {
      its plan at authorisation, and recordPlan zeroes fills_used, so repeating
      it here would wipe the count if a capture ever landed after a fill. */
   if (contactId && !wasHeld && Number(meta.plan_months) > 1) {
-    jobs.push(recordPlan(contactId, Number(meta.plan_months)));
+    jobs.push(recordPlan(contactId, Number(meta.plan_months), meta.product_id));
   }
   if (orderId) {
     jobs.push(wasHeld ? markOpportunityWon(orderId) : markOpportunityPaid(orderId));

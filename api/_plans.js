@@ -1,4 +1,6 @@
-/* Multi-month plans: how a term is priced, and nothing else.
+import { PRICES } from "./_prices.js";
+
+/* Multi-month plans: how a term is priced, and which rung each month opens.
  *
  * John's design, agreed 2026-10-02. A patient buys 1, 2 or 3 months and pays
  * for the whole term at checkout. The pharmacy still dispenses one month at a
@@ -68,6 +70,46 @@ export function nextIntakeDue(shippedAt = new Date()) {
   if (Number.isNaN(at.getTime())) return null;
   at.setDate(at.getDate() + DAYS_PER_FILL - REMINDER_DAYS);
   return at;
+}
+
+/* ---- the rungs a plan climbs ----
+ *
+ * Month 1 is the product the patient bought; every month after it is that
+ * product's nextRung, and the last rung repeats itself. Walked from the
+ * recorded plan product rather than inferred from the patient's case history,
+ * which was wrong for anyone with two treatments running: their newest case
+ * could belong to the other one entirely.
+ *
+ * Here rather than in _fills.js because api/_ghl.js needs it too, and _fills.js
+ * imports _ghl.js. */
+
+/** The product month `month` of a plan on `planProduct` opens, or null. */
+export function rungFor(planProduct, month) {
+  let pid = Number(planProduct);
+  const want = Number(month);
+  if (!PRICES[String(pid)] || !Number.isInteger(want) || want < 1) return null;
+  /* Bounded by the catalogue, so a nextRung loop someone introduces by mistake
+     cannot spin here. */
+  for (let step = 1; step < want && step < 20; step++) {
+    const next = Number(PRICES[String(pid)]?.nextRung);
+    if (!next || !PRICES[String(next)]) break; // last rung repeats itself
+    pid = next;
+  }
+  return pid;
+}
+
+/** Every product a plan on `planProduct` can reach, itself included. */
+export function ladderFor(planProduct) {
+  const out = [];
+  let pid = Number(planProduct);
+  for (let step = 0; step < 20 && PRICES[String(pid)]; step++) {
+    if (out.includes(pid)) break;
+    out.push(pid);
+    const next = Number(PRICES[String(pid)]?.nextRung);
+    if (!next || !PRICES[String(next)]) break;
+    pid = next;
+  }
+  return out;
 }
 
 /** The term for a month count, or null if it isn't one we sell. */

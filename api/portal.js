@@ -2,7 +2,7 @@ import { blocked, signReleaseToken } from './_guard.js';
 import { mdi, mdiUpload, mdiConfigured, listOf } from './_mdi.js';
 import { readSession, sessionsEnabled } from './_session.js';
 import { fillFor } from './_fills.js';
-import { createVisitOpportunity, INTAKE_STAGE } from './_ghl.js';
+import { createVisitOpportunity, claimFill, INTAKE_STAGE } from './_ghl.js';
 import { PRICES } from './_prices.js';
 
 const MESSAGE_PAGE = 100;
@@ -648,15 +648,21 @@ export default async function handler(req, res) {
         );
       }
 
+      /* This month is now handed out, and that is what stops a second one
+         being opened until it has shipped. Written last, after the voucher and
+         the card exist: a claim recorded against a month that failed to open
+         would cost the patient a fill they never got. */
+      await claimFill(fill.contactId, fill.nextMonth);
+
       console.info(
-        `Plan month ${fill.plan.current} of ${fill.plan.months} opened for patient ${patientId}: ` +
+        `Plan month ${fill.nextMonth} of ${fill.plan.months} opened for patient ${patientId}: ` +
           `product ${fill.pid}, voucher ${voucher.id}, opportunity ${opportunityId || '-'}`
       );
       return res.status(200).json({
         token: voucher.id,
         pid: fill.pid,
         questionnaire_id: fill.questionnaireId,
-        month: fill.plan.current,
+        month: fill.nextMonth,
         /* Handed to the browser because /intake reads both of these out of
            session storage and has no other way to learn them. */
         contact_id: fill.contactId,
