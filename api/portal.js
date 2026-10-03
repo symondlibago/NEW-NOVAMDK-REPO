@@ -623,7 +623,15 @@ export default async function handler(req, res) {
         contactId: fill.contactId,
         treatment: label || `Plan month ${fill.plan.current}`,
         value: 0,
-        source: 'Patient portal, plan month',
+        /* The same source every website visit carries, deliberately.
+         *
+         * A distinct value here ("Patient portal, plan month") read better on
+         * the card but dropped it out of the Patient Visits smart list, which
+         * filters on Source is "NovaMDK website". That list is where staff look
+         * for every intake a patient has ever done, so a plan month has to be
+         * in it. What makes this visit recognisable is the $0 value and the
+         * Maintenance name, not the source. */
+        source: 'NovaMDK website',
         productLine: product.categoryName || undefined,
         intakeStage: INTAKE_STAGE.STARTED,
       }).catch((e) => {
