@@ -700,20 +700,65 @@ async function prepaidFill(req, res) {
  *
  * Answers 200 for every refusal that is a real answer rather than a fault:
  * GHL retries a non-2xx, and "this patient cancelled" is not worth retrying. */
+/* The body a webhook actually arrived with, as a plain object.
+ *
+ * Parsed here as well as by the platform, because the Content-Type a sender
+ * picks is not ours to choose and an unparsed body is a string. */
+function renewBodyOf(req) {
+  let b = req.body;
+  if (typeof b === "string") {
+    try {
+      b = JSON.parse(b);
+    } catch {
+      return {};
+    }
+  }
+  return b && typeof b === "object" ? b : {};
+}
+
+const bodyKeysOf = (req) => {
+  const b = renewBodyOf(req);
+  const nested = b.customData && typeof b.customData === "object" ? b.customData : null;
+  return Object.keys(b).concat(nested ? Object.keys(nested).map((k) => `customData.${k}`) : []);
+};
+
+/* One field off a renewal webhook, wherever the sender put it.
+ *
+ * A GoHighLevel workflow Webhook posts the contact's standard fields at the top
+ * level and the action's own Custom Data ONE LEVEL DOWN, under customData. Read
+ * flat only, a secret sitting in customData is indistinguishable from no secret
+ * at all: that is the 403 that ran from 03:44 to 04:00 on 2026-10-06 while the
+ * same secret posted flat by hand went straight through. Flat is tried first so
+ * nothing else that calls this route changes behaviour. */
+function renewField(req, key, max) {
+  const b = renewBodyOf(req);
+  const flat = clean(b[key], max);
+  if (flat) return flat;
+  const nested = b.customData || b.custom_data;
+  return nested && typeof nested === "object" ? clean(nested[key], max) : "";
+}
+
 async function renewPlan(req, res) {
   if (!stripeEnabled()) return res.status(503).json({ ok: false, error: "not_configured" });
   /* The only gate on this route. GHL's servers have no browser origin, so
      blocked() cannot help, and a request that could charge a saved card must
      not be callable by anyone who knows a contact id. */
-  if (!RENEW_SECRET || clean(req.body?.secret, 200) !== RENEW_SECRET) {
-    console.warn("Rejected a renewal: missing or wrong secret");
+  if (!RENEW_SECRET || renewField(req, "secret", 200) !== RENEW_SECRET) {
+    /* The KEYS, never the values. A 403 with nothing to go on cost hours on
+       2026-10-06, when the secret was arriving a level down and looked
+       identical to no secret at all. */
+    console.warn(
+      `Rejected a renewal: missing or wrong secret (body carried: ${
+        bodyKeysOf(req).join(", ") || "nothing"
+      })`
+    );
     return res.status(403).json({ ok: false, error: "forbidden" });
   }
 
   /* The CARD, because a renewal belongs to one plan and a patient can hold
      several. The GoHighLevel workflow fires on the card's own Renews On date,
      so it already knows which one. */
-  const orderId = clean(req.body?.opportunity_id, 60);
+  const orderId = renewField(req, "opportunity_id", 60);
   if (!orderId) return res.status(400).json({ ok: false, error: "missing_opportunity" });
 
   const card = await opportunityById(orderId);
