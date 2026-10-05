@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, Check, HeartPulse, Loader2, UserRound } from "lucide-react";
 import { portalData } from "../../lib/portal";
+import PortalPlan from "./PortalPlan";
 
 const KG_PER_LB = 0.45359237;
 const kgToLb = (kg) => (kg == null ? "" : String(Math.round(kg / KG_PER_LB)));
@@ -78,6 +79,17 @@ export default function PortalProfile({ onUnauthorized }) {
   const [error, setError] = useState({});
   // One card at a time — the two stacked made for a very long scroll.
   const [section, setSection] = useState("details");
+  /* The plan and its renewal. Null for everyone who is not on one, and a
+     failure here must not blank the page: the details form is what most people
+     came for. */
+  const [billing, setBilling] = useState(null);
+
+  const loadBilling = useCallback(() => {
+    portalData({ resource: "plan" })
+      .then((r) => setBilling(r?.billing || null))
+      .catch(() => setBilling(null));
+  }, []);
+  useEffect(loadBilling, [loadBilling]);
 
   useEffect(() => {
     portalData({ resource: "profile" })
@@ -146,6 +158,16 @@ export default function PortalProfile({ onUnauthorized }) {
             Keeping this current helps your clinician prescribe safely.
           </p>
         </div>
+
+        {/* Billing belongs here rather than on the home page: the home page has
+            to fit a phone screen in one go, and this is something a patient
+            comes looking for rather than something they need in front of them
+            every visit. Renders nothing at all for anyone not on a plan. */}
+        <PortalPlan
+          billing={billing}
+          onChanged={loadBilling}
+          onUnauthorized={onUnauthorized}
+        />
 
         <div className="inline-flex w-fit gap-1 rounded-full border border-line bg-surface p-1">
           {SECTIONS.map(({ key, label, icon }) => {

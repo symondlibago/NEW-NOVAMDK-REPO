@@ -14,6 +14,7 @@ import {
   markOpportunityWon,
   markOpportunityFailed,
   recordFillShipped,
+  startRenewal,
   SEARCH_FIELD_ID,
   FIELD,
 } from "./_ghl.js";
@@ -129,6 +130,11 @@ async function captureHold(opportunityId, contactId) {
     /* Status only. The card is sitting in Approved by now and dragging it back
        to Paid would undo the column the provider's decision just earned. */
     await markOpportunityWon(opportunityId);
+    /* Approved, so they are an active subscriber and the plan begins renewing.
+       Client rule, 2026-10-05: renewal starts at approval rather than at
+       checkout, so nobody is signed up to a schedule for a treatment they were
+       refused. Does nothing if they have already turned renewal off. */
+    await startRenewal(contactId);
     return;
   }
 

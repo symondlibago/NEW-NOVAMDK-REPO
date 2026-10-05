@@ -2,8 +2,18 @@ import { blocked, signReleaseToken } from './_guard.js';
 import { mdi, mdiUpload, mdiConfigured, listOf } from './_mdi.js';
 import { readSession, sessionsEnabled } from './_session.js';
 import { fillFor } from './_fills.js';
-import { createVisitOpportunity, claimFill, INTAKE_STAGE } from './_ghl.js';
+import {
+  createVisitOpportunity,
+  claimFill,
+  renewalFor,
+  cancelRenewal,
+  findContactByCustomField,
+  SEARCH_FIELD_ID,
+  INTAKE_STAGE,
+} from './_ghl.js';
 import { PRICES } from './_prices.js';
+import { savedCard } from './_stripe.js';
+import { quoteFor } from './_plans.js';
 
 const MESSAGE_PAGE = 100;
 const CHANNELS = new Set(['patient']);
@@ -536,17 +546,69 @@ export default async function handler(req, res) {
      * separate decision that mints its own permission server side. */
     if (resource === 'plan') {
       const fill = await fillFor(patientId);
+      /* Renewal is read separately and for everyone, because a 1 month plan
+         renews too and fillFor deliberately ignores single month purchases:
+         they have no prepaid months left to hand out. */
+      const contact = await findContactByCustomField(
+        SEARCH_FIELD_ID.MDI_PATIENT_ID,
+        patientId
+      ).catch(() => null);
+      const renewal = contact?.id ? await renewalFor(contact.id) : null;
+
+      let billing = null;
+      if (renewal) {
+        const priced = renewal.productId ? quoteFor(renewal.productId, renewal.months) : null;
+        billing = {
+          months: renewal.months,
+          autoRenew: renewal.on,
+          renewsOn: renewal.renewsOn,
+          /* What the next charge will be, so "cancel" is an informed choice
+             rather than a leap. The real catalogue price, never a test one. */
+          amount: priced?.total ?? null,
+          treatment: renewal.productId ? PRICES[String(renewal.productId)]?.name || null : null,
+          /* Brand and last four only. Enough to recognise the card, nothing
+             more than that. */
+          card: renewal.on && renewal.customerId ? await savedCard(renewal.customerId) : null,
+        };
+      }
+
       /* A 200 with no plan rather than an error: most patients are not on one,
          and the portal should not show a failure for the ordinary case. */
-      if (!fill) return res.status(200).json({ plan: null });
+      if (!fill && !billing) return res.status(200).json({ plan: null, billing: null });
       return res.status(200).json({
-        plan: {
-          ...fill.plan,
-          /* Whether the button is offered at all. False while a month is still
-             being reviewed or on its way, which is most of the time. */
-          canStart: fill.canStart,
-        },
+        plan: fill
+          ? {
+              ...fill.plan,
+              /* Whether the button is offered at all. False while a month is
+                 still being reviewed or on its way, which is most of the time. */
+              canStart: fill.canStart,
+            }
+          : null,
+        billing,
       });
+    }
+
+    /* The patient switching renewal off themselves.
+     *
+     * Stops future billing and nothing else. The term they have already paid
+     * for stays exactly as it is, which is the client's rule: cancelling is not
+     * a refund and does not undo an order already placed. */
+    if (resource === 'cancel_renewal') {
+      const contact = await findContactByCustomField(
+        SEARCH_FIELD_ID.MDI_PATIENT_ID,
+        patientId
+      ).catch(() => null);
+      if (!contact?.id) return res.status(404).json({ error: 'We could not find your plan' });
+      try {
+        await cancelRenewal(contact.id);
+      } catch (e) {
+        /* Unlike most CRM writes this one is surfaced. The patient pressed a
+           button and is waiting on it, and telling them renewal is off when the
+           write failed would be the worst outcome here. */
+        console.error(`Portal cancel_renewal failed for ${contact.id}:`, e.message);
+        return res.status(502).json({ error: 'We could not cancel that. Please try again.' });
+      }
+      return res.status(200).json({ cancelled: true });
     }
 
     /* Opens the next month of a plan the patient has already paid for.

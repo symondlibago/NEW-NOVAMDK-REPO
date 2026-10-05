@@ -23,8 +23,14 @@
    distinguish the two, so a patient can see a pending line and think they have
    already been billed. Saying it plainly up front is cheaper than answering it
    in support, and it is a good reason to go through with the visit. */
+/* Approved by the client on 2026-10-05, and live from the same push that made
+   renewals real. The third sentence is also the consent for keeping the card on
+   file: nothing may be saved for later without the patient being told, so this
+   line and the saved card ship together or not at all. */
 export const HOLD_NOTICE =
-  "Your card is held, not charged. We only take payment once a licensed provider approves your treatment.";
+  "Your card is held, not charged. We only take payment once a licensed provider approves " +
+  "your treatment. Your plan then renews automatically, and you can cancel any time in your " +
+  "patient portal.";
 
 /* The long version, behind the question mark on the total.
  *
@@ -39,6 +45,7 @@ export const PAYMENT_DUE = {
     "You only pay if you are prescribed. We place an authorization hold on your card now, and no charge goes through until a licensed provider approves your treatment.",
     "If the provider decides this treatment is not right for you, the hold is released and you are not charged anything.",
     "A hold lasts up to 7 days. If your visit has not been reviewed by then, your bank releases the funds on its own and we will ask you to pay again before anything ships.",
+    "Once your first order is approved, your plan renews on its own so your treatment does not lapse. We only ever charge a renewal when your prescription is active and nothing is waiting on a provider. You can turn renewals off at any time in your patient portal, and that never affects a plan you have already paid for.",
   ],
 };
 

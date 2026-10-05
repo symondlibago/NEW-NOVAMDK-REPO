@@ -67,6 +67,23 @@ export const DAYS_PER_FILL = 28;
    and enough for a review, an approval and the post. */
 export const REMINDER_DAYS = 7;
 
+/* When a plan's renewal should charge, counted from the day it was approved.
+ *
+ * A term covers `months` fills of 28 days, and the charge lands REMINDER_DAYS
+ * before that runs out so the next batch has time to be reviewed, filled and
+ * posted. A 1 month plan renews 21 days in, a 3 month plan 77 days in.
+ *
+ * Counted from approval rather than from shipping on purpose: it has to be
+ * decidable the moment a provider approves, and a renewal that charges a few
+ * days early is a patient who does not run out, which is the point. */
+export function renewalDate(from = new Date(), months = 1) {
+  const at = new Date(from);
+  const term = Number(months);
+  if (Number.isNaN(at.getTime()) || !Number.isInteger(term) || term < 1) return null;
+  at.setDate(at.getDate() + term * DAYS_PER_FILL - REMINDER_DAYS);
+  return at;
+}
+
 /** When the next intake should be due, given the day a fill shipped. */
 export function nextIntakeDue(shippedAt = new Date()) {
   const at = new Date(shippedAt);
@@ -140,6 +157,39 @@ export function monthsFrom(value) {
  * silently reprice the whole shop by up to 50 cents. */
 export const perMonthOf = (base, term) =>
   term.off === 0 ? base : Math.max(1, Math.round(base * (1 - term.off)));
+
+/* Flat per order. An env var rather than a catalogue field so it can change
+   without a rebuild; unset means no fee line and nothing charged for it. */
+const SHIPPING_FEE = (() => {
+  const n = Number(process.env.SHIPPING_FEE);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0;
+})();
+
+/* What the patient is shown. Real prices only, whatever test overrides exist.
+ *
+ * `months` is the plan term. The consultation fee is charged once per plan
+ * rather than once per month: the reintakes are part of what they bought. It is
+ * $0 at the time of writing, so this is a decision waiting to matter rather
+ * than one already affecting a total.
+ *
+ * Lives here rather than in pay.js because the portal shows a renewal amount
+ * and the renewal charge computes one, and the two must never disagree about
+ * what a term costs. */
+export function quoteFor(pid, months = DEFAULT_MONTHS) {
+  const item = PRICES[String(pid)];
+  if (!item) return null;
+  /* A product too expensive to hold three months of can only be bought one
+     month at a time, whatever the request asked for. Enforced here rather than
+     only in the chooser, since the chooser is in the browser. */
+  const asked = planAllowed(item.amount) ? months : DEFAULT_MONTHS;
+  const term = termFor(asked) || termFor(DEFAULT_MONTHS);
+  const priced = priceTerm(item.amount, term);
+  return {
+    ...priced,
+    shipping: SHIPPING_FEE,
+    total: Math.round((priced.amount + SHIPPING_FEE) * 100) / 100,
+  };
+}
 
 /** Priced term: what one month costs, what the whole term costs, what they save. */
 export function priceTerm(base, term) {

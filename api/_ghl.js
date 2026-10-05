@@ -1,4 +1,4 @@
-import { nextIntakeDue, ladderFor } from "./_plans.js";
+import { nextIntakeDue, ladderFor, renewalDate } from "./_plans.js";
 import { PRICES } from "./_prices.js";
 
 const BASE = process.env.GHL_API_BASE || "https://services.leadconnectorhq.com";
@@ -40,6 +40,15 @@ export const FIELD = {
   FILLS_CLAIMED: "fills_claimed",
   // How many of them the pharmacy has actually shipped.
   FILLS_USED: "fills_used",
+  /* ---- automatic renewal (client spec, 2026-10-05) ---- */
+  // 1 while the plan renews by itself, 0 once the patient turns it off.
+  AUTO_RENEW: "auto_renew",
+  // The day the next renewal is charged.
+  RENEWS_ON: "renews_on",
+  /* The Stripe customer holding their saved card. Without it a renewal has
+     nothing to charge, which is why it is written at checkout rather than
+     looked up later. */
+  STRIPE_CUSTOMER: "stripe_customer",
   // When the next intake is due, as a real date so a GHL workflow can trigger
   // off it. Cleared once the last fill ships, which is what ends the plan.
   NEXT_INTAKE_DUE: "next_intake_due",
@@ -596,6 +605,11 @@ export const SEARCH_FIELD_ID = {
      half of one. */
   PLAN_PRODUCT: process.env.GHL_PLAN_PRODUCT_FIELD_ID || "JFxmVKquKmtYuDI65Tu5",
   FILLS_CLAIMED: process.env.GHL_FILLS_CLAIMED_FIELD_ID || "jRLnqQzHJcw6sAfMJnLF",
+  /* Blank until the fields exist. A blank id means renewal state cannot be
+     read, and renewalFor then reports no renewal rather than guessing one. */
+  AUTO_RENEW: process.env.GHL_AUTO_RENEW_FIELD_ID || "ozW5BxIzYscn4E1zT1oH",
+  RENEWS_ON: process.env.GHL_RENEWS_ON_FIELD_ID || "I9EwWg7Y7NKPHZuyiZZw",
+  STRIPE_CUSTOMER: process.env.GHL_STRIPE_CUSTOMER_FIELD_ID || "KRIAYZNPph7M1qyFdI7F",
 };
 
 /** The value of one custom field on a record GHL returned, or "". */
@@ -712,6 +726,85 @@ export async function recordPlan(contactId, months, productId) {
     console.error(`GHL plan write failed for ${contactId}:`, e.message);
     return null;
   }
+}
+
+/* ---- automatic renewal ----
+ *
+ * The plan renews by itself once the first order is approved, and the patient
+ * can turn that off in the portal. Three things are recorded: whether it is on,
+ * the day it next charges, and the Stripe customer holding the card.
+ *
+ * Deliberately NOT a Stripe Subscription. A subscription charges on its own
+ * schedule whatever else is going on, and the client's rule is that a renewal
+ * must not charge while a prescription is inactive, a provider review is
+ * outstanding, the patient has cancelled, or the account is on hold. Running
+ * the charge ourselves is the only way those four can actually be honoured. */
+
+/** Switches renewal on and sets the day it next charges. Never throws. */
+export async function setRenewal(contactId, { on = true, renewsOn } = {}) {
+  if (!contactId) return null;
+  const day = renewsOn instanceof Date ? dueDate(renewsOn) : clean(renewsOn);
+  try {
+    await updateContactFields(contactId, {
+      [FIELD.AUTO_RENEW]: on ? 1 : 0,
+      ...(day && { [FIELD.RENEWS_ON]: day }),
+    });
+    console.info(
+      `GHL contact ${contactId}: renewal ${on ? "on" : "off"}${day ? `, next ${day}` : ""}`
+    );
+    return true;
+  } catch (e) {
+    console.error(`GHL renewal write failed for ${contactId}:`, e.message);
+    return null;
+  }
+}
+
+/* Renewal begins when a provider approves, which is the client's rule: a
+ * patient is only an active subscriber once they have actually been prescribed.
+ *
+ * Reads the term off the contact rather than taking it as an argument, because
+ * the one caller is the capture in the MDI webhook and all it has is a contact.
+ * A contact with no plan recorded, which is every order placed before plans
+ * existed, is left alone. Never throws. */
+export async function startRenewal(contactId) {
+  if (!contactId || !SEARCH_FIELD_ID.PLAN_MONTHS) return null;
+  try {
+    const contact = await contactById(contactId);
+    const months = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_MONTHS)) || 0;
+    if (months < 1) return null;
+    /* Already switched off by the patient, so approval of a month they had
+       already paid for must not switch it back on. */
+    if (SEARCH_FIELD_ID.AUTO_RENEW) {
+      const now = fieldValueOf(contact, SEARCH_FIELD_ID.AUTO_RENEW);
+      if (now !== "" && Number(now) !== 1) {
+        console.info(`GHL contact ${contactId}: renewal stays off, the patient turned it off`);
+        return null;
+      }
+    }
+    const at = renewalDate(new Date(), months);
+    if (!at) return null;
+    return setRenewal(contactId, { on: true, renewsOn: at });
+  } catch (e) {
+    console.error(`GHL renewal start failed for ${contactId}:`, e.message);
+    return null;
+  }
+}
+
+/* The patient turning renewal off.
+ *
+ * Only the switch is written. The date is left exactly where it is, because the
+ * client's rule is that cancelling stops FUTURE billing and leaves the period
+ * already paid for alone: a patient who cancels still has the months they
+ * bought, and staff can still see when the renewal would have fallen.
+ *
+ * Throws on failure, unlike everything else here. This one is a button the
+ * patient pressed and is waiting on, so a silent failure would tell them their
+ * renewal was cancelled when it was not. */
+export async function cancelRenewal(contactId) {
+  if (!contactId) throw new Error("cancelRenewal needs a contact id");
+  await updateContactFields(contactId, { [FIELD.AUTO_RENEW]: 0 });
+  console.info(`GHL contact ${contactId}: renewal cancelled by the patient`);
+  return true;
 }
 
 /** One more month handed out. Never throws. @returns the new count, or null. */
@@ -858,6 +951,43 @@ export async function setOpportunityValue(opportunityId, value) {
   }
 }
 
+/* Everything about a patient's renewal, whatever the term.
+ *
+ * Separate from planFor on purpose. planFor answers "how many prepaid months
+ * are left", which only means anything on a 3 month plan, so it ignores a 1
+ * month purchase. Renewal means something for both: a 1 month plan renews every
+ * month and a 3 month plan every three. Conflating them would either break the
+ * fills machinery or leave single month subscribers unable to renew.
+ *
+ * Never throws. @returns {Promise<object|null>} null if no plan is recorded. */
+export async function renewalFor(contactId) {
+  if (!contactId || !SEARCH_FIELD_ID.PLAN_MONTHS || !SEARCH_FIELD_ID.AUTO_RENEW) return null;
+  try {
+    const contact = await contactById(contactId);
+    const months = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_MONTHS)) || 0;
+    if (months < 1) return null;
+    const renewRaw = fieldValueOf(contact, SEARCH_FIELD_ID.AUTO_RENEW);
+    const on = Number(renewRaw) === 1;
+    const renewsOn = SEARCH_FIELD_ID.RENEWS_ON
+      ? fieldValueOf(contact, SEARCH_FIELD_ID.RENEWS_ON) || null
+      : null;
+    return {
+      months,
+      productId: Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_PRODUCT)) || null,
+      on,
+      renewsOn: renewsOn ? String(renewsOn).slice(0, 10) : null,
+      customerId: SEARCH_FIELD_ID.STRIPE_CUSTOMER
+        ? fieldValueOf(contact, SEARCH_FIELD_ID.STRIPE_CUSTOMER) || null
+        : null,
+      claimed: Math.max(1, Number(fieldValueOf(contact, SEARCH_FIELD_ID.FILLS_CLAIMED)) || 0),
+      used: Number(fieldValueOf(contact, SEARCH_FIELD_ID.FILLS_USED)) || 0,
+    };
+  } catch (e) {
+    console.warn(`GHL renewal read failed for ${contactId}:`, e.message);
+    return null;
+  }
+}
+
 /* Where a patient is in their plan, for showing them.
  *
  * Read from the cached fields rather than counted off the board: this answers a
@@ -874,6 +1004,18 @@ export async function planFor(contactId) {
     const used = Number(fieldValueOf(contact, SEARCH_FIELD_ID.FILLS_USED)) || 0;
     const due = fieldValueOf(contact, SEARCH_FIELD_ID.NEXT_INTAKE_DUE) || null;
     const productId = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_PRODUCT)) || null;
+    /* Renewal, read only if the fields exist. A plan sold before they did has
+       no switch, and the honest answer for one is "not renewing" rather than a
+       default that would charge somebody who never agreed to it. */
+    const renewRaw = SEARCH_FIELD_ID.AUTO_RENEW
+      ? fieldValueOf(contact, SEARCH_FIELD_ID.AUTO_RENEW)
+      : "";
+    const renewsOn = SEARCH_FIELD_ID.RENEWS_ON
+      ? fieldValueOf(contact, SEARCH_FIELD_ID.RENEWS_ON) || null
+      : null;
+    const customerId = SEARCH_FIELD_ID.STRIPE_CUSTOMER
+      ? fieldValueOf(contact, SEARCH_FIELD_ID.STRIPE_CUSTOMER) || null
+      : null;
     /* At least one: the month they bought was handed to them by the purchase.
        A plan recorded before this field existed reads as 1, which is right. */
     const claimed = Math.max(1, Number(fieldValueOf(contact, SEARCH_FIELD_ID.FILLS_CLAIMED)) || 0);
@@ -887,6 +1029,9 @@ export async function planFor(contactId) {
          before anything has shipped, not zero. */
       current: Math.min(months, used + 1),
       nextDue: due ? String(due).slice(0, 10) : null,
+      autoRenew: Number(renewRaw) === 1,
+      renewsOn: renewsOn ? String(renewsOn).slice(0, 10) : null,
+      customerId,
     };
   } catch (e) {
     console.warn(`GHL plan read failed for ${contactId}:`, e.message);

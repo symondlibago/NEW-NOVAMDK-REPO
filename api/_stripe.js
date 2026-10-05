@@ -129,6 +129,63 @@ export async function findHold(opportunityId) {
  * `expand[]=latest_charge`. Both shapes are handled: the legacy array still
  * turns up on older stored objects.
  */
+/* The Stripe customer a patient's saved card hangs off, created once and reused.
+ *
+ * A card can only be charged again later if it is attached to a customer, so a
+ * plan that renews needs one. Looked up by the id we keep on the CRM contact
+ * first; failing that a new one is made and the caller stores its id.
+ *
+ * Never throws: a customer we cannot make costs the renewal, not the payment in
+ * front of the patient.
+ *
+ * @returns {Promise<string|null>} the customer id.
+ */
+export async function customerFor({ customerId, email, contactId } = {}) {
+  const known = typeof customerId === "string" ? customerId.trim() : "";
+  if (known) {
+    const got = await stripe(`/customers/${encodeURIComponent(known)}`, { method: "GET" });
+    /* A deleted customer still answers 200 with deleted: true, and attaching a
+       card to one fails later rather than here. */
+    if (got.ok && got.data?.id && !got.data?.deleted) return got.data.id;
+    console.warn(`Stripe customer ${known} is gone, making another`);
+  }
+
+  const made = await stripe("/customers", {
+    body: {
+      ...(email ? { email } : {}),
+      /* Our own id, so a customer in the dashboard traces back to the CRM.
+         No name and no address: a processor is not a place for those. */
+      metadata: { contact_id: contactId || "" },
+    },
+  });
+  if (!made.ok || !made.data?.id) {
+    console.error("Stripe customer not created:", made.status, made.data?.error?.message || "");
+    return null;
+  }
+  return made.data.id;
+}
+
+/* The card a customer will be charged on next: brand and last four only.
+ *
+ * Shown in the portal so a patient can see which card renews, which is what
+ * makes "cancel" a real choice rather than a leap of faith. Deliberately
+ * nothing more than that. */
+export async function savedCard(customerId) {
+  const id = typeof customerId === "string" ? customerId.trim() : "";
+  if (!id) return null;
+  const r = await stripe(
+    `/payment_methods?customer=${encodeURIComponent(id)}&type=card&limit=1`,
+    { method: "GET" }
+  );
+  const pm = r.data?.data?.[0];
+  const card = pm?.card;
+  /* The id rides along because a renewal has to name the payment method
+     explicitly. A customer's default_payment_method is only consulted for
+     invoices; a PaymentIntent confirmed off-session with no payment_method is
+     refused with a 400, which is how this was found. */
+  return card?.last4 ? { id: pm.id, brand: card.brand || "card", last4: card.last4 } : null;
+}
+
 export function holdExpiresAt(intent) {
   const charge =
     (intent?.latest_charge && typeof intent.latest_charge === "object" ? intent.latest_charge : null) ||

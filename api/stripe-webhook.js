@@ -69,7 +69,7 @@ async function recordHeld(intent) {
 
   const jobs = [];
   if (contactId) jobs.push(untagContact(contactId, [FAILED_TAG]));
-  if (contactId && planMonths > 1) jobs.push(recordPlan(contactId, planMonths, meta.product_id));
+  if (contactId && planMonths >= 1) jobs.push(recordPlan(contactId, planMonths, meta.product_id));
   if (orderId) {
     jobs.push(markOpportunityPaid(orderId, { won: false }));
   } else {

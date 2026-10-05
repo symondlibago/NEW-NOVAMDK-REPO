@@ -9,7 +9,11 @@ import {
   updateContactFields,
   updateOpportunityFields,
   contactById,
+  fieldValueOf,
+  SEARCH_FIELD_ID,
   recordPlan,
+  renewalFor,
+  setRenewal,
   setOpportunityValue,
   INTAKE_STAGE,
   FIELD,
@@ -25,8 +29,8 @@ import {
   parseReference,
   addToMonth,
 } from "./_kurv.js";
-import { stripe, stripeEnabled, stripeMode, toCents, holdExpiresAt, findHold } from "./_stripe.js";
-import { PLAN_TERMS, DEFAULT_MONTHS, monthsFrom, termFor, priceTerm, planAllowed } from "./_plans.js";
+import { stripe, stripeEnabled, stripeMode, toCents, holdExpiresAt, findHold, customerFor, savedCard } from "./_stripe.js";
+import { PLAN_TERMS, DEFAULT_MONTHS, monthsFrom, planAllowed, renewalDate, quoteFor } from "./_plans.js";
 import { fillFor, isFollowOnRung, matchesFill } from "./_fills.js";
 import { readSession } from "./_session.js";
 
@@ -43,6 +47,12 @@ const GATEWAY =
 const SECURITY_KEY = process.env.NMI_SECURITY_KEY;
 
 const FAILED_TAG = "payment-failed";
+
+/* Shared with the GoHighLevel workflow that fires a renewal on its due date.
+   Unset means renewals cannot be charged at all, which is the safe default:
+   an open endpoint that charges saved cards is not something to ship by
+   accident. */
+const RENEW_SECRET = process.env.RENEWAL_SECRET || process.env.API_SIGNING_SECRET || null;
 
 /* A statement line and a gateway report shouldn't name someone's medication.
  * The opportunity id travels as `orderid`, so a transaction still reconciles
@@ -91,27 +101,6 @@ const TEST_PIDS = new Set(
 const TEST_AMOUNT = money(envAny("TEST_CHARGE_AMOUNT", "NMI_TEST_AMOUNT"));
 const TEST_SHIPPING = money(envAny("TEST_CHARGE_SHIPPING", "NMI_TEST_SHIPPING"));
 
-/* What the patient is shown. Real prices only, whatever test overrides exist.
- *
- * `months` is the plan term. The consultation fee is charged once per plan
- * rather than once per month: the reintakes are part of what they bought. It is
- * $0 at the time of writing, so this is a decision waiting to matter rather
- * than one already affecting a total. */
-function quoteFor(pid, months = DEFAULT_MONTHS) {
-  const item = PRICES[String(pid)];
-  if (!item) return null;
-  /* A product too expensive to hold three months of can only be bought one
-     month at a time, whatever the request asked for. Enforced here rather than
-     only in the chooser, since the chooser is in the browser. */
-  const asked = planAllowed(item.amount) ? months : DEFAULT_MONTHS;
-  const term = termFor(asked) || termFor(DEFAULT_MONTHS);
-  const priced = priceTerm(item.amount, term);
-  return {
-    ...priced,
-    shipping: SHIPPING_FEE,
-    total: cents(priced.amount + SHIPPING_FEE),
-  };
-}
 
 /* Every term priced, so the chooser renders from the server rather than doing
    money arithmetic in the browser. The patient can only pick from this list and
@@ -329,10 +318,38 @@ async function stripeIntent(req, res) {
   const hinted = clean(req.body?.receipt_email, 120);
   let receiptEmail = hinted && EMAIL_RE.test(hinted) ? hinted : null;
   const contactId = clean(contact_id, 60);
-  if (!receiptEmail && contactId && ghlConfigured()) {
-    const contact = await contactById(contactId);
-    const found = clean(contact?.email, 120);
+  let contact = null;
+  if (contactId && ghlConfigured()) contact = await contactById(contactId);
+  if (!receiptEmail && contact) {
+    const found = clean(contact.email, 120);
     if (found && EMAIL_RE.test(found)) receiptEmail = found;
+  }
+
+  /* A plan renews, so its card has to outlive this one payment.
+   *
+   * The card is attached to a Stripe customer and the intent is created with
+   * setup_future_usage, which is what lets a renewal be charged later without
+   * the patient present.
+   *
+   * The consent for this is the checkout copy, which says the plan renews
+   * automatically and can be cancelled in the portal. Those two have to ship
+   * together: saving a card without saying so is not on. */
+  /* Every term, not just the multi-month ones. A single month renews monthly
+     under the client's spec, so its card has to be kept too. */
+  let customerId = null;
+  {
+    customerId = await customerFor({
+      customerId: contact ? fieldValueOf(contact, SEARCH_FIELD_ID.STRIPE_CUSTOMER) : "",
+      email: receiptEmail,
+      contactId,
+    });
+    /* Worth recording even when the rest of this call fails: a customer with no
+       id written down is one we would make again next time. */
+    if (customerId && contactId) {
+      updateContactFields(contactId, { [FIELD.STRIPE_CUSTOMER]: customerId }).catch((e) =>
+        console.error(`GHL stripe_customer write failed for ${contactId}:`, e.message)
+      );
+    }
   }
 
   /* Release any hold already standing for this order before placing another.
@@ -368,6 +385,10 @@ async function stripeIntent(req, res) {
       currency: "usd",
       description: DESCRIPTION,
       receipt_email: receiptEmail || undefined,
+      /* A plan's card is kept so renewals can be charged off-session. Both
+         lines or neither: setup_future_usage without a customer saves nothing
+         that can be charged again. */
+      ...(customerId ? { customer: customerId, setup_future_usage: "off_session" } : {}),
       /* Hold now, take the money when a provider approves (client decision,
        * 2026-10-02). Nothing is charged at checkout: the issuer reserves the
        * amount and we capture it from the case_approved webhook.
@@ -580,7 +601,10 @@ async function stripeSettle(req, res) {
     /* Recorded at authorisation, not at capture. Staff need to see that this
        patient holds a 3 month plan while the visit is still with a provider,
        and the fills themselves are only counted once the pharmacy ships. */
-    planMonths > 1 && contactId ? recordPlan(contactId, planMonths, meta.product_id) : null,
+    /* >= 1, not > 1. A single month purchase is a subscription too once
+       renewals exist, so it needs its term and product recorded. planFor still
+       ignores it, so the prepaid-fills machinery is untouched. */
+    planMonths >= 1 && contactId ? recordPlan(contactId, planMonths, meta.product_id) : null,
     /* The card was opened with a single month's price, before the patient had
        chosen a term. Put the real total on it now, or a 3 month plan reports
        as a third of itself for ever. */
@@ -652,6 +676,126 @@ async function prepaidFill(req, res) {
       `on opportunity ${orderId || "-"}, nothing charged`
   );
   return res.status(200).json({ ok: true, prepaid: true, month: fill.plan.current });
+}
+
+/* Charges a plan renewal, off-session, on the day it falls due.
+ *
+ * Driven by a GoHighLevel workflow on the Renews On date rather than a cron,
+ * because this project is at the Vercel Hobby function cap and GHL already
+ * runs date-triggered automations for the check-in reminder. The workflow's
+ * webhook action posts here with the contact id and a shared secret.
+ *
+ * DELIBERATELY NOT A STRIPE SUBSCRIPTION. A subscription charges on its own
+ * schedule and asks nobody, and the client's rule (2026-10-05) is that a
+ * renewal must not charge while a prescription is inactive, a provider review
+ * is outstanding, the patient has cancelled, or the account is on hold.
+ * Running the charge here is what makes those four checkable at all.
+ *
+ * Answers 200 for every refusal that is a real answer rather than a fault:
+ * GHL retries a non-2xx, and "this patient cancelled" is not worth retrying. */
+async function renewPlan(req, res) {
+  if (!stripeEnabled()) return res.status(503).json({ ok: false, error: "not_configured" });
+  /* The only gate on this route. GHL's servers have no browser origin, so
+     blocked() cannot help, and a request that could charge a saved card must
+     not be callable by anyone who knows a contact id. */
+  if (!RENEW_SECRET || clean(req.body?.secret, 200) !== RENEW_SECRET) {
+    console.warn("Rejected a renewal: missing or wrong secret");
+    return res.status(403).json({ ok: false, error: "forbidden" });
+  }
+
+  const contactId = clean(req.body?.contact_id, 60);
+  if (!contactId) return res.status(400).json({ ok: false, error: "missing_contact" });
+
+  const r = await renewalFor(contactId);
+  if (!r) {
+    console.info(`Renewal skipped for ${contactId}: no plan recorded`);
+    return res.status(200).json({ ok: false, skipped: "no_plan" });
+  }
+
+  /* The client's four conditions, in the order they are cheapest to check. */
+  if (!r.on) {
+    console.info(`Renewal skipped for ${contactId}: the patient turned it off`);
+    return res.status(200).json({ ok: false, skipped: "cancelled" });
+  }
+  if (!r.customerId) {
+    console.error(`Renewal skipped for ${contactId}: no saved card`);
+    return res.status(200).json({ ok: false, skipped: "no_card" });
+  }
+  /* A month already handed out but not yet shipped means something is still
+     with a provider or the pharmacy. Charging for the next term on top of one
+     that has not arrived is exactly what "do not charge until cleared" is
+     there to stop. */
+  if (r.claimed > r.used) {
+    console.info(
+      `Renewal held for ${contactId}: ${r.claimed} claimed, ${r.used} shipped, still in flight`
+    );
+    return res.status(200).json({ ok: false, skipped: "in_flight" });
+  }
+
+  const charge = chargeFor(r.productId, r.months);
+  if (!charge) {
+    console.error(`Renewal skipped for ${contactId}: product ${r.productId} has no price`);
+    return res.status(200).json({ ok: false, skipped: "unpriced" });
+  }
+
+  /* Named explicitly. A customer's default_payment_method is only consulted
+     when Stripe raises an invoice; a PaymentIntent confirmed off-session with
+     no payment_method is simply refused. */
+  const card = await savedCard(r.customerId);
+  if (!card?.id) {
+    console.error(`Renewal skipped for ${contactId}: customer ${r.customerId} has no card on file`);
+    return res.status(200).json({ ok: false, skipped: "no_card" });
+  }
+
+  /* Off-session and confirmed in one call: nobody is at the keyboard. Charged
+     outright rather than held, because there is no visit to approve yet; the
+     term they are buying is reviewed month by month as they check in. */
+  const paid = await stripe("/payment_intents", {
+    body: {
+      amount: toCents(charge.total),
+      currency: "usd",
+      customer: r.customerId,
+      payment_method: card.id,
+      description: `${DESCRIPTION} (plan renewal)`,
+      confirm: true,
+      off_session: true,
+      payment_method_types: ["card"],
+      metadata: {
+        product_id: String(r.productId),
+        contact_id: contactId,
+        plan_months: String(r.months),
+        renewal: "1",
+      },
+    },
+    /* The date fires once, but a GHL workflow that retries must not charge
+       twice for the same day. */
+    idempotencyKey: `renew_${contactId}_${r.renewsOn || "x"}`,
+  });
+
+  if (!paid.ok || paid.data?.status !== "succeeded") {
+    const why =
+      paid.data?.error?.code ||
+      paid.data?.error?.message ||
+      paid.data?.status ||
+      `HTTP ${paid.status}`;
+    console.error(`Renewal charge FAILED for ${contactId}: ${why}`);
+    await markFailed(contactId, null);
+    /* Renewal stays ON. A card that failed today may work tomorrow, and
+       switching it off would quietly end a subscription the patient never
+       cancelled. The failed tag is what brings a human to it. */
+    return res.status(200).json({ ok: false, error: "charge_failed", reason: why });
+  }
+
+  /* A new term starts: the counts go back to the beginning and the next
+     renewal is set from today. recordPlan resets claimed and used, which is
+     exactly right for a fresh term. */
+  await recordPlan(contactId, r.months, r.productId);
+  await setRenewal(contactId, { on: true, renewsOn: renewalDate(new Date(), r.months) });
+  console.info(
+    `Renewal charged for ${contactId}: $${charge.total.toFixed(2)}, ` +
+      `${r.months} month(s) on product ${r.productId}`
+  );
+  return res.status(200).json({ ok: true, amount: charge.total, months: r.months });
 }
 
 async function kurvStart(req, res) {
@@ -822,6 +966,7 @@ export default async function handler(req, res) {
   }
 
   // Ahead of blocked(): Kurv's servers have no browser origin to show.
+  if (queryParam(req, "renew") === "1") return renewPlan(req, res);
   if (queryParam(req, "kurv") === "notify") return kurvNotice(req, res);
   if (req.body?.action === "kurv_start") return kurvStart(req, res);
   if (req.body?.action === "kurv_confirm") return kurvConfirm(req, res);
