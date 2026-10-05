@@ -764,14 +764,31 @@ export function planOn(opportunity) {
   };
 }
 
+/* Every card on a contact, read FRESH, newest first.
+ *
+ * /opportunities/search hands back the seven plan fields EMPTY. On 2026-10-06 a
+ * patient holding two live plans came back from search with plan_months,
+ * plan_product, fills_claimed, auto_renew and renews_on all blank, while a GET
+ * on each of those same cards had 3, 1, 1, 1 and a renewal date. The older
+ * fields on the same cards (intake stage, product line, the MDI case id) do
+ * come back populated, so this is not a lag that clears on its own, it is the
+ * shape of the search payload. Search is used for the ids and nothing else.
+ *
+ * Bounded and parallel: a patient holds a handful of cards, and this sits
+ * behind a portal screen. */
+async function freshCardsFor(contactId, limit = 12) {
+  const cards = await opportunitiesForContact(contactId);
+  const read = await Promise.all(cards.slice(0, limit).map((c) => opportunityById(c.id)));
+  return read.filter(Boolean);
+}
+
 /* Every plan a patient holds, newest first.
  *
- * One search, then a filter: a card without plan_months is an ordinary visit,
- * which is most of them. */
+ * A card without plan_months is an ordinary visit, which is most of them. */
 export async function plansFor(contactId) {
   if (!contactId || !OPP_FIELD_ID.PLAN_MONTHS) return [];
   try {
-    const cards = await opportunitiesForContact(contactId);
+    const cards = await freshCardsFor(contactId);
     return cards.map(planOn).filter(Boolean);
   } catch (e) {
     console.warn(`GHL plans read failed for ${contactId}:`, e.message);
@@ -966,7 +983,9 @@ const SHIPPED_STAGE_NAME = process.env.GHL_SHIPPED_STAGE_NAME || "Shipped";
 export async function recordFillShipped(contactId, { shippedAt = new Date(), productId } = {}) {
   if (!contactId || !oppPlansEnabled()) return null;
   try {
-    const cards = await opportunitiesForContact(contactId);
+    /* Fresh, not searched. A shipment counted off a searched card would read
+       every counter as zero and quietly stop the ladder. */
+    const cards = await freshCardsFor(contactId);
     const plans = cards.map(planOn).filter(Boolean);
     if (!plans.length) return null;
 
