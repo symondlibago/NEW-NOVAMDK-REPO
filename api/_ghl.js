@@ -23,35 +23,16 @@ export const FIELD = {
   EMAIL_MARKETING_CONSENT_VERSION: "email_marketing_consent_version",
   // MDI's permanent id for the person. One per patient, never changes, so the
   // Contact is the only place it belongs.
-  /* ---- multi-month plans. On the CONTACT rather than the opportunity: a plan
-     spans several visits by design, since each month is its own intake, so
-     there is no one card it belongs to ---- */
-  // How many 28-day fills this patient paid for, 1 to 3.
-  PLAN_MONTHS: "plan_months",
-  /* The product the plan was bought for, so the rung each month opens is
-     looked up rather than guessed. It used to be inferred from the patient's
-     newest case, which breaks the moment someone has two treatments running:
-     a tirzepatide plan could be offered a semaglutide questionnaire. */
-  PLAN_PRODUCT: "plan_product",
-  /* How many months we have handed out, including the one they bought. Counted
-     here rather than derived from their visits, for the same reason: a patient
-     with an unrelated treatment in progress had their next month refused
-     because the count included visits that were nothing to do with the plan. */
-  FILLS_CLAIMED: "fills_claimed",
-  // How many of them the pharmacy has actually shipped.
-  FILLS_USED: "fills_used",
-  /* ---- automatic renewal (client spec, 2026-10-05) ---- */
-  // 1 while the plan renews by itself, 0 once the patient turns it off.
-  AUTO_RENEW: "auto_renew",
-  // The day the next renewal is charged.
-  RENEWS_ON: "renews_on",
-  /* The Stripe customer holding their saved card. Without it a renewal has
-     nothing to charge, which is why it is written at checkout rather than
-     looked up later. */
+  /* The Stripe customer holding this patient's saved card, which is what lets
+     a renewal be charged without them present.
+   *
+   * The only piece of plan machinery still on the contact. Everything else
+   * (the term, the product, the counts, the renewal switch and date) moved to
+   * OPP_FIELD further down on 2026-10-06, because a patient can hold a plan per
+   * treatment and one set of contact fields could only hold one: buying a
+   * second treatment overwrote the first and lost its prepaid months. A saved
+   * card is genuinely one per patient, so this stayed. */
   STRIPE_CUSTOMER: "stripe_customer",
-  // When the next intake is due, as a real date so a GHL workflow can trigger
-  // off it. Cleared once the last fill ships, which is what ends the plan.
-  NEXT_INTAKE_DUE: "next_intake_due",
   MDI_PATIENT_ID: "mdi_patient_id",
   // The newest encounter, mirrored onto the Contact so a list can show it
   // without opening the opportunity. The per-visit copy lives below.
@@ -583,32 +564,15 @@ export const SEARCH_FIELD_ID = {
      recent visit. */
   OPPORTUNITY_ENCOUNTER_ID:
     process.env.GHL_OPPORTUNITY_ENCOUNTER_FIELD_ID || "zITnI6V21UiTywG4QHD5",
-  /* The plan term, which has to be read back before a fill can be counted
-     against it. Same hand-copied arrangement as the four above and for the same
-     reason: the token is refused the customFields scope outright, so nothing
-     here can be looked up by name at runtime.
+  /* The Stripe customer holding the saved card, read when a renewal needs
+     something to charge. Hand-copied like the four above, for the same reason:
+     the token is refused the customFields scope outright, so nothing here can
+     be looked up by name at runtime. Read back on 2026-10-05 by writing a
+     sentinel into the field on a test contact and matching the value to the id
+     GHL returned beside it.
 
-     These three were read back on 2026-10-02 by writing a sentinel into each
-     field on a test contact and matching the values to the ids GHL returned
-     beside them, which is the only way round the missing scope. A blank id
-     means the term cannot be read, and recordFillShipped then declines to
-     guess rather than filing a 3 month patient as finished. */
-  PLAN_MONTHS: process.env.GHL_PLAN_MONTHS_FIELD_ID || "Ldzio5RqRLHw5Q3vP7zR",
-  /* Read by the portal so a patient can see where they are in their plan.
-     fills_used is a cached figure: recordFillShipped derives the truth from the
-     board and writes it here, so anything reading it gets the answer without a
-     board scan of its own. */
-  FILLS_USED: process.env.GHL_FILLS_USED_FIELD_ID || "CWzubH2eusLsWortaEUA",
-  NEXT_INTAKE_DUE: process.env.GHL_NEXT_INTAKE_DUE_FIELD_ID || "rhcTwkbFHvcGJiUbiw12",
-  /* Read back on 2026-10-03 the same way as the three above. Blank means the
-     field does not exist yet, and planFor then returns no plan rather than
-     half of one. */
-  PLAN_PRODUCT: process.env.GHL_PLAN_PRODUCT_FIELD_ID || "JFxmVKquKmtYuDI65Tu5",
-  FILLS_CLAIMED: process.env.GHL_FILLS_CLAIMED_FIELD_ID || "jRLnqQzHJcw6sAfMJnLF",
-  /* Blank until the fields exist. A blank id means renewal state cannot be
-     read, and renewalFor then reports no renewal rather than guessing one. */
-  AUTO_RENEW: process.env.GHL_AUTO_RENEW_FIELD_ID || "ozW5BxIzYscn4E1zT1oH",
-  RENEWS_ON: process.env.GHL_RENEWS_ON_FIELD_ID || "I9EwWg7Y7NKPHZuyiZZw",
+     The plan's own fields used to sit here too and moved to OPP_FIELD on
+     2026-10-06. See the note on FIELD.STRIPE_CUSTOMER. */
   STRIPE_CUSTOMER: process.env.GHL_STRIPE_CUSTOMER_FIELD_ID || "KRIAYZNPph7M1qyFdI7F",
 };
 
@@ -694,67 +658,222 @@ export async function opportunitiesForContact(contactId) {
   );
 }
 
-/* ---- multi-month plans ----
+/* ---- multi-month plans, one per OPPORTUNITY ----
  *
- * Two writes, and they are deliberately asymmetric. Buying a plan sets the
- * term; shipping a fill COUNTS what has shipped rather than adding one to a
- * counter. See recordFillShipped for why that matters. */
+ * A plan used to live on the contact: one plan_months, one plan_product, one
+ * set of counts, one renewal switch. That only works while a patient holds one
+ * plan. The moment they buy a second treatment, recordPlan overwrote the first,
+ * and a patient on a 3 month semaglutide plan with two months left who bought
+ * tirzepatide silently lost those two prepaid months. Found 2026-10-06.
+ *
+ * So a plan now lives on the opportunity it was bought on. Each treatment
+ * carries its own term, counts, renewal date and renewal switch, which also
+ * gives the patient what the client asked for: renewal turned off per treatment
+ * rather than all or nothing.
+ *
+ * The one thing that stays on the CONTACT is stripe_customer. A patient has one
+ * saved card, not one per plan.
+ */
 
-/** The term a payment bought, recorded on the contact. Never throws. */
-export async function recordPlan(contactId, months, productId) {
-  const term = Number(months);
-  const pid = Number(productId);
-  if (!contactId || !Number.isInteger(term) || term < 1) return null;
+/* Keys for the OPPORTUNITY copies. Deliberately the same names as the contact
+   fields they replace, because they mean the same thing; GHL scopes custom
+   fields per object, so there is no clash. */
+export const OPP_FIELD = {
+  PLAN_MONTHS: "plan_months",
+  PLAN_PRODUCT: "plan_product",
+  FILLS_CLAIMED: "fills_claimed",
+  FILLS_USED: "fills_used",
+  NEXT_INTAKE_DUE: "next_intake_due",
+  AUTO_RENEW: "auto_renew",
+  RENEWS_ON: "renews_on",
+};
+
+/* Ids, for reading them back. Blank until the fields exist, and every read
+   below returns "no plan" rather than a half-built one while they are. The
+   token is refused the customFields scope, so these are copied in by hand the
+   same way every other id in this file is. */
+export const OPP_FIELD_ID = {
+  PLAN_MONTHS: process.env.GHL_OPP_PLAN_MONTHS_FIELD_ID || "YQScrqs9GcKyIE3x8u6r",
+  PLAN_PRODUCT: process.env.GHL_OPP_PLAN_PRODUCT_FIELD_ID || "MbzPwY224q0SjQT8pTjG",
+  FILLS_CLAIMED: process.env.GHL_OPP_FILLS_CLAIMED_FIELD_ID || "bKKlaHoOI4Inc6E3tqBN",
+  FILLS_USED: process.env.GHL_OPP_FILLS_USED_FIELD_ID || "8pJNGW7pEDoZBpMh8U5K",
+  NEXT_INTAKE_DUE: process.env.GHL_OPP_NEXT_INTAKE_DUE_FIELD_ID || "LuzOKaPgu6KHIGHqN8rA",
+  AUTO_RENEW: process.env.GHL_OPP_AUTO_RENEW_FIELD_ID || "aYW3423UK4NZ58FOHieo",
+  RENEWS_ON: process.env.GHL_OPP_RENEWS_ON_FIELD_ID || "2eoypg0KTKlYXfooc7L5",
+};
+
+export const oppPlansEnabled = () => Boolean(OPP_FIELD_ID.PLAN_MONTHS);
+
+/* One opportunity, by id. Never throws.
+ *
+ * A DIRECT GET, deliberately, not /opportunities/search. Search is indexed and
+ * lags: a custom field written a moment earlier comes back missing from a
+ * search while a GET on the card has it. That cost an hour on 2026-10-06, when
+ * seven freshly written fields read as empty and looked like a failed write.
+ * Anything that has just been written must be read this way. */
+export async function opportunityById(opportunityId) {
+  if (!opportunityId) return null;
   try {
-    /* Both counts are reset here, not left alone. A patient buying a second
-       plan has the first one's figures sitting on their contact, and without
-       the reset their new 3 months would read as already spent.
-     *
-     * fills_claimed starts at 1, not 0: the month they just bought is the
-     * first one they have been given. */
-    await updateContactFields(contactId, {
-      [FIELD.PLAN_MONTHS]: term,
-      ...(Number.isInteger(pid) && pid > 0 && { [FIELD.PLAN_PRODUCT]: pid }),
-      [FIELD.FILLS_CLAIMED]: 1,
-      [FIELD.FILLS_USED]: 0,
-    });
-    console.info(
-      `GHL contact ${contactId}: plan of ${term} month(s) on product ${pid || "?"} recorded`
-    );
-    return term;
+    const data = await ghlFetch(`/opportunities/${encodeURIComponent(opportunityId)}`);
+    return data?.opportunity || null;
   } catch (e) {
-    console.error(`GHL plan write failed for ${contactId}:`, e.message);
+    console.warn(`GHL opportunity ${opportunityId} could not be read:`, e.message);
     return null;
   }
 }
 
-/* ---- automatic renewal ----
+/* The plan recorded on an opportunity GHL already handed us, or null.
  *
- * The plan renews by itself once the first order is approved, and the patient
- * can turn that off in the portal. Three things are recorded: whether it is on,
- * the day it next charges, and the Stripe customer holding the card.
+ * Synchronous on purpose: /opportunities/search returns customFields on every
+ * card, so a patient's whole set of plans costs one call rather than one per
+ * plan. */
+export function planOn(opportunity) {
+  if (!opportunity?.id || !OPP_FIELD_ID.PLAN_MONTHS) return null;
+  const months = Number(fieldValueOf(opportunity, OPP_FIELD_ID.PLAN_MONTHS)) || 0;
+  if (months < 1) return null;
+
+  const num = (key) => Number(fieldValueOf(opportunity, OPP_FIELD_ID[key])) || 0;
+  const day = (key) => {
+    const v = OPP_FIELD_ID[key] ? fieldValueOf(opportunity, OPP_FIELD_ID[key]) : "";
+    return v ? String(v).slice(0, 10) : null;
+  };
+  const used = num("FILLS_USED");
+  /* At least one: the month they bought was handed to them by the purchase. A
+     plan recorded before fills_claimed existed reads as 1, which is right. */
+  const claimed = Math.max(1, num("FILLS_CLAIMED"));
+  const renewRaw = OPP_FIELD_ID.AUTO_RENEW
+    ? fieldValueOf(opportunity, OPP_FIELD_ID.AUTO_RENEW)
+    : "";
+
+  return {
+    opportunityId: opportunity.id,
+    /* Carried because every write back to an opportunity has to resend its
+       name: GHL treats it as required on a PUT. */
+    name: opportunity.name || "",
+    months,
+    productId: num("PLAN_PRODUCT") || null,
+    claimed,
+    used,
+    remaining: Math.max(0, months - used),
+    /* The month they are ON, which is the one they would recognise. One before
+       anything has shipped, not zero. */
+    current: Math.min(months, used + 1),
+    nextDue: day("NEXT_INTAKE_DUE"),
+    autoRenew: Number(renewRaw) === 1,
+    renewsOn: day("RENEWS_ON"),
+  };
+}
+
+/* Every plan a patient holds, newest first.
+ *
+ * One search, then a filter: a card without plan_months is an ordinary visit,
+ * which is most of them. */
+export async function plansFor(contactId) {
+  if (!contactId || !OPP_FIELD_ID.PLAN_MONTHS) return [];
+  try {
+    const cards = await opportunitiesForContact(contactId);
+    return cards.map(planOn).filter(Boolean);
+  } catch (e) {
+    console.warn(`GHL plans read failed for ${contactId}:`, e.message);
+    return [];
+  }
+}
+
+/** The plan on this product's ladder, or null. */
+export async function planForProduct(contactId, productId) {
+  const want = Number(productId);
+  if (!want) return null;
+  const plans = await plansFor(contactId);
+  return (
+    plans.find((p) => p.productId && ladderFor(p.productId).includes(want)) || null
+  );
+}
+
+/* The term a payment bought, recorded on the card it was bought on.
+ *
+ * Both counts are reset here, not left alone, so buying a fresh term on the
+ * same card starts it over. fills_claimed starts at 1: the month they just
+ * bought is the first one they have been given. Never throws. */
+export async function recordPlan(opportunityId, months, productId, { name } = {}) {
+  const term = Number(months);
+  const pid = Number(productId);
+  if (!opportunityId || !Number.isInteger(term) || term < 1) return null;
+  if (!oppPlansEnabled()) {
+    console.warn(
+      `GHL opportunity plan fields are not configured, so the ${term} month plan on ` +
+        `${opportunityId} was not recorded. Set GHL_OPP_PLAN_MONTHS_FIELD_ID.`
+    );
+    return null;
+  }
+  try {
+    await updateOpportunityFields(
+      opportunityId,
+      {
+        [OPP_FIELD.PLAN_MONTHS]: term,
+        ...(Number.isInteger(pid) && pid > 0 && { [OPP_FIELD.PLAN_PRODUCT]: pid }),
+        [OPP_FIELD.FILLS_CLAIMED]: 1,
+        [OPP_FIELD.FILLS_USED]: 0,
+      },
+      { name: name || (await opportunityById(opportunityId))?.name }
+    );
+    console.info(
+      `GHL opportunity ${opportunityId}: plan of ${term} month(s) on product ${pid || "?"} recorded`
+    );
+    return term;
+  } catch (e) {
+    console.error(`GHL plan write failed for opportunity ${opportunityId}:`, e.message);
+    return null;
+  }
+}
+
+/** One more month handed out. Never throws. @returns the new count, or null. */
+export async function claimFill(opportunityId, claimed, { name } = {}) {
+  const n = Number(claimed);
+  if (!opportunityId || !Number.isInteger(n) || n < 1 || !oppPlansEnabled()) return null;
+  try {
+    await updateOpportunityFields(
+      opportunityId,
+      { [OPP_FIELD.FILLS_CLAIMED]: n },
+      { name: name || (await opportunityById(opportunityId))?.name }
+    );
+    console.info(`GHL opportunity ${opportunityId}: ${n} fill(s) claimed`);
+    return n;
+  } catch (e) {
+    console.error(`GHL claim write failed for opportunity ${opportunityId}:`, e.message);
+    return null;
+  }
+}
+
+/* ---- automatic renewal, per plan ----
+ *
+ * Per plan rather than per patient, which is the client's rule (2026-10-06): a
+ * patient on two treatments can renew one and stop the other.
  *
  * Deliberately NOT a Stripe Subscription. A subscription charges on its own
- * schedule whatever else is going on, and the client's rule is that a renewal
- * must not charge while a prescription is inactive, a provider review is
- * outstanding, the patient has cancelled, or the account is on hold. Running
- * the charge ourselves is the only way those four can actually be honoured. */
+ * schedule whatever else is going on, and the rule is that a renewal must not
+ * charge while a prescription is inactive, a provider review is outstanding,
+ * the patient has cancelled, or the account is on hold. Running the charge
+ * ourselves is the only way those four can be honoured. */
 
-/** Switches renewal on and sets the day it next charges. Never throws. */
-export async function setRenewal(contactId, { on = true, renewsOn } = {}) {
-  if (!contactId) return null;
+/** Switches a plan's renewal on and sets the day it next charges. Never throws. */
+export async function setRenewal(opportunityId, { on = true, renewsOn, name } = {}) {
+  if (!opportunityId || !oppPlansEnabled()) return null;
   const day = renewsOn instanceof Date ? dueDate(renewsOn) : clean(renewsOn);
   try {
-    await updateContactFields(contactId, {
-      [FIELD.AUTO_RENEW]: on ? 1 : 0,
-      ...(day && { [FIELD.RENEWS_ON]: day }),
-    });
+    await updateOpportunityFields(
+      opportunityId,
+      {
+        [OPP_FIELD.AUTO_RENEW]: on ? 1 : 0,
+        ...(day && { [OPP_FIELD.RENEWS_ON]: day }),
+      },
+      { name: name || (await opportunityById(opportunityId))?.name }
+    );
     console.info(
-      `GHL contact ${contactId}: renewal ${on ? "on" : "off"}${day ? `, next ${day}` : ""}`
+      `GHL opportunity ${opportunityId}: renewal ${on ? "on" : "off"}${day ? `, next ${day}` : ""}`
     );
     return true;
   } catch (e) {
-    console.error(`GHL renewal write failed for ${contactId}:`, e.message);
+    console.error(`GHL renewal write failed for opportunity ${opportunityId}:`, e.message);
     return null;
   }
 }
@@ -762,35 +881,31 @@ export async function setRenewal(contactId, { on = true, renewsOn } = {}) {
 /* Renewal begins when a provider approves, which is the client's rule: a
  * patient is only an active subscriber once they have actually been prescribed.
  *
- * Reads the term off the contact rather than taking it as an argument, because
- * the one caller is the capture in the MDI webhook and all it has is a contact.
- * A contact with no plan recorded, which is every order placed before plans
- * existed, is left alone. Never throws. */
-export async function startRenewal(contactId) {
-  if (!contactId || !SEARCH_FIELD_ID.PLAN_MONTHS) return null;
+ * Takes the card the approval landed on, which is the one the capture already
+ * knows. A card with no plan on it is an ordinary visit and is left alone.
+ * Never throws. */
+export async function startRenewal(opportunityId) {
+  if (!opportunityId || !oppPlansEnabled()) return null;
   try {
-    const contact = await contactById(contactId);
-    const months = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_MONTHS)) || 0;
-    if (months < 1) return null;
-    /* Already switched off by the patient, so approval of a month they had
+    const card = await opportunityById(opportunityId);
+    const plan = planOn(card);
+    if (!plan) return null;
+    /* Already switched off by the patient, so approving a month they had
        already paid for must not switch it back on. */
-    if (SEARCH_FIELD_ID.AUTO_RENEW) {
-      const now = fieldValueOf(contact, SEARCH_FIELD_ID.AUTO_RENEW);
-      if (now !== "" && Number(now) !== 1) {
-        console.info(`GHL contact ${contactId}: renewal stays off, the patient turned it off`);
-        return null;
-      }
+    if (!plan.autoRenew && fieldValueOf(card, OPP_FIELD_ID.AUTO_RENEW) !== "") {
+      console.info(`GHL opportunity ${opportunityId}: renewal stays off, the patient turned it off`);
+      return null;
     }
-    const at = renewalDate(new Date(), months);
+    const at = renewalDate(new Date(), plan.months);
     if (!at) return null;
-    return setRenewal(contactId, { on: true, renewsOn: at });
+    return setRenewal(opportunityId, { on: true, renewsOn: at, name: plan.name });
   } catch (e) {
-    console.error(`GHL renewal start failed for ${contactId}:`, e.message);
+    console.error(`GHL renewal start failed for opportunity ${opportunityId}:`, e.message);
     return null;
   }
 }
 
-/* The patient turning renewal off.
+/* The patient turning one plan's renewal off.
  *
  * Only the switch is written. The date is left exactly where it is, because the
  * client's rule is that cancelling stops FUTURE billing and leaves the period
@@ -800,88 +915,83 @@ export async function startRenewal(contactId) {
  * Throws on failure, unlike everything else here. This one is a button the
  * patient pressed and is waiting on, so a silent failure would tell them their
  * renewal was cancelled when it was not. */
-export async function cancelRenewal(contactId) {
-  if (!contactId) throw new Error("cancelRenewal needs a contact id");
-  await updateContactFields(contactId, { [FIELD.AUTO_RENEW]: 0 });
-  console.info(`GHL contact ${contactId}: renewal cancelled by the patient`);
+export async function cancelRenewal(opportunityId, { name } = {}) {
+  if (!opportunityId) throw new Error("cancelRenewal needs an opportunity id");
+  if (!oppPlansEnabled()) throw new Error("opportunity plan fields are not configured");
+  await updateOpportunityFields(
+    opportunityId,
+    { [OPP_FIELD.AUTO_RENEW]: 0 },
+    { name: name || (await opportunityById(opportunityId))?.name }
+  );
+  console.info(`GHL opportunity ${opportunityId}: renewal cancelled by the patient`);
   return true;
 }
 
-/** One more month handed out. Never throws. @returns the new count, or null. */
-export async function claimFill(contactId, claimed) {
-  const n = Number(claimed);
-  if (!contactId || !Number.isInteger(n) || n < 1) return null;
+/* The Stripe customer holding this patient's saved card.
+ *
+ * On the contact, not the plan: a patient has one card, however many plans they
+ * hold. The only piece of plan machinery that did not move. */
+export async function stripeCustomerOf(contactId) {
+  if (!contactId || !SEARCH_FIELD_ID.STRIPE_CUSTOMER) return null;
   try {
-    await updateContactFields(contactId, { [FIELD.FILLS_CLAIMED]: n });
-    console.info(`GHL contact ${contactId}: ${n} fill(s) claimed`);
-    return n;
+    const contact = await contactById(contactId);
+    return fieldValueOf(contact, SEARCH_FIELD_ID.STRIPE_CUSTOMER) || null;
   } catch (e) {
-    console.error(`GHL claim write failed for ${contactId}:`, e.message);
+    console.warn(`GHL stripe_customer read failed for ${contactId}:`, e.message);
     return null;
   }
 }
 
 const SHIPPED_STAGE_NAME = process.env.GHL_SHIPPED_STAGE_NAME || "Shipped";
 
-/* A fill has shipped, so the plan's counters move on.
+/* A fill has shipped, so the plan it belongs to moves on.
+ *
+ * Which plan is decided by the LADDER: the shipped card names a product, and
+ * the plan whose ladder contains that product is the one that fill belongs to.
+ * That is what lets a patient hold two plans without one treatment's delivery
+ * spending the other's months.
  *
  * fills_used is COUNTED from the board, not incremented. MDI repeats its
  * webhook events, so `order_status_changed: shipped` arriving twice for one
- * order would add two to a counter and tell a 3 month patient they had used
- * two thirds of a plan after a single delivery. Counting the cards that have
- * actually reached Shipped cannot drift however many times the event lands,
- * and it also self-corrects if someone moves a card by hand.
+ * order would add two to a counter and tell a 3 month patient they had used two
+ * thirds of a plan after a single delivery. Counting the cards that actually
+ * reached Shipped cannot drift however many times the event lands, and it also
+ * self-corrects if someone moves a card by hand.
  *
- * next_intake_due is set only while a month is still owed. The last fill
- * deliberately leaves it alone, which keeps the GoHighLevel side down to one
- * trigger and one email: the date only ever arrives when there really is
- * another intake to do, so the workflow needs no branch comparing fills_used to
- * plan_months, which GHL cannot do between two fields anyway.
- *
- * The stale date left behind is harmless. By the time the last fill ships the
- * previous month's date has passed, and a date reminder does not fire on a day
- * that is already gone. Inviting a finished patient to renew is a separate
- * email off a separate trigger, not something to squeeze through this field.
+ * next_intake_due is set only while a month is still owed. The last fill leaves
+ * it alone, which keeps the GoHighLevel side down to one trigger and one email:
+ * the date only ever arrives when there really is another intake to do.
  *
  * Never throws: a shipped notification must not fail over a counter. */
-export async function recordFillShipped(contactId, { shippedAt = new Date() } = {}) {
-  if (!contactId) return null;
-  if (!SEARCH_FIELD_ID.PLAN_MONTHS) {
-    console.warn(
-      `GHL plan_months field id is not set, so the plan on contact ${contactId} ` +
-        `cannot be read. Set GHL_PLAN_MONTHS_FIELD_ID.`
-    );
-    return null;
-  }
+export async function recordFillShipped(contactId, { shippedAt = new Date(), productId } = {}) {
+  if (!contactId || !oppPlansEnabled()) return null;
   try {
-    const contact = await contactById(contactId);
-    const planMonths = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_MONTHS)) || 0;
-    /* Not on a plan at all, which is every single-month order. Nothing to
-       count and no reminder to send: they were never promised another fill. */
-    if (planMonths < 2) return null;
+    const cards = await opportunitiesForContact(contactId);
+    const plans = cards.map(planOn).filter(Boolean);
+    if (!plans.length) return null;
 
-    /* Only cards on this plan's own ladder count.
-     *
-     * Counting every shipped card the patient had was wrong for anyone with a
-     * second treatment running: an unrelated delivery would spend a month of
-     * their plan. The ladder gives the exact product names to look for, and a
-     * card is named "{category} - {product}" by both this module and the
-     * browser, so the comparison is exact rather than a guess. Without the
-     * plan's product recorded there is no ladder, so nothing is counted. */
-    const planProduct = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_PRODUCT)) || 0;
-    if (!planProduct) {
+    /* The plan this shipment belongs to. Named by the caller when it knows the
+       product, otherwise the only plan they hold. A patient with two plans and
+       no product to go on is not guessed at. */
+    const plan = productId
+      ? plans.find((p) => p.productId && ladderFor(p.productId).includes(Number(productId)))
+      : plans.length === 1
+        ? plans[0]
+        : null;
+    if (!plan) {
       console.warn(
-        `GHL contact ${contactId} is on a plan with no plan_product recorded, ` +
-          `so a shipped fill cannot be matched to it.`
+        `GHL contact ${contactId}: a fill shipped but no plan matches product ${productId || "?"}, ` +
+          `so nothing was counted (${plans.length} plan(s) held)`
       );
       return null;
     }
-    const ours = new Set(
-      ladderFor(planProduct)
-        .map((id) => PRICES[String(id)])
-        .filter(Boolean)
-        .map((p) => [p.categoryName, p.name].filter(Boolean).join(" - "))
-    );
+    if (!plan.productId) {
+      console.warn(
+        `GHL opportunity ${plan.opportunityId} is a plan with no plan_product, so a shipped ` +
+          `fill cannot be matched to it.`
+      );
+      return null;
+    }
 
     const { stages } = await resolvePipeline();
     const ordered = stages
@@ -895,9 +1005,15 @@ export async function recordFillShipped(contactId, { shippedAt = new Date() } = 
       return null;
     }
 
-    /* At or past Shipped. Delivered is past it, and a delivered fill is
-       obviously a used one, so the test is the position rather than the name. */
-    const cards = await opportunitiesForContact(contactId);
+    /* Only cards on this plan's own ladder count. The ladder gives the exact
+       product names to look for, and a card is named "{category} - {product}"
+       by both this module and the browser, so the comparison is exact. */
+    const ours = new Set(
+      ladderFor(plan.productId)
+        .map((id) => PRICES[String(id)])
+        .filter(Boolean)
+        .map((p) => [p.categoryName, p.name].filter(Boolean).join(" - "))
+    );
     const positionOf = new Map(ordered.map((s, i) => [s.id, i]));
     let used = cards.filter(
       (c) =>
@@ -906,17 +1022,21 @@ export async function recordFillShipped(contactId, { shippedAt = new Date() } = 
     ).length;
     if (used === 0) used = 1; // the card driving this event, if the board lags
 
-    const remaining = Math.max(0, planMonths - used);
+    const remaining = Math.max(0, plan.months - used);
     const due = remaining > 0 ? nextIntakeDue(shippedAt) : null;
-    await updateContactFields(contactId, {
-      [FIELD.FILLS_USED]: used,
-      ...(due && { [FIELD.NEXT_INTAKE_DUE]: dueDate(due) }),
-    });
+    await updateOpportunityFields(
+      plan.opportunityId,
+      {
+        [OPP_FIELD.FILLS_USED]: used,
+        ...(due && { [OPP_FIELD.NEXT_INTAKE_DUE]: dueDate(due) }),
+      },
+      { name: plan.name }
+    );
     console.info(
-      `GHL contact ${contactId}: fill ${used} of ${planMonths} shipped` +
+      `GHL opportunity ${plan.opportunityId}: fill ${used} of ${plan.months} shipped` +
         (due ? `, next intake due ${dueDate(due)}` : ", plan complete, no reminder set")
     );
-    return { used, planMonths, remaining };
+    return { used, planMonths: plan.months, remaining, opportunityId: plan.opportunityId };
   } catch (e) {
     console.error(`GHL fill count failed for ${contactId}:`, e.message);
     return null;
@@ -926,8 +1046,8 @@ export async function recordFillShipped(contactId, { shippedAt = new Date() } = 
 /* What a visit was worth, written after the fact.
  *
  * A card is opened before the patient has chosen how many months they want, so
- * it is created with the single month price off the catalogue. On a 3 month
- * plan that is a third of what they actually paid, and since the opportunity's
+ * it is created with the single month price off the catalogue. On a 3 month plan
+ * that is a third of what they actually paid, and since the opportunity's
  * monetaryValue is what GoHighLevel reports as revenue, every plan would read
  * low for ever. Called once the payment is known.
  *
@@ -951,93 +1071,6 @@ export async function setOpportunityValue(opportunityId, value) {
   }
 }
 
-/* Everything about a patient's renewal, whatever the term.
- *
- * Separate from planFor on purpose. planFor answers "how many prepaid months
- * are left", which only means anything on a 3 month plan, so it ignores a 1
- * month purchase. Renewal means something for both: a 1 month plan renews every
- * month and a 3 month plan every three. Conflating them would either break the
- * fills machinery or leave single month subscribers unable to renew.
- *
- * Never throws. @returns {Promise<object|null>} null if no plan is recorded. */
-export async function renewalFor(contactId) {
-  if (!contactId || !SEARCH_FIELD_ID.PLAN_MONTHS || !SEARCH_FIELD_ID.AUTO_RENEW) return null;
-  try {
-    const contact = await contactById(contactId);
-    const months = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_MONTHS)) || 0;
-    if (months < 1) return null;
-    const renewRaw = fieldValueOf(contact, SEARCH_FIELD_ID.AUTO_RENEW);
-    const on = Number(renewRaw) === 1;
-    const renewsOn = SEARCH_FIELD_ID.RENEWS_ON
-      ? fieldValueOf(contact, SEARCH_FIELD_ID.RENEWS_ON) || null
-      : null;
-    return {
-      months,
-      productId: Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_PRODUCT)) || null,
-      on,
-      renewsOn: renewsOn ? String(renewsOn).slice(0, 10) : null,
-      customerId: SEARCH_FIELD_ID.STRIPE_CUSTOMER
-        ? fieldValueOf(contact, SEARCH_FIELD_ID.STRIPE_CUSTOMER) || null
-        : null,
-      claimed: Math.max(1, Number(fieldValueOf(contact, SEARCH_FIELD_ID.FILLS_CLAIMED)) || 0),
-      used: Number(fieldValueOf(contact, SEARCH_FIELD_ID.FILLS_USED)) || 0,
-    };
-  } catch (e) {
-    console.warn(`GHL renewal read failed for ${contactId}:`, e.message);
-    return null;
-  }
-}
-
-/* Where a patient is in their plan, for showing them.
- *
- * Read from the cached fields rather than counted off the board: this answers a
- * page load, and recordFillShipped has already done the counting. Returns null
- * for anyone who never bought a plan, which is the ordinary case.
- *
- * Never throws: a portal page must still render if GHL is unreachable. */
-export async function planFor(contactId) {
-  if (!contactId || !SEARCH_FIELD_ID.PLAN_MONTHS) return null;
-  try {
-    const contact = await contactById(contactId);
-    const months = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_MONTHS)) || 0;
-    if (months < 2) return null;
-    const used = Number(fieldValueOf(contact, SEARCH_FIELD_ID.FILLS_USED)) || 0;
-    const due = fieldValueOf(contact, SEARCH_FIELD_ID.NEXT_INTAKE_DUE) || null;
-    const productId = Number(fieldValueOf(contact, SEARCH_FIELD_ID.PLAN_PRODUCT)) || null;
-    /* Renewal, read only if the fields exist. A plan sold before they did has
-       no switch, and the honest answer for one is "not renewing" rather than a
-       default that would charge somebody who never agreed to it. */
-    const renewRaw = SEARCH_FIELD_ID.AUTO_RENEW
-      ? fieldValueOf(contact, SEARCH_FIELD_ID.AUTO_RENEW)
-      : "";
-    const renewsOn = SEARCH_FIELD_ID.RENEWS_ON
-      ? fieldValueOf(contact, SEARCH_FIELD_ID.RENEWS_ON) || null
-      : null;
-    const customerId = SEARCH_FIELD_ID.STRIPE_CUSTOMER
-      ? fieldValueOf(contact, SEARCH_FIELD_ID.STRIPE_CUSTOMER) || null
-      : null;
-    /* At least one: the month they bought was handed to them by the purchase.
-       A plan recorded before this field existed reads as 1, which is right. */
-    const claimed = Math.max(1, Number(fieldValueOf(contact, SEARCH_FIELD_ID.FILLS_CLAIMED)) || 0);
-    return {
-      months,
-      productId,
-      claimed,
-      used,
-      remaining: Math.max(0, months - used),
-      /* The month they are ON, which is the one they would recognise. One
-         before anything has shipped, not zero. */
-      current: Math.min(months, used + 1),
-      nextDue: due ? String(due).slice(0, 10) : null,
-      autoRenew: Number(renewRaw) === 1,
-      renewsOn: renewsOn ? String(renewsOn).slice(0, 10) : null,
-      customerId,
-    };
-  } catch (e) {
-    console.warn(`GHL plan read failed for ${contactId}:`, e.message);
-    return null;
-  }
-}
 
 /* Board columns the intake moves a visit through. Names rather than ids, like
    Paid: they're resolved against the live pipeline, so renaming a column in GHL

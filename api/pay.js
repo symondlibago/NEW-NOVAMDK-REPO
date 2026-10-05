@@ -12,7 +12,9 @@ import {
   fieldValueOf,
   SEARCH_FIELD_ID,
   recordPlan,
-  renewalFor,
+  planOn,
+  opportunityById,
+  stripeCustomerOf,
   setRenewal,
   setOpportunityValue,
   INTAKE_STAGE,
@@ -31,7 +33,7 @@ import {
 } from "./_kurv.js";
 import { stripe, stripeEnabled, stripeMode, toCents, holdExpiresAt, findHold, customerFor, savedCard } from "./_stripe.js";
 import { PLAN_TERMS, DEFAULT_MONTHS, monthsFrom, planAllowed, renewalDate, quoteFor } from "./_plans.js";
-import { fillFor, isFollowOnRung, matchesFill } from "./_fills.js";
+import { fillForProduct, isFollowOnRung, matchesFill } from "./_fills.js";
 import { readSession } from "./_session.js";
 
 /* Charges a card through the NMI gateway (PayTechTrust is an NMI white-label),
@@ -598,13 +600,18 @@ async function stripeSettle(req, res) {
         ? markComplete(contactId, orderId, clean(req.body?.treatment, 120))
         : null
     ),
-    /* Recorded at authorisation, not at capture. Staff need to see that this
-       patient holds a 3 month plan while the visit is still with a provider,
-       and the fills themselves are only counted once the pharmacy ships. */
-    /* >= 1, not > 1. A single month purchase is a subscription too once
-       renewals exist, so it needs its term and product recorded. planFor still
-       ignores it, so the prepaid-fills machinery is untouched. */
-    planMonths >= 1 && contactId ? recordPlan(contactId, planMonths, meta.product_id) : null,
+    /* Recorded on the CARD this payment belongs to, not on the contact.
+       Staff need to see that this visit is a 3 month plan while it is still
+       with a provider, and the fills themselves are only counted once the
+       pharmacy ships.
+
+       Per card rather than per patient since 2026-10-06: a patient can hold a
+       plan per treatment, and the contact-level version overwrote the first
+       plan when they bought a second, losing its prepaid months.
+
+       >= 1 on purpose. A single month purchase is a subscription too, so it
+       needs its term and product recorded for renewal to know what to bill. */
+    planMonths >= 1 && orderId ? recordPlan(orderId, planMonths, meta.product_id) : null,
     /* The card was opened with a single month's price, before the patient had
        chosen a term. Put the real total on it now, or a 3 month plan reports
        as a third of itself for ever. */
@@ -644,7 +651,7 @@ async function prepaidFill(req, res) {
   if (blocked(req, res, { max: 12 })) return;
 
   const { pid } = req.body || {};
-  const fill = await fillFor(readSession(req));
+  const fill = await fillForProduct(readSession(req), pid);
   if (!fill || !matchesFill(fill, pid)) {
     console.warn(`Refused a prepaid fill for product ${pid}: no matching plan`);
     return res.status(403).json({ ok: false, error: "plan_only" });
@@ -654,8 +661,8 @@ async function prepaidFill(req, res) {
        product that was never handed to them. Both are a real answer, not a
        failure. */
     console.warn(
-      `Refused a prepaid fill for ${pid}: ${fill.plan.claimed} of ${fill.plan.months} claimed, ` +
-        `${fill.plan.used} shipped`
+      `Refused a prepaid fill for ${pid}: ${fill.claimed} of ${fill.months} claimed, ` +
+        `${fill.used} shipped`
     );
     return res.status(403).json({ ok: false, error: "no_fills_left" });
   }
@@ -665,17 +672,17 @@ async function prepaidFill(req, res) {
 
   await Promise.allSettled([
     syncTag(contactId, { failed: false }),
-    markPaid(orderId, `plan:${fill.plan.current}/${fill.plan.months}`, { won: false }).then(() =>
+    markPaid(orderId, `plan:${fill.current}/${fill.months}`, { won: false }).then(() =>
       req.body?.submitted === true
         ? markComplete(contactId, orderId, clean(req.body?.treatment, 120))
         : null
     ),
   ]);
   console.info(
-    `Prepaid fill accepted: month ${fill.plan.current} of ${fill.plan.months} ` +
+    `Prepaid fill accepted: month ${fill.current} of ${fill.months} ` +
       `on opportunity ${orderId || "-"}, nothing charged`
   );
-  return res.status(200).json({ ok: true, prepaid: true, month: fill.plan.current });
+  return res.status(200).json({ ok: true, prepaid: true, month: fill.current });
 }
 
 /* Charges a plan renewal, off-session, on the day it falls due.
@@ -703,22 +710,28 @@ async function renewPlan(req, res) {
     return res.status(403).json({ ok: false, error: "forbidden" });
   }
 
-  const contactId = clean(req.body?.contact_id, 60);
-  if (!contactId) return res.status(400).json({ ok: false, error: "missing_contact" });
+  /* The CARD, because a renewal belongs to one plan and a patient can hold
+     several. The GoHighLevel workflow fires on the card's own Renews On date,
+     so it already knows which one. */
+  const orderId = clean(req.body?.opportunity_id, 60);
+  if (!orderId) return res.status(400).json({ ok: false, error: "missing_opportunity" });
 
-  const r = await renewalFor(contactId);
+  const card = await opportunityById(orderId);
+  const r = planOn(card);
   if (!r) {
-    console.info(`Renewal skipped for ${contactId}: no plan recorded`);
+    console.info(`Renewal skipped for ${orderId}: no plan on that card`);
     return res.status(200).json({ ok: false, skipped: "no_plan" });
   }
+  const contactId = card?.contact?.id || card?.contactId || "";
 
   /* The client's four conditions, in the order they are cheapest to check. */
-  if (!r.on) {
-    console.info(`Renewal skipped for ${contactId}: the patient turned it off`);
+  if (!r.autoRenew) {
+    console.info(`Renewal skipped for ${orderId}: the patient turned it off`);
     return res.status(200).json({ ok: false, skipped: "cancelled" });
   }
-  if (!r.customerId) {
-    console.error(`Renewal skipped for ${contactId}: no saved card`);
+  const customerId = await stripeCustomerOf(contactId);
+  if (!customerId) {
+    console.error(`Renewal skipped for ${orderId}: no saved card`);
     return res.status(200).json({ ok: false, skipped: "no_card" });
   }
   /* A month already handed out but not yet shipped means something is still
@@ -727,23 +740,23 @@ async function renewPlan(req, res) {
      there to stop. */
   if (r.claimed > r.used) {
     console.info(
-      `Renewal held for ${contactId}: ${r.claimed} claimed, ${r.used} shipped, still in flight`
+      `Renewal held for ${orderId}: ${r.claimed} claimed, ${r.used} shipped, still in flight`
     );
     return res.status(200).json({ ok: false, skipped: "in_flight" });
   }
 
   const charge = chargeFor(r.productId, r.months);
   if (!charge) {
-    console.error(`Renewal skipped for ${contactId}: product ${r.productId} has no price`);
+    console.error(`Renewal skipped for ${orderId}: product ${r.productId} has no price`);
     return res.status(200).json({ ok: false, skipped: "unpriced" });
   }
 
   /* Named explicitly. A customer's default_payment_method is only consulted
      when Stripe raises an invoice; a PaymentIntent confirmed off-session with
      no payment_method is simply refused. */
-  const card = await savedCard(r.customerId);
-  if (!card?.id) {
-    console.error(`Renewal skipped for ${contactId}: customer ${r.customerId} has no card on file`);
+  const pm = await savedCard(customerId);
+  if (!pm?.id) {
+    console.error(`Renewal skipped for ${orderId}: customer ${customerId} has no card on file`);
     return res.status(200).json({ ok: false, skipped: "no_card" });
   }
 
@@ -754,8 +767,8 @@ async function renewPlan(req, res) {
     body: {
       amount: toCents(charge.total),
       currency: "usd",
-      customer: r.customerId,
-      payment_method: card.id,
+      customer: customerId,
+      payment_method: pm.id,
       description: `${DESCRIPTION} (plan renewal)`,
       confirm: true,
       off_session: true,
@@ -763,13 +776,14 @@ async function renewPlan(req, res) {
       metadata: {
         product_id: String(r.productId),
         contact_id: contactId,
+        opportunity_id: orderId,
         plan_months: String(r.months),
         renewal: "1",
       },
     },
     /* The date fires once, but a GHL workflow that retries must not charge
        twice for the same day. */
-    idempotencyKey: `renew_${contactId}_${r.renewsOn || "x"}`,
+    idempotencyKey: `renew_${orderId}_${r.renewsOn || "x"}`,
   });
 
   if (!paid.ok || paid.data?.status !== "succeeded") {
@@ -778,7 +792,7 @@ async function renewPlan(req, res) {
       paid.data?.error?.message ||
       paid.data?.status ||
       `HTTP ${paid.status}`;
-    console.error(`Renewal charge FAILED for ${contactId}: ${why}`);
+    console.error(`Renewal charge FAILED for ${orderId}: ${why}`);
     await markFailed(contactId, null);
     /* Renewal stays ON. A card that failed today may work tomorrow, and
        switching it off would quietly end a subscription the patient never
@@ -789,10 +803,14 @@ async function renewPlan(req, res) {
   /* A new term starts: the counts go back to the beginning and the next
      renewal is set from today. recordPlan resets claimed and used, which is
      exactly right for a fresh term. */
-  await recordPlan(contactId, r.months, r.productId);
-  await setRenewal(contactId, { on: true, renewsOn: renewalDate(new Date(), r.months) });
+  await recordPlan(orderId, r.months, r.productId, { name: r.name });
+  await setRenewal(orderId, {
+    on: true,
+    renewsOn: renewalDate(new Date(), r.months),
+    name: r.name,
+  });
   console.info(
-    `Renewal charged for ${contactId}: $${charge.total.toFixed(2)}, ` +
+    `Renewal charged for ${orderId}: ${charge.total.toFixed(2)}, ` +
       `${r.months} month(s) on product ${r.productId}`
   );
   return res.status(200).json({ ok: true, amount: charge.total, months: r.months });
@@ -931,7 +949,7 @@ export default async function handler(req, res) {
      * that has already been paid for, which is established from the portal
      * session cookie rather than from anything in the request. */
     if (isFollowOnRung(pid)) {
-      const fill = await fillFor(readSession(req));
+      const fill = await fillForProduct(readSession(req), pid);
       if (!fill || !fill.canSettle || !matchesFill(fill, pid)) {
         console.warn(`Refused a quote for plan-only product ${pid}`);
         return res.status(403).json({ ok: false, error: "plan_only" });
@@ -948,8 +966,8 @@ export default async function handler(req, res) {
         total: 0,
         /* No chooser on a month that is already paid for. */
         terms: [],
-        month: fill.plan.current,
-        planMonths: fill.plan.months,
+        month: fill.current,
+        planMonths: fill.months,
       });
     }
 

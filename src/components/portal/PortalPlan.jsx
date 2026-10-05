@@ -3,13 +3,17 @@ import { format } from "date-fns";
 import { AlertCircle, CalendarCheck, CheckCircle2, CreditCard, Loader2 } from "lucide-react";
 import { portalData } from "../../lib/portal";
 
-/* A patient's plan and its renewal, with the switch to turn renewal off.
+/* A patient's plans and their renewals, each with its own switch.
  *
  * The six things the client asked this to show (2026-10-05): the current plan,
  * the next renewal date, the renewal amount, the payment method, a cancel
  * button, and a confirmation once it is cancelled. All six are here because
- * each one is part of the same decision: nobody should have to guess what they
- * are about to be charged, on which card, or when, before they can stop it.
+ * each is part of the same decision: nobody should have to guess what they are
+ * about to be charged, on which card, or when, before they can stop it.
+ *
+ * ONE BLOCK PER PLAN, since 2026-10-06. A patient can hold a plan per
+ * treatment, so renewal is turned off per treatment rather than all at once:
+ * someone on semaglutide and tirzepatide can keep one and stop the other.
  *
  * Cancelling stops future billing and nothing else. The term already paid for
  * continues, which the copy says plainly so that pressing the button is not a
@@ -32,24 +36,41 @@ const day = (iso) => {
   return Number.isNaN(at.getTime()) ? null : format(at, "MMMM d, yyyy");
 };
 
-const term = (months) => (months === 1 ? "1 month" : `${months} month`);
+/* Two shapes, because the grammar differs. "3 month plan" is a thing you own;
+   "every 3 months" is how often it bills. One helper for both produced "The 3
+   month you have already paid for", which is how this was spotted. */
+const planLabel = (months) => `${months} month plan`;
+const everyLabel = (months) => (months === 1 ? "every month" : `every ${months} months`);
 
-export default function PortalPlan({ billing, onChanged, onUnauthorized }) {
+function Row({ label, icon, children }) {
+  const Icon = icon;
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <dt className="flex items-center gap-1.5 text-muted">
+        {Icon ? <Icon size={14} className="flex-none text-primary" /> : null}
+        {label}
+      </dt>
+      <dd className="text-right font-medium">{children}</dd>
+    </div>
+  );
+}
+
+function Plan({ plan, onChanged, onUnauthorized }) {
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState(null);
 
-  if (!billing) return null;
-
-  const { months, autoRenew, renewsOn, amount, treatment, card } = billing;
+  const { opportunityId, months, autoRenew, renewsOn, amount, treatment, card } = plan;
   const renewsLabel = day(renewsOn);
 
   const cancel = async () => {
     setBusy(true);
     setError(null);
     try {
-      await portalData({ resource: "cancel_renewal" });
+      /* The plan is named, so a patient on two treatments cancels the one they
+         meant. The server checks the id belongs to them. */
+      await portalData({ resource: "cancel_renewal", opportunity_id: opportunityId });
       setDone(true);
       setConfirming(false);
       onChanged?.();
@@ -71,8 +92,9 @@ export default function PortalPlan({ billing, onChanged, onUnauthorized }) {
           Automatic renewal is off
         </p>
         <p className="mt-2 text-[0.88rem] leading-relaxed text-muted">
-          You will not be charged again. The {term(months)} you have already paid for carries on
-          as normal, and you can start a new plan any time.
+          {treatment ? `${treatment}. ` : ""}You will not be charged again for this one. The{" "}
+          {planLabel(months)} you have already paid for carries on as normal, and you can start a
+          new plan any time.
         </p>
       </section>
     );
@@ -80,47 +102,34 @@ export default function PortalPlan({ billing, onChanged, onUnauthorized }) {
 
   return (
     <section className="rounded-2xl border border-line bg-surface-1 p-5 sm:p-6">
-      <p className="text-[1rem] font-semibold text-ink">Your plan</p>
+      <p className="text-[1rem] font-semibold text-ink">
+        {treatment || "Your plan"}
+      </p>
 
       <dl className="mt-4 space-y-3 text-[0.88rem]">
-        <div className="flex items-start justify-between gap-4">
-          <dt className="text-muted">Current plan</dt>
-          <dd className="text-right font-medium">
-            {term(months)}
-            {treatment ? <span className="block text-[0.8rem] text-muted">{treatment}</span> : null}
-          </dd>
-        </div>
+        <Row label="Current plan">{planLabel(months)}</Row>
 
         {renewsLabel && (
-          <div className="flex items-start justify-between gap-4">
-            <dt className="flex items-center gap-1.5 text-muted">
-              <CalendarCheck size={14} className="flex-none text-primary" /> Next renewal
-            </dt>
-            <dd className="text-right font-medium">{renewsLabel}</dd>
-          </div>
+          <Row label="Next renewal" icon={CalendarCheck}>
+            {renewsLabel}
+          </Row>
         )}
 
         {typeof amount === "number" && (
-          <div className="flex items-start justify-between gap-4">
-            <dt className="text-muted">Renewal amount</dt>
-            <dd className="text-right font-medium">
-              {usd(amount)}
-              <span className="block text-[0.8rem] text-muted">every {term(months)}</span>
-            </dd>
-          </div>
+          <Row label="Renewal amount">
+            {usd(amount)}
+            <span className="block text-[0.8rem] text-muted">{everyLabel(months)}</span>
+          </Row>
         )}
 
         {card && (
-          <div className="flex items-start justify-between gap-4">
-            <dt className="flex items-center gap-1.5 text-muted">
-              <CreditCard size={14} className="flex-none text-primary" /> Payment method
-            </dt>
-            {/* Brand and last four only, which is all anyone needs to know
-                which card is about to be used. */}
-            <dd className="text-right font-medium capitalize">
+          /* Brand and last four only, which is all anyone needs to know which
+             card is about to be used. */
+          <Row label="Payment method" icon={CreditCard}>
+            <span className="capitalize">
               {card.brand} ending {card.last4}
-            </dd>
-          </div>
+            </span>
+          </Row>
         )}
       </dl>
 
@@ -136,12 +145,11 @@ export default function PortalPlan({ billing, onChanged, onUnauthorized }) {
 
       {confirming ? (
         <div className="mt-5 rounded-2xl border border-line-strong/40 bg-surface-2/60 p-4">
-          <p className="text-[0.88rem] font-semibold text-ink">
-            Turn off automatic renewal?
-          </p>
+          <p className="text-[0.88rem] font-semibold text-ink">Turn off automatic renewal?</p>
           <p className="mt-1.5 text-[0.84rem] leading-relaxed text-muted">
-            You keep the {term(months)} you have already paid for. We just will not charge you
-            again{renewsLabel ? ` on ${renewsLabel}` : ""}.
+            You keep the {planLabel(months)} you have already paid for. We just will not charge you
+            again{renewsLabel ? ` on ${renewsLabel}` : ""}
+            {treatment ? ` for ${treatment}` : ""}. Any other plan you have carries on.
           </p>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <button
@@ -173,5 +181,29 @@ export default function PortalPlan({ billing, onChanged, onUnauthorized }) {
         </button>
       )}
     </section>
+  );
+}
+
+export default function PortalPlan({ plans, onChanged, onUnauthorized }) {
+  /* Nothing at all for a patient who holds no plan, which is most of them. */
+  if (!Array.isArray(plans) || plans.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      {plans.length > 1 && (
+        <p className="text-[0.82rem] text-muted">
+          You have {plans.length} plans. Each renews on its own, so turning one off leaves the
+          others running.
+        </p>
+      )}
+      {plans.map((plan) => (
+        <Plan
+          key={plan.opportunityId}
+          plan={plan}
+          onChanged={onChanged}
+          onUnauthorized={onUnauthorized}
+        />
+      ))}
+    </div>
   );
 }

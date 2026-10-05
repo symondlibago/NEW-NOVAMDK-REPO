@@ -46,7 +46,10 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
 
   const [visits, setVisits] = useState(null);
   const [name, setName] = useState(null);
-  const [plan, setPlan] = useState(null);
+  /* Plural: a patient can hold a plan per treatment. The home page stays a
+     summary, one line each, because it has to fit a phone screen in one go.
+     Managing them is on the Profile tab. */
+  const [plans, setPlans] = useState([]);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -55,14 +58,14 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
       portalData({ resource: "cases" }),
       // The greeting is decoration, so a failed profile shouldn't blank the page.
       portalData({ resource: "profile" }).catch(() => null),
-      // Null for everyone who bought a single month, which is most people.
+      // Empty for everyone not on a plan, which is most people.
       portalData({ resource: "plan" }).catch(() => null),
     ])
       .then(([{ visits: all, cases }, profile, planned]) => {
         if (!alive) return;
         setVisits(all || cases || []);
         setName(profile?.profile?.first_name || null);
-        setPlan(planned?.plan || null);
+        setPlans(Array.isArray(planned?.plans) ? planned.plans : []);
       })
       .catch((err) => {
         if (!alive) return;
@@ -126,51 +129,73 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
             This page has to land inside a single phone screen with an
             unfinished intake and an active visit already on it, so a plan gets
             a sentence and not a card. */}
-        {plan && (
-          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.85rem] text-muted">
-            <CalendarCheck size={14} className="flex-none text-primary" />
-            <span>
-              Month {plan.current} of {plan.months} on your plan
-            </span>
-            {plan.nextDue && (
-              <>
-                <span aria-hidden="true" className="text-line-strong">
-                  ·
-                </span>
-                <span>
-                  next check-in due {format(new Date(`${plan.nextDue}T12:00:00`), "MMM d")}
-                </span>
-              </>
-            )}
-          </p>
-        )}
+        {/* One line per plan. Only the multi-month ones say "month X of Y":
+            a single month plan has no prepaid months to count through, and
+            telling someone they are on "month 1 of 1" says nothing. */}
+        {plans
+          .filter((p) => p.months > 1)
+          .map((p) => (
+            <p
+              key={p.opportunityId}
+              className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.85rem] text-muted"
+            >
+              <CalendarCheck size={14} className="flex-none text-primary" />
+              <span>
+                Month {p.current} of {p.months}
+                {p.treatment ? `, ${p.treatment}` : " on your plan"}
+              </span>
+              {p.nextDue && (
+                <>
+                  <span aria-hidden="true" className="text-line-strong">
+                    ·
+                  </span>
+                  <span>
+                    next check-in due {format(new Date(`${p.nextDue}T12:00:00`), "MMM d")}
+                  </span>
+                </>
+              )}
+            </p>
+          ))}
 
         {/* The month they have already paid for, waiting to be started. Shown
             above everything else, like an unfinished intake, because it is the
             one thing on this page with a deadline: the supply runs out 28 days
             after the last one shipped. Only offered when nothing of theirs is
             already in flight, which the server decides. */}
-        {plan?.canStart && (
+        {plans.some((p) => p.canStart) && (
           <section className="mt-6 md:mt-10">
             <Label>Paid for</Label>
-            <div className="mt-3 rounded-2xl border border-primary/35 bg-primary/[0.03] p-5 sm:flex sm:items-center sm:gap-8 sm:p-6 md:mt-4">
-              <div className="min-w-0 flex-1">
-                <p className="text-[1.05rem] font-semibold leading-snug text-ink">
-                  Start your month {plan.current} check-in
-                </p>
-                <p className="mt-1 text-[0.88rem] leading-relaxed text-muted">
-                  Already paid for as part of your {plan.months} month plan. A provider reviews
-                  your answers before the pharmacy sends your next month, so there is nothing
-                  to pay now.
-                </p>
-              </div>
-              <NextFillButton
-                onUnauthorized={onUnauthorized}
-                className="mt-5 inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-7 py-3 text-[0.9rem] font-semibold text-on-primary transition-colors hover:bg-primary-deep disabled:opacity-70 sm:mt-0 sm:w-auto"
-              >
-                Start check-in <ArrowRight size={15} />
-              </NextFillButton>
-            </div>
+            <ul className="mt-3 space-y-3 md:mt-4">
+              {plans
+                .filter((p) => p.canStart)
+                .map((p) => (
+                  <li
+                    key={p.opportunityId}
+                    className="rounded-2xl border border-primary/35 bg-primary/[0.03] p-5 sm:flex sm:items-center sm:gap-8 sm:p-6"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[1.05rem] font-semibold leading-snug text-ink">
+                        Start your month {p.current} check-in
+                      </p>
+                      <p className="mt-1 text-[0.88rem] leading-relaxed text-muted">
+                        {p.treatment ? `${p.treatment}. ` : ""}Already paid for as part of your{" "}
+                        {p.months} month plan. A provider reviews your answers before the pharmacy
+                        sends your next month, so there is nothing to pay now.
+                      </p>
+                    </div>
+                    {/* The plan is named, so a patient on two treatments starts
+                        the check-in they meant rather than whichever the server
+                        happened to pick. */}
+                    <NextFillButton
+                      opportunityId={p.opportunityId}
+                      onUnauthorized={onUnauthorized}
+                      className="mt-5 inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-7 py-3 text-[0.9rem] font-semibold text-on-primary transition-colors hover:bg-primary-deep disabled:opacity-70 sm:mt-0 sm:w-auto"
+                    >
+                      Start check-in <ArrowRight size={15} />
+                    </NextFillButton>
+                  </li>
+                ))}
+            </ul>
           </section>
         )}
 

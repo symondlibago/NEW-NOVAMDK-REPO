@@ -1,14 +1,12 @@
 import { blocked, signReleaseToken } from './_guard.js';
 import { mdi, mdiUpload, mdiConfigured, listOf } from './_mdi.js';
 import { readSession, sessionsEnabled } from './_session.js';
-import { fillFor } from './_fills.js';
+import { fillsFor } from './_fills.js';
 import {
   createVisitOpportunity,
   claimFill,
-  renewalFor,
   cancelRenewal,
-  findContactByCustomField,
-  SEARCH_FIELD_ID,
+  stripeCustomerOf,
   INTAKE_STAGE,
 } from './_ghl.js';
 import { PRICES } from './_prices.js';
@@ -545,67 +543,70 @@ export default async function handler(req, res) {
      * it does not let them use it. Starting the next prepaid intake is a
      * separate decision that mints its own permission server side. */
     if (resource === 'plan') {
-      const fill = await fillFor(patientId);
-      /* Renewal is read separately and for everyone, because a 1 month plan
-         renews too and fillFor deliberately ignores single month purchases:
-         they have no prepaid months left to hand out. */
-      const contact = await findContactByCustomField(
-        SEARCH_FIELD_ID.MDI_PATIENT_ID,
-        patientId
-      ).catch(() => null);
-      const renewal = contact?.id ? await renewalFor(contact.id) : null;
+      /* PLURAL. A patient can hold a plan per treatment, so there is no single
+         "their plan" to answer with. One search behind this, not one per plan:
+         /opportunities/search returns customFields on every card. */
+      const fills = await fillsFor(patientId);
 
-      let billing = null;
-      if (renewal) {
-        const priced = renewal.productId ? quoteFor(renewal.productId, renewal.months) : null;
-        billing = {
-          months: renewal.months,
-          autoRenew: renewal.on,
-          renewsOn: renewal.renewsOn,
-          /* What the next charge will be, so "cancel" is an informed choice
+      /* The saved card is read once, not per plan: a patient has one card
+         however many plans they hold. Skipped entirely when nothing renews, so
+         a patient who cancelled everything costs no Stripe call. */
+      const anyRenewing = fills.some((f) => f.autoRenew);
+      const card = anyRenewing
+        ? await savedCard(await stripeCustomerOf(fills[0]?.contactId))
+        : null;
+
+      const plans = fills.map((f) => {
+        const priced = f.productId ? quoteFor(f.productId, f.months) : null;
+        return {
+          opportunityId: f.opportunityId,
+          months: f.months,
+          treatment: f.productId ? PRICES[String(f.productId)]?.name || null : null,
+          /* Prepaid months, which only mean anything past one month. */
+          current: f.current,
+          remaining: f.remaining,
+          nextDue: f.nextDue,
+          /* Whether the check-in button is offered. False while a month is
+             still being reviewed or on its way, which is most of the time. */
+          canStart: f.canStart,
+          /* Renewal, per plan, which is what lets a patient keep one treatment
+             renewing and stop another. */
+          autoRenew: f.autoRenew,
+          renewsOn: f.renewsOn,
+          /* What the next charge will be, so cancelling is an informed choice
              rather than a leap. The real catalogue price, never a test one. */
           amount: priced?.total ?? null,
-          treatment: renewal.productId ? PRICES[String(renewal.productId)]?.name || null : null,
-          /* Brand and last four only. Enough to recognise the card, nothing
-             more than that. */
-          card: renewal.on && renewal.customerId ? await savedCard(renewal.customerId) : null,
+          card: f.autoRenew ? card : null,
         };
-      }
-
-      /* A 200 with no plan rather than an error: most patients are not on one,
-         and the portal should not show a failure for the ordinary case. */
-      if (!fill && !billing) return res.status(200).json({ plan: null, billing: null });
-      return res.status(200).json({
-        plan: fill
-          ? {
-              ...fill.plan,
-              /* Whether the button is offered at all. False while a month is
-                 still being reviewed or on its way, which is most of the time. */
-              canStart: fill.canStart,
-            }
-          : null,
-        billing,
       });
+
+      /* A 200 with an empty list rather than an error: most patients hold no
+         plan, and the portal should not show a failure for the ordinary case. */
+      return res.status(200).json({ plans });
     }
 
-    /* The patient switching renewal off themselves.
+    /* The patient switching one plan's renewal off themselves.
      *
-     * Stops future billing and nothing else. The term they have already paid
-     * for stays exactly as it is, which is the client's rule: cancelling is not
-     * a refund and does not undo an order already placed. */
+     * Stops future billing on that plan and nothing else. The term they have
+     * already paid for stays exactly as it is, which is the client's rule:
+     * cancelling is not a refund and does not undo an order already placed.
+     * And it is one plan, not all of them: a patient on two treatments can keep
+     * one renewing. */
     if (resource === 'cancel_renewal') {
-      const contact = await findContactByCustomField(
-        SEARCH_FIELD_ID.MDI_PATIENT_ID,
-        patientId
-      ).catch(() => null);
-      if (!contact?.id) return res.status(404).json({ error: 'We could not find your plan' });
+      const wanted = String(req.body?.opportunity_id || '').trim();
+      if (!wanted) return res.status(400).json({ error: 'opportunity_id is required' });
+      /* Found among THIS patient's own plans, so a signed-in patient cannot
+         cancel somebody else's renewal by posting an id. */
+      const fills = await fillsFor(patientId);
+      const mine = fills.find((f) => f.opportunityId === wanted);
+      if (!mine) return res.status(404).json({ error: 'We could not find that plan' });
       try {
-        await cancelRenewal(contact.id);
+        await cancelRenewal(mine.opportunityId, { name: mine.name });
       } catch (e) {
         /* Unlike most CRM writes this one is surfaced. The patient pressed a
            button and is waiting on it, and telling them renewal is off when the
            write failed would be the worst outcome here. */
-        console.error(`Portal cancel_renewal failed for ${contact.id}:`, e.message);
+        console.error(`Portal cancel_renewal failed for ${mine.opportunityId}:`, e.message);
         return res.status(502).json({ error: 'We could not cancel that. Please try again.' });
       }
       return res.status(200).json({ cancelled: true });
@@ -623,12 +624,22 @@ export default async function handler(req, res) {
      * reason resume is: that page has no checkout, and the checkout is what
      * records the month against the plan. */
     if (resource === 'next_fill') {
-      const fill = await fillFor(patientId);
+      /* Which plan, named by the browser and then checked against this
+         patient's own. A patient can hold several, so "their plan" is not a
+         thing the server can work out on its own. Falls back to the only plan
+         they hold, which is almost everyone. */
+      const wanted = String(req.body?.opportunity_id || '').trim();
+      const fills = await fillsFor(patientId);
+      const fill = wanted
+        ? fills.find((f) => f.opportunityId === wanted)
+        : fills.length === 1
+          ? fills[0]
+          : fills.find((f) => f.canStart);
       if (!fill) return res.status(403).json({ error: 'You are not on a plan' });
       if (!fill.canStart) {
         return res.status(409).json({
           error:
-            fill.plan.remaining > 0
+            fill.remaining > 0
               ? 'Your current month is still being reviewed'
               : 'Every month of your plan has been used',
         });
@@ -683,7 +694,7 @@ export default async function handler(req, res) {
       const label = [product.categoryName, product.name].filter(Boolean).join(' - ');
       const made2 = await createVisitOpportunity({
         contactId: fill.contactId,
-        treatment: label || `Plan month ${fill.plan.current}`,
+        treatment: label || `Plan month ${fill.current}`,
         value: 0,
         /* The same source every website visit carries, deliberately.
          *
@@ -714,10 +725,10 @@ export default async function handler(req, res) {
          being opened until it has shipped. Written last, after the voucher and
          the card exist: a claim recorded against a month that failed to open
          would cost the patient a fill they never got. */
-      await claimFill(fill.contactId, fill.nextMonth);
+      await claimFill(fill.opportunityId, fill.nextMonth, { name: fill.name });
 
       console.info(
-        `Plan month ${fill.nextMonth} of ${fill.plan.months} opened for patient ${patientId}: ` +
+        `Plan month ${fill.nextMonth} of ${fill.months} opened for patient ${patientId}: ` +
           `product ${fill.pid}, voucher ${voucher.id}, opportunity ${opportunityId || '-'}`
       );
       return res.status(200).json({

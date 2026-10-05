@@ -13,14 +13,15 @@ import { productsData } from "../components/data/products";
  * resumeIntake is: that page has no checkout, and the checkout is what records
  * the month against the plan.
  */
-export async function nextFillUrl() {
+export async function nextFillUrl(planId) {
   const {
     token,
     pid,
     release_token: releaseToken,
     contact_id: contactId,
+    /* The card the server opened for THIS month, not the plan's own card. */
     opportunity_id: opportunityId,
-  } = await portalData({ resource: "next_fill" });
+  } = await portalData({ resource: "next_fill", opportunity_id: planId });
 
   try {
     if (releaseToken) sessionStorage.setItem("mdi_release_token", releaseToken);

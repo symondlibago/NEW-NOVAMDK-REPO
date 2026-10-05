@@ -19,6 +19,7 @@ import {
   FIELD,
 } from "./_ghl.js";
 import { mdi } from "./_mdi.js";
+import { PRICES } from "./_prices.js";
 import { stripe, stripeEnabled, findHold, holdExpiresAt } from "./_stripe.js";
 
 const FAILED_TAG = "payment-failed";
@@ -42,6 +43,23 @@ const FAILED_TAG = "payment-failed";
  *
  * A cancelled case is excluded at the call site, not here. `case_cancelled`
  * carries `lost: true` and must release the hold, never take it. */
+/* The catalogue product a card is for, read back out of its name.
+ *
+ * Cards are named "{category} - {product}" by api/_ghl.js and by the intake, so
+ * the name is a reliable key rather than a guess. Used to decide which of a
+ * patient's plans a shipment belongs to, now that a patient can hold one per
+ * treatment. */
+const CARD_PRODUCT = new Map(
+  Object.entries(PRICES).map(([id, p]) => [
+    [p.categoryName, p.name].filter(Boolean).join(" - "),
+    Number(id),
+  ])
+);
+function productIdOfCard(card) {
+  const name = String(card?.name || "").trim();
+  return name ? CARD_PRODUCT.get(name) || null : null;
+}
+
 const CAPTURE_ON = new Set(["case_approved", "case_completed"]);
 
 /* Takes the money the patient reserved at checkout, now that a provider has
@@ -134,7 +152,7 @@ async function captureHold(opportunityId, contactId) {
        Client rule, 2026-10-05: renewal starts at approval rather than at
        checkout, so nobody is signed up to a schedule for a treatment they were
        refused. Does nothing if they have already turned renewal off. */
-    await startRenewal(contactId);
+    await startRenewal(opportunityId);
     return;
   }
 
@@ -641,7 +659,12 @@ export default async function handler(req, res) {
            * collects, and a repeat event hours later moves the due date by
            * hours against 21 days of runway. */
           if (!lost && stage === "Shipped") {
-            await recordFillShipped(contact.id);
+            /* Told which product shipped, so the right plan is credited. A
+               patient can hold a plan per treatment, and an unrelated delivery
+               must not spend another plan's months. The product is read back
+               out of the card's own name, which is how both this module and
+               the intake write it. */
+            await recordFillShipped(contact.id, { productId: productIdOfCard(moved) });
           }
           return moved;
         })()

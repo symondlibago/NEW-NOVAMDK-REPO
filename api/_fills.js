@@ -3,31 +3,34 @@ import { rungFor } from "./_plans.js";
 import {
   ghlConfigured,
   findContactByCustomField,
-  planFor,
+  plansFor,
+  oppPlansEnabled,
   SEARCH_FIELD_ID,
 } from "./_ghl.js";
 
-/* Whether a patient may take another month of a plan they already paid for,
- * and which questionnaire that month is.
+/* Which months of which plans a patient may still take without paying, and
+ * which questionnaire each one opens.
  *
- * Shared by the portal, which offers the next month, and by /api/pay, which has
- * to agree that nothing is owed before letting an intake through without a
- * card. Both answers come from the same numbers so the two cannot drift.
+ * Shared by the portal, which offers them, and by /api/pay, which has to agree
+ * that nothing is owed before letting an intake through without a card. Both
+ * answers come from the same numbers so the two cannot drift.
  *
  * Nothing here trusts the browser. A prepaid month costs nothing, so a request
  * that got to name its own product would turn a $105 three month LDN plan into
  * two free months of a $229 tirzepatide. The patient is identified from the
- * portal session cookie and everything else from the plan recorded in
+ * portal session cookie and everything else from the plans recorded in
  * GoHighLevel.
  *
- * ALL OF IT COMES FROM THE PLAN, not from the patient's visits.
+ * PLURAL, since 2026-10-06. A patient can hold a plan per treatment, so there
+ * is no single "their plan" to speak of. The version that assumed one plan per
+ * patient kept it on the contact, which meant a second purchase overwrote the
+ * first and the prepaid months of the first were simply lost.
  *
- * The first version read their MDI cases to work out which rung they were on
- * and how many months were in flight. Both broke on the first patient who had
- * two treatments at once, which was the second live test: a tirzepatide plan
- * counted a semaglutide visit against it, hid the month 2 button, and would
- * have offered the wrong questionnaire if it had not. Visits belong to
- * treatments; a plan knows its own product and its own counts.
+ * And nothing here reads their VISITS. An earlier version inferred which rung
+ * they were on from their newest case and counted months in flight the same
+ * way; both broke for the first patient with two treatments running, because a
+ * visit belongs to a treatment and tells you nothing about which plan paid for
+ * it. A plan knows its own product and its own counts.
  */
 
 /* Products that exist only as a later month of a plan, derived rather than
@@ -52,56 +55,66 @@ function monthOf(planProduct, month) {
   return q ? { pid, questionnaireId: q } : null;
 }
 
-/** @returns {Promise<object|null>} null unless this patient is on a plan. */
-export async function fillFor(patientId) {
+/** The GHL contact behind a portal session, or null. */
+export async function contactForPatient(patientId) {
   const id = typeof patientId === "string" ? patientId.trim() : "";
-  if (!id || !ghlConfigured() || !SEARCH_FIELD_ID.PLAN_MONTHS) return null;
+  if (!id || !ghlConfigured()) return null;
+  return findContactByCustomField(SEARCH_FIELD_ID.MDI_PATIENT_ID, id).catch(() => null);
+}
 
-  const contact = await findContactByCustomField(SEARCH_FIELD_ID.MDI_PATIENT_ID, id).catch(
-    () => null
-  );
-  if (!contact?.id) return null;
-  const plan = await planFor(contact.id);
-  if (!plan) return null;
-  /* A plan with no product recorded cannot say which questionnaire comes next,
-     and guessing is what this rewrite exists to stop. Plans bought before the
-     field existed land here and are handled by staff. */
-  if (!plan.productId) {
-    console.warn(
-      `Fill check: contact ${contact.id} is on a ${plan.months} month plan with no ` +
-        `plan_product recorded, so no month can be offered.`
-    );
-    return null;
-  }
-
-  /* claimed is how many months they have been handed, the purchase included.
-   * used is how many the pharmacy has shipped.
-   *
-   * canStart, read in the portal, offers another month only once everything
-   * handed out has shipped. So a patient waiting on a review sees no button,
-   * and nobody can open month after month for free.
-   *
-   * canSettle, read at the payment step, asks whether the month they are
-   * doing right now was actually handed to them: claimed has to be ahead of
-   * shipped. Without that, anyone could walk into /intake on a plan-only
-   * product and have it for nothing. */
+/* One plan, decided.
+ *
+ * claimed is how many months they have been handed, the purchase included.
+ * used is how many the pharmacy has shipped.
+ *
+ * canStart, read in the portal BEFORE a case exists, offers another month only
+ * once everything handed out has shipped. So a patient waiting on a review sees
+ * no button, and nobody can open month after month for free.
+ *
+ * canSettle, read at the payment step, asks whether the month they are doing
+ * right now was actually handed to them: claimed has to be ahead of shipped.
+ * Without that, anyone could walk into /intake on a plan-only product and have
+ * it for nothing. */
+function decide(plan) {
   const { claimed, used, months } = plan;
-  const inProgress = monthOf(plan.productId, claimed);
-  const next = monthOf(plan.productId, claimed + 1);
-
+  const inProgress = plan.productId ? monthOf(plan.productId, claimed) : null;
+  const next = plan.productId ? monthOf(plan.productId, claimed + 1) : null;
   return {
-    contactId: contact.id,
-    plan,
-    /* The month the portal would start next, and its questionnaire. */
+    ...plan,
     nextMonth: claimed + 1,
     pid: next?.pid ?? null,
     questionnaireId: next?.questionnaireId ?? null,
-    /* The month already underway, which is what the payment step is settling. */
     inProgressPid: inProgress?.pid ?? null,
     inProgressQuestionnaireId: inProgress?.questionnaireId ?? null,
-    canStart: claimed < months && claimed <= used,
-    canSettle: claimed <= months && claimed > used,
+    canStart: Boolean(plan.productId) && claimed < months && claimed <= used,
+    canSettle: Boolean(plan.productId) && claimed <= months && claimed > used,
   };
+}
+
+/** Every plan this patient holds, each already decided. @returns {Promise<object[]>} */
+export async function fillsFor(patientId) {
+  if (!oppPlansEnabled()) return [];
+  const contact = await contactForPatient(patientId);
+  if (!contact?.id) return [];
+  const plans = await plansFor(contact.id);
+  return plans.map((p) => decide({ ...p, contactId: contact.id }));
+}
+
+/* The one plan a product belongs to, decided, or null.
+ *
+ * Matched on the LADDER rather than the exact product, because a 3 month
+ * tirzepatide plan covers the Starter, the Mid-Dose and the Maintenance rungs
+ * and a request will name whichever month it is on. */
+export async function fillForProduct(patientId, pid) {
+  const want = Number(pid);
+  if (!want) return null;
+  const fills = await fillsFor(patientId);
+  return (
+    fills.find((f) => {
+      const q = PRICES[String(want)]?.questionnaireId;
+      return q && (f.questionnaireId === q || f.inProgressQuestionnaireId === q);
+    }) || null
+  );
 }
 
 /* Whether this exact product may be taken without paying.

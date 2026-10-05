@@ -9,7 +9,7 @@ import { nextFillUrl } from "../../lib/nextFill";
 
    Sibling of ResumeIntakeButton, deliberately the same shape: both mint
    something and then route into /intake. */
-export default function NextFillButton({ className, children, onUnauthorized }) {
+export default function NextFillButton({ opportunityId, className, children, onUnauthorized }) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -18,7 +18,7 @@ export default function NextFillButton({ className, children, onUnauthorized }) 
     setBusy(true);
     setError(null);
     try {
-      navigate(await nextFillUrl());
+      navigate(await nextFillUrl(opportunityId));
     } catch (err) {
       setBusy(false);
       if (err.status === 401 && onUnauthorized) return onUnauthorized();

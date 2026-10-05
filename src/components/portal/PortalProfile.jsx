@@ -79,17 +79,17 @@ export default function PortalProfile({ onUnauthorized }) {
   const [error, setError] = useState({});
   // One card at a time — the two stacked made for a very long scroll.
   const [section, setSection] = useState("details");
-  /* The plan and its renewal. Null for everyone who is not on one, and a
-     failure here must not blank the page: the details form is what most people
-     came for. */
-  const [billing, setBilling] = useState(null);
+  /* Their plans and renewals, one per treatment. Empty for everyone not on a
+     plan, and a failure here must not blank the page: the details form is what
+     most people came for. */
+  const [plans, setPlans] = useState([]);
 
-  const loadBilling = useCallback(() => {
+  const loadPlans = useCallback(() => {
     portalData({ resource: "plan" })
-      .then((r) => setBilling(r?.billing || null))
-      .catch(() => setBilling(null));
+      .then((r) => setPlans(Array.isArray(r?.plans) ? r.plans : []))
+      .catch(() => setPlans([]));
   }, []);
-  useEffect(loadBilling, [loadBilling]);
+  useEffect(loadPlans, [loadPlans]);
 
   useEffect(() => {
     portalData({ resource: "profile" })
@@ -164,8 +164,8 @@ export default function PortalProfile({ onUnauthorized }) {
             comes looking for rather than something they need in front of them
             every visit. Renders nothing at all for anyone not on a plan. */}
         <PortalPlan
-          billing={billing}
-          onChanged={loadBilling}
+          plans={plans}
+          onChanged={loadPlans}
           onUnauthorized={onUnauthorized}
         />
 
