@@ -5,6 +5,7 @@ import ThemeProvider from "./theme/ThemeContext";
 import ScrollToTop from "./components/Nav/ScrollToTop";
 import { trackPageView, applyRouteConsent } from "./lib/analytics";
 import { trackPixelPageView } from "./lib/metaPixel";
+import { trackGtmPageView } from "./lib/gtm";
 import SmoothScroll from "./components/SmoothScroll";
 import RouteTransition from "./components/transition/RouteTransition";
 import Platform from "./pages/Platform";
@@ -46,6 +47,10 @@ function RouteAnalytics() {
        rather than riding on GA4's answer: it is held off the same private
        routes, and off the drug pages too when that flag is set. */
     trackPixelPageView(pathname);
+    /* Tag Manager, same again. Loaded on demand rather than pasted into
+       index.html, so a tag John adds in GTM's UI cannot start running on a
+       questionnaire page without anyone deciding that it should. */
+    trackGtmPageView(pathname);
   }, [pathname]);
   return null;
 }

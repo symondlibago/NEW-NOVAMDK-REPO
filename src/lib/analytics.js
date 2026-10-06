@@ -32,7 +32,15 @@ export const GA_MEASUREMENT_ID = "G-4X11DW5WNW";
 const PRIVATE_PREFIXES = ["/intake", "/portal", "/insights"];
 
 export function isPrivatePath(path) {
-  const p = typeof path === "string" && path ? path : isBrowser ? window.location.pathname : "/";
+  const raw = typeof path === "string" && path ? path : isBrowser ? window.location.pathname : "/";
+  /* The query and hash come off first.
+   *
+   * Callers pass useLocation().pathname, which never has either, so this was
+   * never reached in the app. But "/intake?token=..." read as a PUBLIC path
+   * under the old comparison, and this function is the single gate in front of
+   * GA4, the Meta pixel and now Tag Manager. A caller that hands it a whole URL
+   * one day must not quietly switch tracking on over a questionnaire. */
+  const p = raw.split(/[?#]/)[0] || "/";
   return PRIVATE_PREFIXES.some((prefix) => p === prefix || p.startsWith(`${prefix}/`));
 }
 

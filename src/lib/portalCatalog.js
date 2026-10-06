@@ -40,11 +40,46 @@ for (const category of new Set(PROGRAMS.map((p) => p.category))) {
 
 const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
+/* Which product a later rung climbed from.
+ *
+ * A ladder points forwards through nextRung, and this is the way back. Built
+ * over the WHOLE catalogue rather than `sellable`, because the rungs in the
+ * middle of a ladder are exactly the ones hidden from the shop. */
+const climbedFrom = new Map();
+for (const p of productsData) {
+  if (p.nextRung) climbedFrom.set(Number(p.nextRung), p);
+}
+function ladderBase(product) {
+  let at = product;
+  /* Bounded, so a nextRung loop introduced by mistake cannot spin here. */
+  for (let step = 0; step < 20; step++) {
+    const below = climbedFrom.get(Number(at.id));
+    if (!below) break;
+    at = below;
+  }
+  return at;
+}
+
 const byQuestionnaire = new Map();
 for (const p of sellable) {
   if (p.questionnaireId && !byQuestionnaire.has(p.questionnaireId)) {
     byQuestionnaire.set(p.questionnaireId, p);
   }
+}
+/* Then the hidden rungs, each resolved to the product it climbed from.
+ *
+ * Month 2 and month 3 of a plan are answered on the Maintenance questionnaire,
+ * which belongs only to a hidden product, so until 2026-10-06 those visits
+ * matched nothing at all: the portal showed "Visit #4" with the generic vial
+ * beside month 1's "Semaglutide" with its own photo, for one treatment. The
+ * client's rule is that every month of a treatment looks the same, and the
+ * Starter rung is what represents it, so the rung borrows its base.
+ *
+ * Sellable products are loaded first and win, so this only ever fills a gap. */
+for (const p of productsData) {
+  if (!p.questionnaireId || byQuestionnaire.has(p.questionnaireId)) continue;
+  const base = ladderBase(p);
+  if (base !== p && !isHidden(base)) byQuestionnaire.set(p.questionnaireId, base);
 }
 
 /* Catalogue names carry dose and pack detail the prescription doesn't

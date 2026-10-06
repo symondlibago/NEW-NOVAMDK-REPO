@@ -18,6 +18,23 @@ import { quoteFor, chargeFor } from './_plans.js';
    reads the same for every month of their treatment. */
 const PLAN_DESCRIPTION = 'NovaMDK telehealth treatment';
 
+/* A treatment's name without the dose rung.
+ *
+ * Catalogue names carry the rung they belong to, "... — Starter", because the
+ * shop needs to tell them apart. A patient does not: they are on one treatment
+ * whose dose moves, and the rest of the portal already shows them the plain
+ * name. "Start your next 3 months, Semaglutide/Cyanocobalamin (B12) — Starter"
+ * was the rung leaking into patient-facing copy. Client asked for it gone,
+ * 2026-10-06.
+ *
+ * Only the three ladder rungs are stripped, by name, so a product that happens
+ * to have a dash in its real name keeps it. */
+const treatmentName = (productId) => {
+  const name = productId ? PRICES[String(productId)]?.name : null;
+  if (!name) return null;
+  return name.replace(/\s*[—–-]\s*(Mid-Dose|Maintenance|Starter)\s*$/i, '').trim() || null;
+};
+
 const MESSAGE_PAGE = 100;
 const CHANNELS = new Set(['patient']);
 
@@ -576,7 +593,7 @@ export default async function handler(req, res) {
         return {
           opportunityId: f.opportunityId,
           months: f.months,
-          treatment: f.productId ? PRICES[String(f.productId)]?.name || null : null,
+          treatment: treatmentName(f.productId),
           /* Prepaid months, which only mean anything past one month. */
           current: f.current,
           remaining: f.remaining,
