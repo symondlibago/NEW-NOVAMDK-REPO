@@ -38,7 +38,7 @@ import { isPrivatePath } from "./analytics";
  *     PageView and every purchase.
  */
 
-export const GTM_ID = "GTM-55P8VS7N";
+export const GTM_ID = "GTM-MXK78QFB";
 
 const isBrowser = typeof window !== "undefined";
 

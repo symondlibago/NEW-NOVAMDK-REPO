@@ -116,6 +116,7 @@ export function treatmentFor(questionnaireId, treatmentName = null) {
       category: null,
       image: FALLBACK_IMAGE,
       path: "/treatments",
+      product: null,
       known: false,
     };
   }
@@ -126,6 +127,10 @@ export function treatmentFor(questionnaireId, treatmentName = null) {
     category: product.categoryName || null,
     image: program?.image || product.img || FALLBACK_IMAGE,
     path: productPath(product),
+    /* The catalogue entry itself, so a caller can read anything else off it.
+       The portal's visit detail uses it for the treatment's own Q&A, which is
+       written per medication and already lives beside the prices. */
+    product,
     known: true,
   };
 }

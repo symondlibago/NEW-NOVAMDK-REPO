@@ -1,11 +1,22 @@
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
-import { AlertCircle, ArrowRight, CalendarCheck, ChevronRight } from "lucide-react";
+import { AlertCircle, ArrowRight, CalendarCheck, ChevronRight, MessageSquare, Stethoscope } from "lucide-react";
 import { portalData } from "../../lib/portal";
 import { treatmentFor } from "../../lib/portalCatalog";
+import { planStatus, currentVisitForPlan } from "../../lib/planStatus";
 import ResumeIntakeButton from "./ResumeIntakeButton";
 import NextFillButton from "./NextFillButton";
+
+/* The same pill tones the Treatments tab uses, so one status cannot look
+   reassuring on one screen and alarming on the next. */
+const STATUS_TONE = {
+  good: "border-primary/35 bg-primary/10 text-primary-deep",
+  action: "border-primary/45 bg-primary text-on-primary",
+  wait: "border-line-strong/50 bg-surface-2 text-ink",
+  quiet: "border-line bg-surface-2 text-muted",
+  bad: "border-red-200 bg-red-50 text-red-700",
+};
 
 const greeting = () => {
   const h = new Date().getHours();
@@ -35,7 +46,7 @@ function ProgressRail({ step }) {
   );
 }
 
-export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) {
+export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit, onMessageAbout }) {
   /* Cards that name one visit open that visit. `See all` still goes to the
      list, because that is what it says. */
   const openVisit = (c) => () => {
@@ -50,29 +61,59 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
      summary, one line each, because it has to fit a phone screen in one go.
      Managing them is on the Profile tab. */
   const [plans, setPlans] = useState([]);
+  /* Unread messages, which John asked to see on Home. The header bell already
+     counts them, and this reads the same resource, so the two cannot disagree. */
+  const [unread, setUnread] = useState(0);
   const [error, setError] = useState(null);
 
+  /* Four requests, four independent renders.
+   *
+   * These used to share one Promise.all, which meant the page showed a skeleton
+   * until the SLOWEST of them came back, and they are not remotely equal: the
+   * plan walks a GoHighLevel search, then one read per opportunity card, then
+   * Stripe for the saved card, while the greeting is a single MDI call. The
+   * client reported the portal as slow on 2026-10-07 and this was most of it.
+   *
+   * Now each one paints the moment it lands. The visits still gate the skeleton,
+   * because they are the page, but the greeting, the plans and the unread count
+   * arrive whenever they arrive and nothing waits on anything else. */
   useEffect(() => {
     let alive = true;
-    Promise.all([
-      portalData({ resource: "cases" }),
-      // The greeting is decoration, so a failed profile shouldn't blank the page.
-      portalData({ resource: "profile" }).catch(() => null),
-      // Empty for everyone not on a plan, which is most people.
-      portalData({ resource: "plan" }).catch(() => null),
-    ])
-      .then(([{ visits: all, cases }, profile, planned]) => {
-        if (!alive) return;
-        setVisits(all || cases || []);
-        setName(profile?.profile?.first_name || null);
-        setPlans(Array.isArray(planned?.plans) ? planned.plans : []);
-      })
+    const keep = (fn) => (value) => {
+      if (alive) fn(value);
+    };
+
+    portalData({ resource: "cases" })
+      .then(keep(({ visits: all, cases }) => setVisits(all || cases || [])))
       .catch((err) => {
         if (!alive) return;
         if (err.status === 401) return onUnauthorized();
         setError(err.message);
       });
-    return () => { alive = false; };
+
+    // The greeting is decoration, so a failed profile must not blank the page.
+    portalData({ resource: "profile" })
+      .then(keep((p) => setName(p?.profile?.first_name || null)))
+      .catch(() => {});
+
+    // Empty for everyone not on a plan, which is most people.
+    portalData({ resource: "plan" })
+      .then(keep((r) => setPlans(Array.isArray(r?.plans) ? r.plans : [])))
+      .catch(() => {});
+
+    portalData({ resource: "notifications" })
+      .then(
+        keep((r) =>
+          setUnread(
+            (Array.isArray(r?.items) ? r.items : []).filter((n) => n.kind === "message").length
+          )
+        )
+      )
+      .catch(() => {});
+
+    return () => {
+      alive = false;
+    };
   }, [onUnauthorized]);
 
   /* Tighter vertical padding on phones. John's own account is one unfinished
@@ -129,33 +170,91 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
             This page has to land inside a single phone screen with an
             unfinished intake and an active visit already on it, so a plan gets
             a sentence and not a card. */}
-        {/* One line per plan. Only the multi-month ones say "month X of Y":
-            a single month plan has no prepaid months to count through, and
-            telling someone they are on "month 1 of 1" says nothing. */}
-        {plans
-          .filter((p) => p.months > 1)
-          .map((p) => (
-            <p
-              key={p.opportunityId}
-              className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.85rem] text-muted"
-            >
-              <CalendarCheck size={14} className="flex-none text-primary" />
-              <span>
-                Month {p.current} of {p.months}
-                {p.treatment ? `, ${p.treatment}` : " on your plan"}
-              </span>
-              {p.nextDue && (
-                <>
-                  <span aria-hidden="true" className="text-line-strong">
-                    ·
-                  </span>
-                  <span>
-                    next check-in due {format(new Date(`${p.nextDue}T12:00:00`), "MMM d")}
-                  </span>
-                </>
-              )}
-            </p>
-          ))}
+        {/* Unread messages, named here because John asked for it on Home and
+            because the bell in the header is easy to miss on a phone. */}
+        {unread > 0 && (
+          <button
+            type="button"
+            onClick={() => onNavigate("messages")}
+            className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-3.5 py-1.5 text-[0.82rem] font-semibold text-primary-deep transition-colors hover:border-primary"
+          >
+            <MessageSquare size={14} />
+            {unread === 1 ? "1 unread message" : `${unread} unread messages`}
+          </button>
+        )}
+
+        {/* One card per plan: the treatment, where it stands, when it renews,
+            where the parcel is, and one way through to manage it. John's Home
+            list of 2026-10-06, in the order he wrote it, kept to a strip rather
+            than a section because this page has to land inside a single phone
+            screen with an unfinished intake and an active visit already on it.
+            Managing a plan is the Treatments tab's job, not this one's. */}
+        {plans.length > 0 && (
+          <section className="mt-6 space-y-3">
+            {plans.map((p) => {
+              const status = planStatus(p, currentVisitForPlan(p, visits));
+              return (
+                <div
+                  key={p.opportunityId}
+                  className="rounded-2xl border border-line bg-surface-1 p-4 sm:flex sm:items-center sm:gap-5 sm:p-5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <p className="truncate text-[0.98rem] font-semibold text-ink">
+                        {p.treatment || "Your plan"}
+                      </p>
+                      {status && (
+                        <span
+                          className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-[0.72rem] font-semibold ${
+                            STATUS_TONE[status.tone] || STATUS_TONE.quiet
+                          }`}
+                        >
+                          {status.label}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.84rem] text-muted">
+                      <CalendarCheck size={14} className="flex-none text-primary" />
+                      <span>
+                        {p.months} month plan
+                        {p.months > 1 ? `, month ${p.current} of ${p.months}` : ""}
+                      </span>
+                      {p.autoRenew && p.renewsOn && (
+                        <>
+                          <span aria-hidden="true" className="text-line-strong">
+                            ·
+                          </span>
+                          <span>
+                            renews {format(new Date(`${p.renewsOn}T12:00:00`), "MMM d")}
+                          </span>
+                        </>
+                      )}
+                      {p.nextDue && (
+                        <>
+                          <span aria-hidden="true" className="text-line-strong">
+                            ·
+                          </span>
+                          <span>
+                            next check-in {format(new Date(`${p.nextDue}T12:00:00`), "MMM d")}
+                          </span>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  {/* The main CTA John asked for. Everything it leads to lives
+                      on one tab, so this is one button and not a menu. */}
+                  <button
+                    type="button"
+                    onClick={() => onNavigate("treatments")}
+                    className="mt-4 inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full border border-primary/40 px-5 py-2.5 text-[0.86rem] font-semibold text-primary transition-colors hover:bg-primary hover:text-on-primary sm:mt-0 sm:w-auto"
+                  >
+                    Manage treatment <ChevronRight size={15} />
+                  </button>
+                </div>
+              );
+            })}
+          </section>
+        )}
 
         {/* A term that has run out and is due to renew.
             Above the prepaid months, because this is the one that stops their
@@ -346,12 +445,40 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
                             ? "Your treatment is being prepared for shipment."
                             : "Your care team is working on this visit."}
                         </p>
-                        <button
-                          onClick={openVisit(c)}
-                          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full border border-line-strong md:mt-6 bg-bg px-7 py-3 text-[0.9rem] font-semibold text-ink transition-colors hover:border-primary hover:text-primary md:w-auto md:self-start"
-                        >
-                          View treatment details <ArrowRight size={15} />
-                        </button>
+                        {/* The provider by name, and the date they were seen.
+                            Client's request, 2026-10-07: the physician was only
+                            on the Visits tab, and this is the card a patient
+                            actually looks at. */}
+                        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.85rem] text-muted">
+                          <Stethoscope size={14} className="flex-none text-primary" />
+                          <span>{c.clinician ? `Dr. ${c.clinician}` : "Awaiting a provider"}</span>
+                          <span aria-hidden="true" className="text-line-strong">
+                            ·
+                          </span>
+                          <span>{format(new Date(c.created_at), "MMMM d, yyyy")}</span>
+                        </p>
+                        {/* Both of the Visits tab's actions, so nothing needs a
+                            trip to another tab to reach. */}
+                        <div className="mt-5 flex flex-col gap-2.5 md:mt-6 md:flex-row md:items-center md:self-start">
+                          <button
+                            onClick={openVisit(c)}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-bg px-7 py-3 text-[0.9rem] font-semibold text-ink transition-colors hover:border-primary hover:text-primary md:w-auto"
+                          >
+                            View treatment details <ArrowRight size={15} />
+                          </button>
+                          {/* A filled button, and deliberately the SAME one the
+                              visit detail uses, down to the classes: it is the
+                              same action in two places, and two different
+                              looking buttons read as two different things. */}
+                          {onMessageAbout && (
+                            <button
+                              onClick={() => onMessageAbout(c)}
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-7 py-3 text-[0.9rem] font-semibold text-white transition-opacity hover:opacity-90 md:w-auto"
+                            >
+                              <MessageSquare size={15} /> Message about this visit
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </li>
@@ -373,11 +500,23 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
                   <li key={c.id}>
                     <button
                       onClick={openVisit(c)}
-                      className="group flex w-full items-center gap-4 px-6 py-5 text-left transition-colors hover:bg-surface-2"
+                      className="group flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-surface-2 sm:px-6"
                     >
+                      {/* The treatment's photo, so a row of three reads at a
+                          glance. Two Semaglutide rows in a row were otherwise
+                          only distinguishable by reading them. Client's
+                          request, 2026-10-07. */}
+                      <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-2">
+                        <img
+                          src={t.image}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-contain p-1"
+                        />
+                      </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[0.98rem] font-semibold text-ink">
-                          {t.name || `Visit #${c.number}`}
+                          {t.name || format(new Date(c.created_at), "MMMM d, yyyy")}
                         </span>
                         <span className="mt-0.5 block truncate text-[0.86rem] text-muted">
                           {c.step?.label || "Submitted"}

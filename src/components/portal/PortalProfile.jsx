@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, Check, HeartPulse, Loader2, UserRound } from "lucide-react";
 import { portalData } from "../../lib/portal";
-import PortalPlan from "./PortalPlan";
 
 const KG_PER_LB = 0.45359237;
 const kgToLb = (kg) => (kg == null ? "" : String(Math.round(kg / KG_PER_LB)));
@@ -79,18 +78,6 @@ export default function PortalProfile({ onUnauthorized }) {
   const [error, setError] = useState({});
   // One card at a time — the two stacked made for a very long scroll.
   const [section, setSection] = useState("details");
-  /* Their plans and renewals, one per treatment. Empty for everyone not on a
-     plan, and a failure here must not blank the page: the details form is what
-     most people came for. */
-  const [plans, setPlans] = useState([]);
-
-  const loadPlans = useCallback(() => {
-    portalData({ resource: "plan" })
-      .then((r) => setPlans(Array.isArray(r?.plans) ? r.plans : []))
-      .catch(() => setPlans([]));
-  }, []);
-  useEffect(loadPlans, [loadPlans]);
-
   useEffect(() => {
     portalData({ resource: "profile" })
       .then(({ profile: p }) => {
@@ -159,15 +146,10 @@ export default function PortalProfile({ onUnauthorized }) {
           </p>
         </div>
 
-        {/* Billing belongs here rather than on the home page: the home page has
-            to fit a phone screen in one go, and this is something a patient
-            comes looking for rather than something they need in front of them
-            every visit. Renders nothing at all for anyone not on a plan. */}
-        <PortalPlan
-          plans={plans}
-          onChanged={loadPlans}
-          onUnauthorized={onUnauthorized}
-        />
+        {/* The plan used to sit here. It moved to the Treatments tab on
+            2026-10-06 at John's instruction: "do not hide subscription
+            cancellation only inside Profile". Profile is account settings
+            only. */}
 
         <div className="inline-flex w-fit gap-1 rounded-full border border-line bg-surface p-1">
           {SECTIONS.map(({ key, label, icon }) => {

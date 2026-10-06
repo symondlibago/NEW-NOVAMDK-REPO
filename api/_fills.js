@@ -6,6 +6,7 @@ import {
   plansFor,
   oppPlansEnabled,
   dueDate,
+  stripeCustomerOn,
   SEARCH_FIELD_ID,
 } from "./_ghl.js";
 
@@ -129,7 +130,12 @@ export async function fillsFor(patientId) {
   const contact = await contactForPatient(patientId);
   if (!contact?.id) return [];
   const plans = await plansFor(contact.id);
-  return plans.map((p) => decide({ ...p, contactId: contact.id }));
+  /* The Stripe customer travels WITH the fill, read off the contact we already
+     fetched. The portal used to ask GoHighLevel for the same contact a second
+     time by id just to get this one field, which was a wasted round trip on
+     every plan read. */
+  const stripeCustomer = stripeCustomerOn(contact);
+  return plans.map((p) => decide({ ...p, contactId: contact.id, stripeCustomer }));
 }
 
 /* The one plan a product belongs to, decided, or null.

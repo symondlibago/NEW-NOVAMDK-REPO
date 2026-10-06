@@ -4,6 +4,8 @@ import { format } from "date-fns";
 import { AlertCircle, ChevronLeft, ChevronRight, FileClock, FileText, MessageSquare, Pill, Stethoscope, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { portalData } from "../../lib/portal";
+import { treatmentFor } from "../../lib/portalCatalog";
+import PortalFaq from "./PortalFaq";
 import ResumeIntakeButton from "./ResumeIntakeButton";
 
 const STATUS = {
@@ -259,7 +261,7 @@ function VisitFilter({ visits, value, onChange }) {
   );
 }
 
-function VisitList({ visits, filter, onOpen }) {
+function VisitList({ visits, filter, onOpen, onMessageAbout }) {
   if (!visits.length) {
     return (
       <p className="mt-8 rounded-2xl border border-line bg-surface p-8 text-center text-[0.9rem] text-muted">
@@ -271,7 +273,13 @@ function VisitList({ visits, filter, onOpen }) {
   return (
     <ul className="mt-5 space-y-3">
       {visits.map((v) => (
-        <li key={v.id}>{v.kind === "draft" ? <DraftRow draft={v} /> : <CaseRow visit={v} onOpen={onOpen} />}</li>
+        <li key={v.id}>
+            {v.kind === "draft" ? (
+              <DraftRow draft={v} />
+            ) : (
+              <CaseRow visit={v} onOpen={onOpen} onMessageAbout={onMessageAbout} />
+            )}
+          </li>
       ))}
     </ul>
   );
@@ -281,49 +289,95 @@ function VisitList({ visits, filter, onOpen }) {
    we have seen. Beyond that the row would outgrow the list it sits in. */
 const NAMES_SHOWN = 3;
 
-function CaseRow({ visit: c, onOpen }) {
+function CaseRow({ visit: c, onOpen, onMessageAbout }) {
+  /* The treatment's own photo, so a row is recognisable at a glance rather than
+     by reading it. Matched the same way the rest of the portal matches: the
+     prescription name first, then the questionnaire. John's request,
+     2026-10-07. */
+  const treatment = treatmentFor(c.questionnaire_id, c.treatments?.[0]?.name || null);
+
   return (
-    <button
-      onClick={() => onOpen(c.case_id)}
-      className="group flex w-full items-center gap-4 rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-primary sm:p-5"
-    >
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface-2 text-primary">
-        <FileText size={18} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <span className="text-[1rem] font-semibold text-ink">Visit #{c.number}</span>
-          <StatusPill status={c.status} />
+    <div className="group rounded-2xl border border-line bg-surface transition-colors hover:border-primary">
+      <button
+        onClick={() => onOpen(c.case_id)}
+        className="flex w-full items-center gap-4 p-4 text-left sm:p-5"
+      >
+        {/* A tinted panel with the art contained inside it, the same treatment
+            the Home cards give a product photo. Square and generous: the first
+            version was a 56px tile with padding, and the vial art carries its
+            own whitespace, so what actually showed was a thumbnail inside a
+            thumbnail. */}
+        <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-2 sm:h-24 sm:w-24">
+          {treatment.image ? (
+            <img
+              src={treatment.image}
+              alt=""
+              loading="lazy"
+              className="h-full w-full scale-110 object-contain"
+            />
+          ) : (
+            <FileText size={20} className="text-primary" />
+          )}
         </span>
-        <span className="mt-1 block truncate text-[0.85rem] text-muted">
-          {format(new Date(c.created_at), "MMM d, yyyy")}
-          {c.clinician && <> · Dr. {c.clinician}</>}
-          {!c.treatments.length && <> · No treatment prescribed</>}
-        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            {/* The date, not "Visit #5". A number is ours; the day they were
+                seen is theirs. Client's request, 2026-10-07. */}
+            <span className="text-[1rem] font-semibold text-ink">
+              {format(new Date(c.created_at), "MMMM d, yyyy")}
+            </span>
+            <StatusPill status={c.status} />
+          </span>
+          <span className="mt-1 block truncate text-[0.85rem] text-muted">
+            {c.clinician ? `Dr. ${c.clinician}` : "Awaiting a provider"}
+            {!c.treatments.length && <> · No treatment prescribed</>}
+          </span>
         {/* The names themselves rather than a count, which told the patient
             nothing they wanted to know. Chips instead of a joined sentence
             because a visit can hold two dose steps and a lab panel, and MDI's
             names run long: each one truncates on its own and the row wraps. */}
-        {c.treatments.length > 0 && (
-          <span className="mt-2 flex flex-wrap gap-1.5">
-            {c.treatments.slice(0, NAMES_SHOWN).map((t) => (
-              <span
-                key={t.id}
-                className="max-w-full truncate rounded-full border border-line bg-bg px-2.5 py-1 text-[0.78rem] font-medium text-ink sm:max-w-[18rem]"
-              >
-                {t.name}
-              </span>
-            ))}
-            {c.treatments.length > NAMES_SHOWN && (
-              <span className="px-1 py-1 text-[0.78rem] text-muted">
-                +{c.treatments.length - NAMES_SHOWN} more
-              </span>
-            )}
-          </span>
-        )}
-      </span>
-      <ChevronRight size={18} className="shrink-0 text-muted transition-colors group-hover:text-primary" />
-    </button>
+          {c.treatments.length > 0 && (
+            <span className="mt-2 flex flex-wrap gap-1.5">
+              {c.treatments.slice(0, NAMES_SHOWN).map((t) => (
+                <span
+                  key={t.id}
+                  className="max-w-full truncate rounded-full border border-line bg-bg px-2.5 py-1 text-[0.78rem] font-medium text-ink sm:max-w-[18rem]"
+                >
+                  {t.name}
+                </span>
+              ))}
+              {c.treatments.length > NAMES_SHOWN && (
+                <span className="px-1 py-1 text-[0.78rem] text-muted">
+                  +{c.treatments.length - NAMES_SHOWN} more
+                </span>
+              )}
+            </span>
+          )}
+        </span>
+        <ChevronRight
+          size={18}
+          className="shrink-0 text-muted transition-colors group-hover:text-primary"
+        />
+      </button>
+
+      {/* On the row, not only inside the visit. A question about a visit is the
+          commonest reason to open one, so it should not need opening. Outside
+          the button above, because a button inside a button is invalid markup
+          and the browser drops it. */}
+      {onMessageAbout && (
+        <div className="border-t border-line px-4 py-2.5 sm:px-5">
+          <button
+            type="button"
+            onClick={() => onMessageAbout(c)}
+            /* The same filled button as inside the visit and on Home. It is one
+               action, so it looks the same in all three places. */
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-[0.84rem] font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            <MessageSquare size={14} /> Message about this visit
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -467,7 +521,9 @@ export default function PortalVisits({ onUnauthorized, onMessageAbout, initialOp
           <div className="rounded-2xl border border-line bg-surface p-6 nv-shadow sm:p-8">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h1 className="text-[1.45rem] leading-tight text-ink">Visit #{open.number}</h1>
+                <h1 className="text-[1.45rem] leading-tight text-ink">
+                  {format(new Date(open.created_at), "MMMM d, yyyy")}
+                </h1>
                 <p className="mt-1 text-[0.9rem] text-muted">
                   {format(new Date(open.created_at), "MMMM d, yyyy")}
                   {open.clinician && <> · Dr. {open.clinician}</>}
@@ -527,6 +583,26 @@ export default function PortalVisits({ onUnauthorized, onMessageAbout, initialOp
                 Message about this visit
               </button>
             )}
+
+            {/* The treatment's own questions, from the same set the product page
+                shows. Client's request, 2026-10-07: a visit should answer the
+                questions about the medication it is for, and it goes at the very
+                bottom, under the message button, centred, which is where a FAQ
+                belongs on any page. Matched the way the rest of the portal
+                matches, prescription name then questionnaire, and it renders
+                nothing at all when neither resolves. */}
+            {(() => {
+              const matched = treatmentFor(
+                open.questionnaire_id,
+                open.treatments?.[0]?.name || null
+              );
+              return matched.product ? (
+                <>
+                  <hr className="my-8 border-line" />
+                  <PortalFaq product={matched.product} />
+                </>
+              ) : null;
+            })()}
           </div>
         </div>
       </div>
@@ -536,10 +612,10 @@ export default function PortalVisits({ onUnauthorized, onMessageAbout, initialOp
   return (
     <div className={shell} data-lenis-prevent>
       <div className="mx-auto max-w-3xl">
+        {/* The heading on its own. The sentence under it described what the
+            list plainly is, and cost a line on every phone. Client's request,
+            2026-10-07. */}
         <h1 className="text-[1.45rem] leading-tight text-ink">Your visits</h1>
-        <p className="mt-1 text-[0.9rem] text-muted">
-          Every consultation you've started or submitted, newest first.
-        </p>
 
         {visits.length > 0 && (
           <VisitFilter visits={visits} value={filter} onChange={setFilter} />
@@ -564,6 +640,7 @@ export default function PortalVisits({ onUnauthorized, onMessageAbout, initialOp
             visits={visits.filter((v) => v.bucket === filter)}
             filter={filter}
             onOpen={setOpenId}
+            onMessageAbout={onMessageAbout}
           />
         )}
       </div>

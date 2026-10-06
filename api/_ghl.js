@@ -948,6 +948,19 @@ export async function cancelRenewal(opportunityId, { name } = {}) {
  *
  * On the contact, not the plan: a patient has one card, however many plans they
  * hold. The only piece of plan machinery that did not move. */
+/* The saved card's Stripe customer, off a contact ALREADY in hand.
+ *
+ * findContactByCustomField returns the whole contact, customFields and all, so
+ * asking GoHighLevel for it a second time by id is a round trip for data we are
+ * holding. That was a third of a second on every portal plan read, measured
+ * 2026-10-07 while chasing the client's report that the portal took ten
+ * seconds. Prefer this; the async version below is for callers that only have
+ * an id. */
+export const stripeCustomerOn = (contact) =>
+  (contact && SEARCH_FIELD_ID.STRIPE_CUSTOMER
+    ? fieldValueOf(contact, SEARCH_FIELD_ID.STRIPE_CUSTOMER)
+    : "") || null;
+
 export async function stripeCustomerOf(contactId) {
   if (!contactId || !SEARCH_FIELD_ID.STRIPE_CUSTOMER) return null;
   try {

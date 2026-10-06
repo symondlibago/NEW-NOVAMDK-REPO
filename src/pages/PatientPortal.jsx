@@ -2,22 +2,27 @@ import React, { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import BrandLoader from "../components/transition/BrandLoader";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, CalendarDays, House, Lock, Menu, MessageSquare, RefreshCw, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, House, Lock, Menu, MessageSquare, Pill, RefreshCw, UserRound } from "lucide-react";
 import Seo from "../components/Seo";
 import PortalLogin from "../components/portal/PortalLogin";
 import PortalSidebar from "../components/portal/PortalSidebar";
 import PortalNotifications from "../components/portal/PortalNotifications";
 import PortalHome from "../components/portal/PortalHome";
 import PortalMessages from "../components/portal/PortalMessages";
+import PortalTreatments from "../components/portal/PortalTreatments";
 import PortalVisits from "../components/portal/PortalVisits";
 import PortalProfile from "../components/portal/PortalProfile";
 import { getLenis } from "../lib/smoothScroll";
-import { portalAuth } from "../lib/portal";
+import { portalAuth, clearPortalCache } from "../lib/portal";
 
+/* John's five, in his order (2026-10-06): Home, Treatments, Visits, Messages,
+   Profile. No separate tab for billing, orders, pharmacy or subscriptions; all
+   four of those live inside Treatments. */
 const TABS = [
   { key: "home", label: "Home", icon: House },
-  { key: "messages", label: "Messages", icon: MessageSquare },
+  { key: "treatments", label: "Treatments", icon: Pill },
   { key: "visits", label: "Visits", icon: CalendarDays },
+  { key: "messages", label: "Messages", icon: MessageSquare },
   { key: "profile", label: "Profile", icon: UserRound },
 ];
 
@@ -160,7 +165,17 @@ export default function PatientPortalPage() {
               {signedIn && (
                 <>
                   <PortalNotifications onNavigate={selectTab} />
-                  <button onClick={() => setReloadKey((k) => k + 1)} aria-label="Refresh" className={chip}>
+                  {/* Refresh means refresh. Reads are cached for a minute so
+                      that moving between tabs does not re-pay MDI's four
+                      seconds, and this is the control that says ignore that. */}
+                  <button
+                    onClick={() => {
+                      clearPortalCache();
+                      setReloadKey((k) => k + 1);
+                    }}
+                    aria-label="Refresh"
+                    className={chip}
+                  >
                     <RefreshCw size={14} />
                   </button>
                 </>
@@ -208,7 +223,20 @@ export default function PatientPortalPage() {
                 transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
               >
                 {tab === "home" && (
-                  <PortalHome onUnauthorized={signOut} onNavigate={selectTab} onOpenVisit={openVisit} />
+                  <PortalHome
+                    onUnauthorized={signOut}
+                    onNavigate={selectTab}
+                    onOpenVisit={openVisit}
+                    onMessageAbout={messageAboutVisit}
+                  />
+                )}
+                {tab === "treatments" && (
+                  <PortalTreatments
+                    onUnauthorized={signOut}
+                    onMessage={messageAboutVisit}
+                    onOpenVisit={openVisit}
+                    onNavigate={selectTab}
+                  />
                 )}
                 {tab === "messages" && (
                   <PortalMessages

@@ -12,7 +12,7 @@ import {
 } from './_ghl.js';
 import { PRICES } from './_prices.js';
 import { savedCard, stripe, toCents } from './_stripe.js';
-import { quoteFor, chargeFor } from './_plans.js';
+import { quoteFor, chargeFor, ladderFor } from './_plans.js';
 
 /* The same words api/pay.js puts on a first visit, so a patient's statement
    reads the same for every month of their treatment. */
@@ -440,7 +440,31 @@ async function visitReference(patientId, caseId) {
   }
 }
 
+/* How long each resource took, in the logs.
+ *
+ * The client reported the portal taking ten to fifteen seconds on 2026-10-07.
+ * Measured from outside, Vercel answers in about 300ms warm and each upstream
+ * call runs 250 to 470ms, which does not add up to ten seconds, so the only
+ * honest next step is to make the function say where its own time goes. Wrapped
+ * rather than threaded through, because this handler has thirty return points.
+ *
+ * Logged for every resource, not only slow ones: a resource that is fast on one
+ * patient and slow on another is the thing worth seeing, and a line per request
+ * is nothing next to what the webhooks already write. */
 export default async function handler(req, res) {
+  const at = Date.now();
+  const label = String(req.body?.resource || req.method);
+  res.on('finish', () => {
+    const ms = Date.now() - at;
+    /* warn, not info, so it stands out in a log filtered by level when
+       somebody is actually hunting a slow screen. */
+    const say = ms >= 2000 ? console.warn : console.info;
+    say(`Portal ${label}: ${ms}ms (HTTP ${res.statusCode})`);
+  });
+  return portal(req, res);
+}
+
+async function portal(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
   // An open portal polls two threads, switches tabs and acknowledges reads;
   // several people behind one office NAT share this IP bucket too.
@@ -575,7 +599,10 @@ export default async function handler(req, res) {
          a patient who cancelled everything costs no Stripe call. */
       const anyRenewing = fills.some((f) => f.autoRenew);
       const card = anyRenewing
-        ? await savedCard(await stripeCustomerOf(fills[0]?.contactId))
+        /* The customer id came back with the fills, off the contact that was
+           already read. Asking GoHighLevel for the same contact again here cost
+           a third of a second on every load of this screen. */
+        ? await savedCard(fills[0]?.stripeCustomer)
         : null;
 
       const plans = fills.map((f) => {
@@ -608,6 +635,18 @@ export default async function handler(req, res) {
              still on its way. */
           canRenew: f.canRenew,
           renewDue: f.renewDue,
+          /* Every questionnaire on this plan's ladder, so the portal can tell
+             which of the patient's visits belong to this plan and show its
+             order and tracking against it. Matched on the questionnaire rather
+             than on the treatment name: a prescription comes back as
+             "SEMAGLUTIDE/CYANOCOBALAMIN" while the catalogue says
+             "Semaglutide/Cyanocobalamin (B12) — Starter", and a patient on two
+             GLP-1s would have them crossed. */
+          questionnaireIds: f.productId
+            ? ladderFor(f.productId)
+                .map((id) => PRICES[String(id)]?.questionnaireId)
+                .filter(Boolean)
+            : [],
           /* Renewal, per plan, which is what lets a patient keep one treatment
              renewing and stop another. */
           autoRenew: f.autoRenew,
@@ -947,6 +986,51 @@ export default async function handler(req, res) {
 
       items.sort((a, b) => new Date(b.at) - new Date(a.at));
       return res.status(200).json({ items: items.slice(0, 20) });
+    }
+
+    /* Where one visit's parcel is, and nothing else.
+     *
+     * The Treatments tab needs the carrier, the tracking number and whether the
+     * pharmacy has the order, for the plan's current visit only. case_detail
+     * answers with a whole timeline and a clinician biography, which is three
+     * MDI calls and a lot of payload for one row, so this is the narrow
+     * version: one order lookup, plus the ownership check that any case id
+     * arriving from a browser has to pass. */
+    if (resource === 'order_status') {
+      const caseId = String(req.body?.case_id || '');
+      if (!caseId) return res.status(400).json({ error: 'case_id is required' });
+
+      /* Both at once, and the ownership check applied to the result.
+         Sequentially this was two MDI round trips, about 0.8s, once per plan on
+         the Treatments tab. Fetching the orders before the owner is known is
+         safe because nothing is RETURNED before the check below: a mismatch
+         throws the orders away unread. */
+      const [one, orders] = await Promise.all([
+        mdi(`/cases/${encodeURIComponent(caseId)}`),
+        mdi(`/cases/${encodeURIComponent(caseId)}/orders`),
+      ]);
+      if (!one.ok) {
+        console.error('Portal order status failed:', one.status);
+        return res.status(502).json({ error: 'Could not load that order' });
+      }
+      const body = one.data?.data || one.data;
+      /* Re-checked against the session rather than trusted. Without this,
+         editing the id in a request would read a stranger's parcel. */
+      const owner = body?.patient?.patient_id || body?.patient?.id || body?.patient_id;
+      if (owner !== patientId) {
+        console.warn('Portal order status: ownership mismatch');
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const summary = summariseOrders(flattenOrders(orders.data));
+      return res.status(200).json({
+        order: {
+          started: summary.started,
+          shipped: summary.shipped,
+          tracking: summary.tracking,
+          issue: summary.issue,
+        },
+      });
     }
 
     if (resource === 'case_detail') {
