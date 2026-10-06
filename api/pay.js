@@ -12,10 +12,6 @@ import {
   fieldValueOf,
   SEARCH_FIELD_ID,
   recordPlan,
-  planOn,
-  opportunityById,
-  stripeCustomerOf,
-  setRenewal,
   setOpportunityValue,
   INTAKE_STAGE,
   FIELD,
@@ -31,8 +27,8 @@ import {
   parseReference,
   addToMonth,
 } from "./_kurv.js";
-import { stripe, stripeEnabled, stripeMode, toCents, holdExpiresAt, findHold, customerFor, savedCard } from "./_stripe.js";
-import { PLAN_TERMS, DEFAULT_MONTHS, monthsFrom, planAllowed, renewalDate, quoteFor } from "./_plans.js";
+import { stripe, stripeEnabled, stripeMode, toCents, holdExpiresAt, findHold, customerFor } from "./_stripe.js";
+import { PLAN_TERMS, DEFAULT_MONTHS, monthsFrom, planAllowed, quoteFor, chargeFor } from "./_plans.js";
 import { fillForProduct, isFollowOnRung, matchesFill } from "./_fills.js";
 import { readSession } from "./_session.js";
 
@@ -118,37 +114,42 @@ function termsFor(pid) {
   });
 }
 
-/* What the card is actually charged.
+/* Is this visit's money ALREADY reserved?
  *
- * The test override replaces the PER MONTH price and is then multiplied by the
- * term, deliberately skipping the term discount. A 3 month test therefore costs
- * $1.50 rather than $1.35, and a 1 month test stays exactly the $0.50 that has
- * already been tested live. Discounting a 50 cent price and rounding it to the
- * dollar, which is what real pricing does, would have moved the test amount
- * around and Stripe refuses anything under $0.50. */
-function chargeFor(pid, months = DEFAULT_MONTHS) {
-  const quote = quoteFor(pid, months);
-  if (!quote) return null;
-  if (!TEST_PIDS.has(String(pid))) return quote;
-
-  const perMonth = TEST_AMOUNT > 0 ? TEST_AMOUNT : quote.perMonth;
-  const amount = cents(perMonth * quote.months);
-  const shipping = TEST_SHIPPING ?? quote.shipping;
-  const charge = {
-    months: quote.months,
-    perMonth,
-    amount,
-    saving: 0,
-    shipping,
-    total: cents(amount + shipping),
-  };
-  console.warn(
-    `TEST PRICING ACTIVE: product ${pid} x${quote.months} charged $${charge.total.toFixed(2)} ` +
-      `($${perMonth.toFixed(2)} a month + $${shipping.toFixed(2)} fee) instead of $${quote.total.toFixed(2)}. ` +
-      `Unset TEST_CHARGE_PID once testing is done.`
-  );
-  return charge;
+ * A renewal holds the saved card in the portal, before the questionnaire, so by
+ * the time the intake reaches a checkout the money for that visit is sitting in
+ * Stripe awaiting capture. Charging there as well would take a second term's
+ * money for one term of treatment. The ladder's later rungs are safe without
+ * this, because they are never for sale and quote $0 anyway, but a plan on a
+ * product with no ladder renews onto ITSELF, which does have a price, and that
+ * is the path that would have charged twice.
+ *
+ * Three things have to line up, and the only one the request supplies is the
+ * opportunity id:
+ *   - Stripe really has an uncaptured reservation on that opportunity
+ *   - it was placed by a renewal, not by some unrelated checkout
+ *   - and it belongs to a plan THIS signed-in patient holds, proven from the
+ *     portal session rather than from anything in the request, so quoting
+ *     someone else's open hold cannot buy a free fill.
+ *
+ * Never throws: a lookup that fails has to fall through to the ordinary price,
+ * which charges, rather than silently hand out treatment for nothing. */
+async function alreadyReserved(req, pid) {
+  if (!stripeEnabled()) return false;
+  const oppId = clean(queryParam(req, "opp") || req.body?.opportunity_id, 60);
+  if (!oppId) return false;
+  try {
+    const hold = await findHold(oppId);
+    if (hold?.metadata?.renewal !== "1") return false;
+    const fill = await fillForProduct(readSession(req), pid);
+    return Boolean(fill && hold.metadata?.plan_opportunity_id === fill.opportunityId);
+  } catch (e) {
+    console.error(`Reservation check failed for opportunity ${oppId}:`, e.message);
+    return false;
+  }
 }
+
+/* chargeFor now lives in _plans.js, beside the prices it overrides. */
 
 /* GHL writes must never turn a successful charge into a failure the patient
  * sees: the money has already moved by the time these run. */
@@ -738,15 +739,20 @@ function renewField(req, key, max) {
   return nested && typeof nested === "object" ? clean(nested[key], max) : "";
 }
 
+/* The old renewal charge, now deliberately inert.
+ *
+ * Until 2026-10-06 the renewal date charged the saved card off-session, and a
+ * GoHighLevel webhook on that date called this. The client then chose the other
+ * shape: the date only emails the patient, the card is HELD when they start
+ * their check-in in the portal, and the money is taken when a provider approves
+ * it. That lives in next_fill in api/portal.js.
+ *
+ * Kept rather than deleted, and answering 200 rather than charging, so that a
+ * workflow still holding the old Webhook action cannot take someone's money by
+ * surprise during the changeover. Delete this and the renew=1 route once no
+ * workflow calls it. */
 async function renewPlan(req, res) {
-  if (!stripeEnabled()) return res.status(503).json({ ok: false, error: "not_configured" });
-  /* The only gate on this route. GHL's servers have no browser origin, so
-     blocked() cannot help, and a request that could charge a saved card must
-     not be callable by anyone who knows a contact id. */
   if (!RENEW_SECRET || renewField(req, "secret", 200) !== RENEW_SECRET) {
-    /* The KEYS, never the values. A 403 with nothing to go on cost hours on
-       2026-10-06, when the secret was arriving a level down and looked
-       identical to no secret at all. */
     console.warn(
       `Rejected a renewal: missing or wrong secret (body carried: ${
         bodyKeysOf(req).join(", ") || "nothing"
@@ -754,111 +760,13 @@ async function renewPlan(req, res) {
     );
     return res.status(403).json({ ok: false, error: "forbidden" });
   }
-
-  /* The CARD, because a renewal belongs to one plan and a patient can hold
-     several. The GoHighLevel workflow fires on the card's own Renews On date,
-     so it already knows which one. */
-  const orderId = renewField(req, "opportunity_id", 60);
-  if (!orderId) return res.status(400).json({ ok: false, error: "missing_opportunity" });
-
-  const card = await opportunityById(orderId);
-  const r = planOn(card);
-  if (!r) {
-    console.info(`Renewal skipped for ${orderId}: no plan on that card`);
-    return res.status(200).json({ ok: false, skipped: "no_plan" });
-  }
-  const contactId = card?.contact?.id || card?.contactId || "";
-
-  /* The client's four conditions, in the order they are cheapest to check. */
-  if (!r.autoRenew) {
-    console.info(`Renewal skipped for ${orderId}: the patient turned it off`);
-    return res.status(200).json({ ok: false, skipped: "cancelled" });
-  }
-  const customerId = await stripeCustomerOf(contactId);
-  if (!customerId) {
-    console.error(`Renewal skipped for ${orderId}: no saved card`);
-    return res.status(200).json({ ok: false, skipped: "no_card" });
-  }
-  /* A month already handed out but not yet shipped means something is still
-     with a provider or the pharmacy. Charging for the next term on top of one
-     that has not arrived is exactly what "do not charge until cleared" is
-     there to stop. */
-  if (r.claimed > r.used) {
-    console.info(
-      `Renewal held for ${orderId}: ${r.claimed} claimed, ${r.used} shipped, still in flight`
-    );
-    return res.status(200).json({ ok: false, skipped: "in_flight" });
-  }
-
-  const charge = chargeFor(r.productId, r.months);
-  if (!charge) {
-    console.error(`Renewal skipped for ${orderId}: product ${r.productId} has no price`);
-    return res.status(200).json({ ok: false, skipped: "unpriced" });
-  }
-
-  /* Named explicitly. A customer's default_payment_method is only consulted
-     when Stripe raises an invoice; a PaymentIntent confirmed off-session with
-     no payment_method is simply refused. */
-  const pm = await savedCard(customerId);
-  if (!pm?.id) {
-    console.error(`Renewal skipped for ${orderId}: customer ${customerId} has no card on file`);
-    return res.status(200).json({ ok: false, skipped: "no_card" });
-  }
-
-  /* Off-session and confirmed in one call: nobody is at the keyboard. Charged
-     outright rather than held, because there is no visit to approve yet; the
-     term they are buying is reviewed month by month as they check in. */
-  const paid = await stripe("/payment_intents", {
-    body: {
-      amount: toCents(charge.total),
-      currency: "usd",
-      customer: customerId,
-      payment_method: pm.id,
-      description: `${DESCRIPTION} (plan renewal)`,
-      confirm: true,
-      off_session: true,
-      payment_method_types: ["card"],
-      metadata: {
-        product_id: String(r.productId),
-        contact_id: contactId,
-        opportunity_id: orderId,
-        plan_months: String(r.months),
-        renewal: "1",
-      },
-    },
-    /* The date fires once, but a GHL workflow that retries must not charge
-       twice for the same day. */
-    idempotencyKey: `renew_${orderId}_${r.renewsOn || "x"}`,
-  });
-
-  if (!paid.ok || paid.data?.status !== "succeeded") {
-    const why =
-      paid.data?.error?.code ||
-      paid.data?.error?.message ||
-      paid.data?.status ||
-      `HTTP ${paid.status}`;
-    console.error(`Renewal charge FAILED for ${orderId}: ${why}`);
-    await markFailed(contactId, null);
-    /* Renewal stays ON. A card that failed today may work tomorrow, and
-       switching it off would quietly end a subscription the patient never
-       cancelled. The failed tag is what brings a human to it. */
-    return res.status(200).json({ ok: false, error: "charge_failed", reason: why });
-  }
-
-  /* A new term starts: the counts go back to the beginning and the next
-     renewal is set from today. recordPlan resets claimed and used, which is
-     exactly right for a fresh term. */
-  await recordPlan(orderId, r.months, r.productId, { name: r.name });
-  await setRenewal(orderId, {
-    on: true,
-    renewsOn: renewalDate(new Date(), r.months),
-    name: r.name,
-  });
-  console.info(
-    `Renewal charged for ${orderId}: ${charge.total.toFixed(2)}, ` +
-      `${r.months} month(s) on product ${r.productId}`
+  console.warn(
+    `Renewal webhook called for ${renewField(req, "opportunity_id", 60) || "no card"} ` +
+      `and IGNORED. Renewals are no longer charged on a date: the patient's check-in ` +
+      `holds the card and the provider's approval takes it. Remove the Webhook action ` +
+      `from the Plan Renewal workflow and leave only the email.`
   );
-  return res.status(200).json({ ok: true, amount: charge.total, months: r.months });
+  return res.status(200).json({ ok: false, skipped: "charged_at_approval_now" });
 }
 
 async function kurvStart(req, res) {
@@ -986,6 +894,23 @@ export default async function handler(req, res) {
     const pid = queryParam(req, "pid");
     const months = monthsFrom(queryParam(req, "months"));
 
+    /* A renewal's money is reserved before the questionnaire, so this visit is
+       already paid for and the checkout must not price it again. */
+    if (await alreadyReserved(req, pid)) {
+      return res.status(200).json({
+        ok: true,
+        prepaid: true,
+        processor: "prepaid",
+        months: 1,
+        perMonth: 0,
+        amount: 0,
+        saving: 0,
+        shipping: 0,
+        total: 0,
+        terms: [],
+      });
+    }
+
     /* A later rung of a plan has no price, because it is never for sale.
      *
      * These products are hidden from the shop, but hidden only means unlinked:
@@ -1061,6 +986,15 @@ export default async function handler(req, res) {
   if (isFollowOnRung(pid)) {
     console.warn(`Refused a card payment for plan-only product ${pid}`);
     return res.status(403).json({ ok: false, error: "plan_only" });
+  }
+  /* The same guard the quote uses, repeated at the moment money would move.
+     The quote is advisory, this is not: a renewal whose hold is already in
+     Stripe must never be charged a second time, whatever the browser asks. */
+  if (await alreadyReserved(req, pid)) {
+    console.warn(
+      `Refused a card payment for product ${pid}: this visit's money is already reserved`
+    );
+    return res.status(409).json({ ok: false, error: "already_reserved" });
   }
   const charge = chargeFor(pid, monthsFrom(req.body?.months));
   if (!charge) {

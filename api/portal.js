@@ -5,13 +5,18 @@ import { fillsFor } from './_fills.js';
 import {
   createVisitOpportunity,
   claimFill,
+  recordPlan,
   cancelRenewal,
   stripeCustomerOf,
   INTAKE_STAGE,
 } from './_ghl.js';
 import { PRICES } from './_prices.js';
-import { savedCard } from './_stripe.js';
-import { quoteFor } from './_plans.js';
+import { savedCard, stripe, toCents } from './_stripe.js';
+import { quoteFor, chargeFor } from './_plans.js';
+
+/* The same words api/pay.js puts on a first visit, so a patient's statement
+   reads the same for every month of their treatment. */
+const PLAN_DESCRIPTION = 'NovaMDK telehealth treatment';
 
 const MESSAGE_PAGE = 100;
 const CHANNELS = new Set(['patient']);
@@ -557,7 +562,17 @@ export default async function handler(req, res) {
         : null;
 
       const plans = fills.map((f) => {
-        const priced = f.productId ? quoteFor(f.productId, f.months) : null;
+        /* Priced on the rung the NEXT term opens on, not the one they are on
+           now: that is the thing they would actually be asked to pay. The two
+           are the same while every dose costs the same, and this keeps the
+           number honest the day they stop. */
+        const nextPid = f.renewPid || f.productId;
+        /* chargeFor, not quoteFor: this number is shown to the patient as what
+           they are about to be asked for, and the hold is placed with chargeFor
+           too. Showing the catalogue price while reserving a test one is how
+           last night's renewal came to display $507 and take $1.50. The two are
+           the same figure the moment TEST_CHARGE_PID is unset. */
+        const priced = nextPid ? chargeFor(nextPid, f.months) : null;
         return {
           opportunityId: f.opportunityId,
           months: f.months,
@@ -569,6 +584,13 @@ export default async function handler(req, res) {
           /* Whether the check-in button is offered. False while a month is
              still being reviewed or on its way, which is most of the time. */
           canStart: f.canStart,
+          /* The renewal check-in. A new term, so unlike a prepaid month it
+             costs money, and the portal has to show the amount and ask before
+             it places a hold. canRenew means offer it now; renewDue without
+             canRenew means the date has arrived but this term's last month is
+             still on its way. */
+          canRenew: f.canRenew,
+          renewDue: f.renewDue,
           /* Renewal, per plan, which is what lets a patient keep one treatment
              renewing and stop another. */
           autoRenew: f.autoRenew,
@@ -634,19 +656,93 @@ export default async function handler(req, res) {
         ? fills.find((f) => f.opportunityId === wanted)
         : fills.length === 1
           ? fills[0]
-          : fills.find((f) => f.canStart);
+          : fills.find((f) => f.canStart || f.canRenew);
       if (!fill) return res.status(403).json({ error: 'You are not on a plan' });
-      if (!fill.canStart) {
+
+      /* A prepaid month inside the term, or the first month of a NEW term.
+       *
+       * The difference is only money: a prepaid month was paid for on the day
+       * the term was bought, and a renewal has not been paid for at all yet, so
+       * it holds the saved card first. Everything after that is identical,
+       * which is why there is one route rather than two. */
+      const renewing = !fill.canStart && fill.canRenew;
+      if (!fill.canStart && !fill.canRenew) {
         return res.status(409).json({
-          error:
-            fill.remaining > 0
+          error: fill.renewDue
+            ? 'This month is still on its way. Your next plan can start once it arrives'
+            : fill.remaining > 0
               ? 'Your current month is still being reviewed'
               : 'Every month of your plan has been used',
         });
       }
-      if (!fill.questionnaireId) {
+
+      const pid = renewing ? fill.renewPid : fill.pid;
+      const questionnaireId = renewing ? fill.renewQuestionnaireId : fill.questionnaireId;
+      if (!questionnaireId) {
         console.error(`next_fill: no follow-on questionnaire for patient ${patientId}`);
         return res.status(502).json({ error: 'Could not start your next check-in' });
+      }
+
+      /* The new term's money, reserved before anything else exists.
+       *
+       * Held, not taken, and taken only when a provider approves, which is the
+       * client's decision of 2026-10-06 and the same promise the checkout makes
+       * for a first visit. Done FIRST so a declined card leaves no half opened
+       * visit behind: there is no voucher, no card and no plan reset to undo.
+       * The hold is tied to its visit card a few lines below, once that card
+       * exists, because that is what the capture looks it up by. */
+      let hold = null;
+      if (renewing) {
+        const quote = chargeFor(pid, fill.months);
+        if (!quote?.total) {
+          console.error(`next_fill: product ${pid} has no price, renewal refused`);
+          return res.status(502).json({ error: 'Could not start your next check-in' });
+        }
+        const customerId = await stripeCustomerOf(fill.contactId);
+        const card = customerId ? await savedCard(customerId) : null;
+        if (!card?.id) {
+          return res.status(402).json({
+            error: 'We do not have a card on file. Please contact support to renew your plan',
+          });
+        }
+        const made = await stripe('/payment_intents', {
+          body: {
+            amount: toCents(quote.total),
+            currency: 'usd',
+            customer: customerId,
+            payment_method: card.id,
+            /* Held, not charged. The provider's approval is what captures it. */
+            capture_method: 'manual',
+            confirm: true,
+            /* The patient IS at the keyboard: they just tapped to confirm in
+               the portal. So this is on-session, which both gets a better
+               answer from the issuer than an off-session reservation and lets
+               a 3D Secure challenge be shown instead of failing outright. */
+            off_session: false,
+            payment_method_types: ['card'],
+            description: `${PLAN_DESCRIPTION} (plan renewal)`,
+            metadata: {
+              product_id: String(pid),
+              contact_id: fill.contactId,
+              plan_months: String(fill.months),
+              renewal: '1',
+              /* The card the PLAN lives on, which is not the visit card this
+                 hold will be attached to. The capture needs it to move the plan
+                 into its next term. */
+              plan_opportunity_id: fill.opportunityId,
+            },
+          },
+          idempotencyKey: `renewhold_${fill.opportunityId}_${fill.renewsOn || 'x'}`,
+        });
+        if (!made.ok || made.data?.status !== 'requires_capture') {
+          const why =
+            made.data?.error?.message || made.data?.status || `HTTP ${made.status}`;
+          console.error(`next_fill renewal hold failed for ${fill.opportunityId}: ${why}`);
+          return res.status(402).json({
+            error: 'Your card was declined. Please update it in your portal and try again',
+          });
+        }
+        hold = made.data;
       }
 
       /* method and body, not a bare payload.
@@ -662,7 +758,7 @@ export default async function handler(req, res) {
         body: {
           hold_status: true,
           patient_id: patientId,
-          questionnaire_id: fill.questionnaireId,
+          questionnaire_id: questionnaireId,
           /* Left empty deliberately. MDI drops case_offerings on a voucher
              anyway, and the dose is picked inside the questionnaire, which is
              the whole point of the patient answering it again. */
@@ -687,15 +783,18 @@ export default async function handler(req, res) {
        * storage.  That is exactly what happened on the first live
        * run of month 2, 2026-10-03.
        *
-       * value 0 deliberately. The money for all three months was taken on month
-       * 1 and that card carries it; giving this one a price as well would
-       * report the same payment twice in GoHighLevel's revenue. */
-      const product = PRICES[String(fill.pid)] || {};
+       * value 0 for a prepaid month, deliberately. The money for all three
+       * months was taken on month 1 and that card carries it; giving this one a
+       * price as well would report the same payment twice in GoHighLevel's
+       * revenue. A RENEWAL is the opposite case: it is a new payment, and this
+       * card is the one it is held against, so it carries the term's price and
+       * is the card that counts it. */
+      const product = PRICES[String(pid)] || {};
       const label = [product.categoryName, product.name].filter(Boolean).join(' - ');
       const made2 = await createVisitOpportunity({
         contactId: fill.contactId,
         treatment: label || `Plan month ${fill.current}`,
-        value: 0,
+        value: renewing ? quoteFor(pid, fill.months)?.total || 0 : 0,
         /* The same source every website visit carries, deliberately.
          *
          * A distinct value here ("Patient portal, plan month") read better on
@@ -721,21 +820,64 @@ export default async function handler(req, res) {
         );
       }
 
+      /* Ties the reservation to the visit it belongs to.
+       *
+       * findHold in _stripe.js looks a hold up by metadata.opportunity_id, and
+       * that is how the approval captures it. The card did not exist when the
+       * hold was placed, so the id goes on now. Stripe merges metadata keys on
+       * update, so the plan id put there a moment ago survives.
+       *
+       * A failure here does not cost the patient anything: an untagged hold is
+       * simply never captured and the bank releases it. It does cost us the
+       * money, so it is logged with the intent id, which is all a human needs
+       * to capture it by hand. */
+      if (hold && opportunityId) {
+        const tied = await stripe(`/payment_intents/${hold.id}`, {
+          body: { metadata: { opportunity_id: opportunityId } },
+        });
+        if (!tied.ok) {
+          console.error(
+            `next_fill could not tie renewal hold ${hold.id} to opportunity ` +
+              `${opportunityId}: it will expire uncaptured unless captured by hand`
+          );
+        }
+      } else if (hold) {
+        console.error(
+          `next_fill placed renewal hold ${hold.id} but opened no card, so nothing ` +
+            `will capture it. Capture it by hand or let it expire`
+        );
+      }
+
       /* This month is now handed out, and that is what stops a second one
          being opened until it has shipped. Written last, after the voucher and
          the card exist: a claim recorded against a month that failed to open
-         would cost the patient a fill they never got. */
-      await claimFill(fill.opportunityId, fill.nextMonth, { name: fill.name });
+         would cost the patient a fill they never got.
+         A renewal rewrites the whole plan instead: a new term on the rung the
+         patient has climbed to, with the counts back at the start. Written here
+         rather than at capture for the same reason a claim is: until the plan
+         says a month is out, canRenew is still true and a patient could tap
+         again and take a second hold. renews_on is NOT set here. That is the
+         approval's job, so nobody is put back on a schedule for a term a
+         provider went on to refuse. */
+      if (renewing) {
+        await recordPlan(fill.opportunityId, fill.months, pid, { name: fill.name });
+      } else {
+        await claimFill(fill.opportunityId, fill.nextMonth, { name: fill.name });
+      }
 
       console.info(
-        `Plan month ${fill.nextMonth} of ${fill.months} opened for patient ${patientId}: ` +
-          `product ${fill.pid}, voucher ${voucher.id}, opportunity ${opportunityId || '-'}`
+        (renewing
+          ? `Renewal month 1 of a new ${fill.months} month term opened for patient ${patientId}: `
+          : `Plan month ${fill.nextMonth} of ${fill.months} opened for patient ${patientId}: `) +
+          `product ${pid}, voucher ${voucher.id}, opportunity ${opportunityId || '-'}` +
+          (hold ? `, hold ${hold.id}` : '')
       );
       return res.status(200).json({
         token: voucher.id,
-        pid: fill.pid,
-        questionnaire_id: fill.questionnaireId,
-        month: fill.nextMonth,
+        pid,
+        questionnaire_id: questionnaireId,
+        month: renewing ? 1 : fill.nextMonth,
+        renewal: renewing || undefined,
         /* Handed to the browser because /intake reads both of these out of
            session storage and has no other way to learn them. */
         contact_id: fill.contactId,

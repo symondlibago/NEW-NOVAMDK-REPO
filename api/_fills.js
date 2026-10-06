@@ -5,6 +5,7 @@ import {
   findContactByCustomField,
   plansFor,
   oppPlansEnabled,
+  dueDate,
   SEARCH_FIELD_ID,
 } from "./_ghl.js";
 
@@ -79,6 +80,29 @@ function decide(plan) {
   const { claimed, used, months } = plan;
   const inProgress = plan.productId ? monthOf(plan.productId, claimed) : null;
   const next = plan.productId ? monthOf(plan.productId, claimed + 1) : null;
+
+  /* The rung a NEW term opens on: one step past where this term finished.
+   *
+   * Someone on 1 month terms steps up a dose at every renewal, and someone who
+   * has just finished a 3 month term is already on the last rung, which repeats
+   * itself, so they stay there. Walked with months + 1 so both fall out of the
+   * same line instead of being special cased. */
+  const renew = plan.productId ? monthOf(plan.productId, months + 1) : null;
+
+  /* The renewal date has arrived and the patient has not turned renewal off.
+   *
+   * Separate from canRenew on purpose. A 3 month plan renews on day 77, seven
+   * days before its last fill runs out, so the date can arrive while month 3 is
+   * still with the pharmacy. The portal needs to say "once this month arrives"
+   * rather than show the patient nothing at all the day after we emailed them. */
+  const renewDue =
+    Boolean(plan.productId && renew) &&
+    plan.autoRenew === true &&
+    Boolean(plan.renewsOn) &&
+    /* Both sides are YYYY-MM-DD, so a string compare is the date compare. */
+    plan.renewsOn <= dueDate(new Date()) &&
+    claimed >= months;
+
   return {
     ...plan,
     nextMonth: claimed + 1,
@@ -88,6 +112,14 @@ function decide(plan) {
     inProgressQuestionnaireId: inProgress?.questionnaireId ?? null,
     canStart: Boolean(plan.productId) && claimed < months && claimed <= used,
     canSettle: Boolean(plan.productId) && claimed <= months && claimed > used,
+    renewPid: renew?.pid ?? null,
+    renewQuestionnaireId: renew?.questionnaireId ?? null,
+    renewDue,
+    /* Nothing of this term may still be in flight. The same rule the renewal
+       charge used before the client moved it behind provider approval: a month
+       handed out but not yet shipped means a new term would be paid for on top
+       of one that has not arrived. */
+    canRenew: renewDue && used >= claimed,
   };
 }
 

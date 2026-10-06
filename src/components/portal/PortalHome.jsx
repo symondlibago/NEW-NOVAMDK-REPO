@@ -157,6 +157,73 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit }) 
             </p>
           ))}
 
+        {/* A term that has run out and is due to renew.
+            Above the prepaid months, because this is the one that stops their
+            treatment if they ignore it: a prepaid month is still theirs
+            tomorrow, a lapsed plan means no next prescription at all.
+            The amount is on the card and the hold needs a second tap, since
+            unlike a prepaid month this one costs money. */}
+        {plans.some((p) => p.canRenew) && (
+          <section className="mt-6 md:mt-10">
+            <Label>Time to renew</Label>
+            <ul className="mt-3 space-y-3 md:mt-4">
+              {plans
+                .filter((p) => p.canRenew)
+                .map((p) => (
+                  <li
+                    key={p.opportunityId}
+                    className="rounded-2xl border border-primary/35 bg-primary/[0.03] p-5 sm:flex sm:items-center sm:gap-8 sm:p-6"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[1.05rem] font-semibold leading-snug text-ink">
+                        Start your next {p.months === 1 ? "month" : `${p.months} months`}
+                      </p>
+                      <p className="mt-1 text-[0.88rem] leading-relaxed text-muted">
+                        {p.treatment ? `${p.treatment}. ` : ""}
+                        {p.amount != null ? `$${p.amount.toFixed(2)} ` : ""}
+                        for {p.months === 1 ? "one month" : `${p.months} months`}. Answer a few
+                        questions and a provider reviews them. Your card is held, not charged,
+                        until they approve.
+                      </p>
+                    </div>
+                    <NextFillButton
+                      opportunityId={p.opportunityId}
+                      onUnauthorized={onUnauthorized}
+                      confirm={
+                        p.amount != null
+                          ? `$${p.amount.toFixed(2)} will be held on your ${
+                              p.card ? `${p.card.brand} ending ${p.card.last4}` : "saved card"
+                            }. Nothing is taken until a provider approves.`
+                          : "Your card is held, not charged, until a provider approves."
+                      }
+                      className="mt-5 inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-7 py-3 text-[0.9rem] font-semibold text-on-primary transition-colors hover:bg-primary-deep disabled:opacity-70 sm:mt-0 sm:w-auto"
+                    >
+                      Continue <ArrowRight size={15} />
+                    </NextFillButton>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        )}
+
+        {/* The renewal date has arrived but the last month of the term is still
+            with the pharmacy. They were emailed on that date, so saying nothing
+            here would read as a broken link. */}
+        {plans
+          .filter((p) => p.renewDue && !p.canRenew)
+          .map((p) => (
+            <p
+              key={`due-${p.opportunityId}`}
+              className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.85rem] text-muted"
+            >
+              <CalendarCheck size={14} className="flex-none text-primary" />
+              <span>
+                {p.treatment ? `${p.treatment}: ` : ""}your next plan can start once this
+                month&apos;s shipment arrives
+              </span>
+            </p>
+          ))}
+
         {/* The month they have already paid for, waiting to be started. Shown
             above everything else, like an unfinished intake, because it is the
             one thing on this page with a deadline: the supply runs out 28 days

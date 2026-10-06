@@ -118,7 +118,14 @@ function Plan({ plan, onChanged, onUnauthorized }) {
         {typeof amount === "number" && (
           <Row label="Renewal amount">
             {usd(amount)}
-            <span className="block text-[0.8rem] text-muted">{everyLabel(months)}</span>
+            {/* Says WHEN, not just how often. Nothing is billed on the renewal
+                date itself: that date asks them for their next check-in, the
+                card is held when they start it, and the money is taken only if
+                a provider approves. Client's decision, 2026-10-06. */}
+            <span className="block text-[0.8rem] text-muted">
+              {everyLabel(months)}, held when you start your check-in and taken once a provider
+              approves it
+            </span>
           </Row>
         )}
 

@@ -151,8 +151,14 @@ async function captureHold(opportunityId, contactId) {
     /* Approved, so they are an active subscriber and the plan begins renewing.
        Client rule, 2026-10-05: renewal starts at approval rather than at
        checkout, so nobody is signed up to a schedule for a treatment they were
-       refused. Does nothing if they have already turned renewal off. */
-    await startRenewal(opportunityId);
+       refused. Does nothing if they have already turned renewal off.
+
+       A RENEWAL's money is held against its own visit card, but the plan lives
+       on the card the patient first bought from, so the next renewal date has
+       to be written there. The hold carries that id because the portal put it
+       there when it placed the hold. Without this the plan would keep its old
+       date, which has already passed, and nothing would ever renew again. */
+    await startRenewal(hold.metadata?.plan_opportunity_id || opportunityId);
     return;
   }
 

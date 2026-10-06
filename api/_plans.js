@@ -202,3 +202,67 @@ export function priceTerm(base, term) {
     saving: Math.round((base * term.months - amount) * 100) / 100,
   };
 }
+
+/* ---- the test override ---- */
+
+const cents = (n) => Math.round(n * 100) / 100;
+const envAny = (...names) => {
+  for (const n of names) {
+    const v = process.env[n];
+    if (v !== undefined && v !== "") return v;
+  }
+  return undefined;
+};
+const money = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? cents(n) : null;
+};
+const TEST_PIDS = new Set(
+  String(envAny("TEST_CHARGE_PID", "NMI_TEST_PID") || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean)
+);
+const TEST_AMOUNT = money(envAny("TEST_CHARGE_AMOUNT", "NMI_TEST_AMOUNT"));
+const TEST_SHIPPING = money(envAny("TEST_CHARGE_SHIPPING", "NMI_TEST_SHIPPING"));
+
+/* What a card is ACTUALLY asked for, as opposed to what the catalogue says.
+ *
+ * Here rather than in api/pay.js since 2026-10-06, because a plan renewal holds
+ * the card from api/portal.js and that hold has to be for the same figure the
+ * checkout would have taken. Priced from quoteFor and then overridden, so the
+ * live path and the test path cannot drift apart: the renewal that charged
+ * $1.50 while the portal displayed $507 was exactly that drift.
+ *
+ * The override replaces the PER MONTH price and is then multiplied by the term,
+ * deliberately skipping the term discount. A 3 month test therefore costs $1.50
+ * rather than $1.35, and a 1 month test stays exactly the $0.50 that has
+ * already been tested live. Discounting a 50 cent price and rounding it to the
+ * dollar, which is what real pricing does, would have moved the test amount
+ * around, and Stripe refuses anything under $0.50.
+ *
+ * Catalogue prices are what GoHighLevel's revenue is reported in, so anything
+ * writing a card's value uses quoteFor and not this. */
+export function chargeFor(pid, months = DEFAULT_MONTHS) {
+  const quote = quoteFor(pid, months);
+  if (!quote) return null;
+  if (!TEST_PIDS.has(String(pid))) return quote;
+
+  const perMonth = TEST_AMOUNT > 0 ? TEST_AMOUNT : quote.perMonth;
+  const amount = cents(perMonth * quote.months);
+  const shipping = TEST_SHIPPING ?? quote.shipping;
+  const charge = {
+    months: quote.months,
+    perMonth,
+    amount,
+    saving: 0,
+    shipping,
+    total: cents(amount + shipping),
+  };
+  console.warn(
+    `TEST PRICING ACTIVE: product ${pid} x${quote.months} charged $${charge.total.toFixed(2)} ` +
+      `($${perMonth.toFixed(2)} a month + $${shipping.toFixed(2)} fee) instead of $${quote.total.toFixed(2)}. ` +
+      `Unset TEST_CHARGE_PID once testing is done.`
+  );
+  return charge;
+}

@@ -468,7 +468,22 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
       return;
     }
     let alive = true;
-    fetch(`/api/pay?pid=${encodeURIComponent(pid)}`)
+    /* The visit's card goes with the ask.
+     *
+     * A plan renewal reserves the money in the portal, before any of this, so
+     * the server has to be able to see that this visit is already paid for and
+     * quote it at zero. It proves that from Stripe and from the portal session,
+     * not from this id, so passing it can only ever reduce what is charged. */
+    const opp = (() => {
+      try {
+        return sessionStorage.getItem("ghl_opportunity") || "";
+      } catch {
+        return "";
+      }
+    })();
+    fetch(
+      `/api/pay?pid=${encodeURIComponent(pid)}${opp ? `&opp=${encodeURIComponent(opp)}` : ""}`
+    )
       .then((r) => r.json())
       .then((q) => {
         if (!alive) return;
