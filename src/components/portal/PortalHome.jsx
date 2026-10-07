@@ -264,7 +264,7 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit, on
             unlike a prepaid month this one costs money. */}
         {plans.some((p) => p.canRenew) && (
           <section className="mt-6 md:mt-10">
-            <Label>Time to renew</Label>
+            <Label>Renewal due</Label>
             <ul className="mt-3 space-y-3 md:mt-4">
               {plans
                 .filter((p) => p.canRenew)
