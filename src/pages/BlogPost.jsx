@@ -7,7 +7,7 @@ import Footer from "../components/Nav/Footer";
 import Reveal from "../components/ui/Reveal";
 import PostBody from "../components/blog/PostBody";
 import PostCard from "../components/blog/PostCard";
-import { getPost, relatedPosts, formatDate } from "../lib/blog";
+import { getPost, relatedPosts, formatDate, imageProps } from "../lib/blog";
 import { SITE_URL, absoluteUrl } from "../lib/absoluteUrl";
 
 export default function BlogPostPage() {
@@ -40,7 +40,7 @@ export default function BlogPostPage() {
           publisher: {
             "@type": "Organization",
             name: "Nova MDK",
-            logo: { "@type": "ImageObject", url: `${SITE_URL}/logo.png` },
+            logo: { "@type": "ImageObject", url: `${SITE_URL}/logo-2026.png` },
           },
           mainEntityOfPage: { "@type": "WebPage", "@id": `${SITE_URL}/blog/${post.slug}` },
         }}
@@ -105,9 +105,12 @@ export default function BlogPostPage() {
         <div className="mx-auto max-w-[1180px] px-5 pt-[clamp(1.75rem,4vw,2.75rem)] md:px-10">
           <Reveal>
             <div className="aspect-[16/9] overflow-hidden rounded-[calc(28px*var(--nv-r-scale,1))] border border-line nv-shadow">
+              {/* The article's own hero, so it loads eagerly: it is the first
+                  thing on the page and lazy only delays it. */}
               <img
-                src={post.image}
+                {...imageProps(post, "(min-width: 1180px) 1140px, 92vw")}
                 alt={post.imageAlt || ""}
+                loading="eager"
                 className="h-full w-full object-cover"
               />
             </div>

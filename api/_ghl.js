@@ -223,6 +223,31 @@ function mergeTreatment(previous, next) {
 
 /* Additive: GHL's tag endpoint appends rather than replacing, so a later
  * lifecycle tag never wipes the ones the lead arrived with. */
+/* Set the moment a patient starts a check-in, cleared when their next one
+ * becomes due.
+ *
+ * This is the stop point for GoHighLevel's refill reminder sequence. John built
+ * that sequence against `mdi-in-review`, which is the wrong signal twice over:
+ * it is added when MDI ASSIGNS A CLINICIAN, hours or a day after the patient
+ * actually submitted, so they can be chased for something they have already
+ * done; and it is the marker our own webhook uses to say a case is genuinely
+ * with a provider, so a workflow that resets it wipes that for every other
+ * treatment the patient has in review.
+ *
+ * This one means exactly one thing and nothing else: a check-in is in progress.
+ * Added by next_fill in api/portal.js, removed by recordFillShipped below, at
+ * the same moment next_intake_due is set and the next reminder becomes due. So
+ * GoHighLevel needs no reset step: the tag is false again before the sequence
+ * can start.
+ *
+ * STILL A CONTACT TAG, and therefore still shared across a patient's
+ * treatments. A patient holding two plans is enrolled twice, once per
+ * opportunity, and both runs watch this one tag, so completing one check-in
+ * silences both reminders. Making that per-treatment needs a goal GoHighLevel
+ * can evaluate per opportunity, which it has no equivalent of today. Fine for
+ * one plan, which is nearly everybody; documented rather than hidden. */
+export const CHECKIN_TAG = "checkin-started";
+
 export async function tagContact(contactId, tags = []) {
   const wanted = tags.filter(Boolean);
   if (!contactId || !wanted.length) return null;
@@ -1064,6 +1089,16 @@ export async function recordFillShipped(contactId, { shippedAt = new Date(), pro
       },
       { name: plan.name }
     );
+    /* The check-in they did is finished with: this fill has shipped, and the
+       next one is now due. So the stop point goes false again, which is what
+       lets GoHighLevel's reminder sequence run without a reset step of its own.
+       Only when a reminder will actually follow, and never fatal: a tag is not
+       worth failing a shipped notification over. */
+    if (due) {
+      await untagContact(contactId, [CHECKIN_TAG]).catch((e) =>
+        console.warn(`GHL ${CHECKIN_TAG} clear failed for ${contactId}:`, e.message)
+      );
+    }
     console.info(
       `GHL opportunity ${plan.opportunityId}: fill ${used} of ${plan.months} shipped` +
         (due ? `, next intake due ${dueDate(due)}` : ", plan complete, no reminder set")

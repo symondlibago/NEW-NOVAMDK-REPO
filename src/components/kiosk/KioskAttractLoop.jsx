@@ -95,7 +95,7 @@ export default function KioskAttractLoop() {
           <div className="absolute inset-0 flex flex-col items-center justify-between px-8 py-12 text-center text-white">
             {/* logo (dark mark → sits in a frosted pill so it reads over video) */}
             <span className="inline-flex items-center rounded-full bg-white/90 px-5 py-2.5 backdrop-blur-sm nv-shadow-lg">
-              <img src="/logo.png" alt="Nova MDK" className="h-9 w-auto md:h-10" />
+              <img src="/logo-2026.png" alt="Nova MDK" className="h-9 w-auto md:h-10" />
             </span>
 
             <motion.div

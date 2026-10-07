@@ -168,25 +168,20 @@ export default function TreatmentsPage() {
               read better a little taller than wide, and squeezing the track is what
               buys that without touching the 3-up grid. The header narrows with it so
               the copy stays flush with the first card's left edge. */}
-          <section className="mx-auto max-w-[1060px] px-5 pb-[clamp(2.6rem,5vw,4rem)] pt-[clamp(3.2rem,7vw,5.5rem)] md:px-10">
-            <div className="mb-10 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h1 className="max-w-[19ch] text-[clamp(1.9rem,4vw,2.9rem)] font-extrabold leading-[1.1] text-primary">
-                  Explore treatments for your goals
-                </h1>
-                <p className="mt-4 max-w-[56ch] text-[1rem] leading-relaxed text-muted">
-                  Explore prescription treatment options for a range of health and wellness goals.
-                  Learn what each treatment is, how it works, and what to expect before starting
-                  your assessment
-                </p>
-              </div>
+          <section className="mx-auto max-w-[1060px] px-5 pb-[clamp(2.6rem,5vw,4rem)] pt-[clamp(2.4rem,4.5vw,3.6rem)] md:px-10">
+            {/* Heading and standfirst dropped (2026-10-08) so the goal cards open
+                the page. The h1 stays as assistive text: the grid is a set of
+                links, so without it the page would have no heading at all for a
+                screen reader or for search. */}
+            <h1 className="sr-only">Explore treatments for your goals</h1>
+            <div className="mb-6 flex sm:justify-end">
               {/* Same destination as the sixth grid cell — /start is the existing
                   consultation quiz, which opens on its category picker when no
                   goal is chosen. */}
               <Link
                 to="/start"
                 onClick={() => track(EVENTS.QUIZ_STARTED, { click_source: "treatments-header" })}
-                className="group shrink-0 sm:pt-3"
+                className="group shrink-0"
               >
                 <span className="block text-[0.98rem] font-bold text-ink">Not sure where to start?</span>
                 <span className="mt-1.5 inline-flex items-center gap-2.5 text-[0.94rem] text-muted transition-colors duration-300 group-hover:text-primary">

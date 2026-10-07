@@ -83,7 +83,7 @@ export default function PrepaidFill({
   if (status === "done") {
     return (
       <div className={`flex-1 ${SHELL} items-center justify-center text-center`}>
-        <img src="/logo.png" alt="NovaMDK" className="mx-auto h-12 w-auto sm:h-14" />
+        <img src="/logo-2026.png" alt="NovaMDK" className="mx-auto h-12 w-auto sm:h-14" />
         <ShieldCheck size={34} className="mx-auto mt-6 text-primary" />
         <p className="mt-3 font-journal text-[1.4rem] font-semibold">Check-in confirmed</p>
         <p className="mt-1.5 text-[0.88rem] text-muted">Taking you back to your visit…</p>
@@ -93,7 +93,7 @@ export default function PrepaidFill({
 
   return (
     <form onSubmit={confirm} className={`flex-1 ${SHELL}`}>
-      <img src="/logo.png" alt="NovaMDK" className="mx-auto h-9 w-auto sm:h-10" />
+      <img src="/logo-2026.png" alt="NovaMDK" className="mx-auto h-9 w-auto sm:h-10" />
 
       <div className="mt-6 flex items-center gap-3.5">
         {image ? (

@@ -3,7 +3,7 @@ import { SITE_URL, absoluteUrl } from "../lib/absoluteUrl";
 
 const SITE_NAME = "Nova MDK";
 const DEFAULT_TITLE = "Nova MDK | Premium Telehealth & Longevity";
-const DEFAULT_IMAGE = `${SITE_URL}/logo.png`;
+const DEFAULT_IMAGE = `${SITE_URL}/logo-2026.png`;
 
 function setMeta(attr, key, content) {
   let el = document.head.querySelector(`meta[${attr}="${key}"]`);

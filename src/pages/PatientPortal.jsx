@@ -148,7 +148,7 @@ export default function PatientPortalPage() {
               {/* The sidebar carries the logo once signed in. */}
               {!signedIn && (
                 <Link to="/" aria-label="Nova MDK home">
-                  <img src="/logo.png" alt="Nova MDK" className="h-9 w-auto" />
+                  <img src="/logo-2026.png" alt="Nova MDK" className="h-9 w-auto" />
                 </Link>
               )}
               {/* Signed out, the wordmark already sits here and the page heading says

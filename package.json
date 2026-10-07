@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/ghl-blog-sync.mjs --soft && node scripts/generate-sitemap.mjs && node scripts/generate-prices.mjs && vite build && node scripts/prerender.mjs",
+    "build": "node scripts/ghl-blog-sync.mjs --soft && node scripts/blog-images.mjs && node scripts/generate-sitemap.mjs && node scripts/generate-prices.mjs && vite build && node scripts/prerender.mjs",
     "sitemap": "node scripts/generate-sitemap.mjs",
     "prices": "node scripts/generate-prices.mjs",
-    "sync:blog": "node scripts/ghl-blog-sync.mjs",
+    "sync:blog": "node scripts/ghl-blog-sync.mjs && node scripts/blog-images.mjs",
+    "blog:images": "node scripts/blog-images.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -77,6 +78,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
+    "sharp": "^0.35.5",
     "tw-animate-css": "^1.2.9",
     "vite": "^6.4.3"
   },

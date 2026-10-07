@@ -22,7 +22,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.novamdk.com/" />
     <meta property="og:site_name" content="Nova MDK" />
-    <meta property="og:image" content="https://www.novamdk.com/logo.png" />
+    <meta property="og:image" content="https://www.novamdk.com/logo-2026.png" />
     <meta name="twitter:card" content="summary_large_image" />
 
     <script type="application/ld+json">
@@ -41,7 +41,7 @@
       "name": "Nova MDK",
       "legalName": "Nova MDK, LLC",
       "url": "https://www.novamdk.com",
-      "logo": "https://www.novamdk.com/logo.png",
+      "logo": "https://www.novamdk.com/logo-2026.png",
       "description": "Premium telehealth & longevity platform offering personalized, physician-formulated treatments.",
       "sameAs": []
     }
@@ -50,16 +50,14 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <!-- GHL chat widget, commented out on request (2026-09-01). Uncomment to
-         restore; the Design Studio launcher sits bottom-left and does not
-         collide with it either way. -->
-    <!--
-    <script
-      src="https://widgets.leadconnectorhq.com/loader.js"
-      data-resources-url="https://widgets.leadconnectorhq.com/chat-widget/loader.js"
-      data-widget-id="6a8c76ddc041361bdc07a056"
-      data-source="WEB_USER"
-    ></script>
-    -->
+    <!-- The GoHighLevel chat widget used to be pasted here, and was commented
+         out on request on 2026-09-01. It now lives in src/lib/supportChat.js
+         and loads ONLY inside the patient portal, which is the client's
+         decision of 2026-10-07.
+
+         Do not paste it back here. A script tag in this document runs on every
+         route, /intake among them, and a support chat floating over a medical
+         questionnaire invites a patient to type a symptom into a CRM. That is
+         the one thing the widget's own copy is written to prevent. -->
   </body>
 </html>

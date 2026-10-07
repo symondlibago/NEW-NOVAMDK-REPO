@@ -581,18 +581,11 @@ export default function ProductPage() {
         className="pb-[clamp(1.5rem,3vw,2.5rem)]"
         style={{ background: "#fbfaf7" }}
       >
-      {/* ===== Safety ===== */}
-      {active.safety && (
-        <section className="mx-auto mb-[clamp(1.25rem,2.5vw,2rem)] max-w-[1180px] px-5 md:px-10">
-          {/* Typeset as running copy rather than a bordered callout (2026-08-31).
-              The tinted card, the rule around it and the alert icon together read
-              as a highlight — a box the eye files as promotional and skips. This
-              wording is part of the product's own description, so it is set like
-              the rest of the description and simply sits in the page. */}
-          <h3 className="font-display text-[1.05rem] font-bold text-ink">Important safety information</h3>
-          <p className="mt-2 max-w-[86ch] text-[0.9rem] leading-relaxed text-muted">{active.safety}</p>
-        </section>
-      )}
+      {/* The product's own safety wording used to sit here, between the
+          description and this band. It moved to the foot of the page on
+          2026-10-08, where the client's comp puts it: the closing disclaimer
+          carries the same heading, and two "Important safety information"
+          blocks on one page is one too many. See ClosingDisclaimer. */}
 
       {/* ===== Why Nova MDK ===== */}
       {!otc && <ProductWhy />}
@@ -681,6 +674,9 @@ export default function ProductPage() {
         </section>
       )}
 
+      {/* ===== Closing disclaimer ===== */}
+      <ClosingDisclaimer product={active} />
+
       {showQR && (
         <KioskQrModal product={product} onClose={() => setShowQR(false)} />
       )}
@@ -703,6 +699,43 @@ export default function ProductPage() {
 }
 
 const fmtCountdown = (s) => `${Math.floor(s / 60)}:${String(Math.max(0, s % 60)).padStart(2, "0")}`;
+
+/* The notice that closes every product page (client request, 2026-10-08, from
+   the Euphoria Cream O comp).
+ *
+ * The comp's own wording — "is a compounded prescription medication and is not
+ * FDA-approved" — is true of the compounded line and false of the rest of the
+ * catalogue: Zepbound and Wegovy are FDA-approved brand drugs and the supplement
+ * line is not a prescription at all. Printing it under those would be a
+ * compliance problem rather than a disclaimer, so the sentence is chosen from
+ * the flags the catalogue already carries. The compounded case is verbatim from
+ * the comp; the other two reuse wording already on the site.
+ *
+ * Legal to confirm the two it did not supply. */
+function ClosingDisclaimer({ product }) {
+  const name = product.name.split("—")[0].split("(")[0].split("/")[0].trim();
+  const body = isOtc(product)
+    ? `${name} is a dietary supplement, not a prescription medication. These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease. Individual outcomes may vary.`
+    : isCompounded(product)
+      ? `${name} is a compounded prescription medication and is not FDA-approved. It has not been reviewed by the FDA for safety, effectiveness, or quality. Eligibility and dosing are determined by a licensed healthcare provider. Individual outcomes may vary.`
+      : `${name} is a prescription medication. Eligibility and dosing are determined by a licensed healthcare provider. Individual outcomes may vary.`;
+
+  return (
+    <section className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.5rem,5vw,4rem)] md:px-10">
+      <h2 className="font-display text-[0.86rem] font-bold text-ink">Important safety information</h2>
+      {/* The product's own clinical wording leads, because it is the part that
+          is specific to what the patient is about to take. The regulatory
+          sentence closes. Typeset as running copy rather than a bordered
+          callout (2026-08-31): a tinted card with a rule and an alert icon
+          reads as a highlight, which is a box the eye files as promotional and
+          skips. */}
+      {product.safety && (
+        <p className="mt-2 max-w-[86ch] text-[0.78rem] leading-relaxed text-muted">{product.safety}</p>
+      )}
+      <p className="mt-2 max-w-[86ch] text-[0.78rem] leading-relaxed text-muted">{body}</p>
+    </section>
+  );
+}
 
 /* Kiosk hand-off — scan to finish on your own phone, which is now the only way
    to continue. The "continue here on the kiosk" option was removed at client
@@ -1070,10 +1103,15 @@ function PatientInfoModal({
   const labelCls = "flex flex-col gap-1 text-left text-[0.7rem] font-semibold uppercase tracking-wide text-muted";
   const TITLES = {
     /* Its own screen, not a widget under the email field (client request,
-       2026-10-01). It is only a bot check, so it says so and gets out of the
-       way: nothing is asked of the patient and the step advances itself the
-       moment Turnstile hands back a token. */
-    [-1]: ["Quick security check", "One moment while we confirm you're not a bot."],
+       2026-10-01). Nothing is asked of the patient and the step advances itself
+       the moment Turnstile hands back a token. The wording is Cloudflare's own
+       interstitial copy, which is what Hims shows (client request, 2026-10-08):
+       patients have met this screen elsewhere, so the familiar sentence reads as
+       routine rather than as something has gone wrong. */
+    [-1]: [
+      "Performing security verification",
+      "This website uses a security service to protect against malicious bots. This page is displayed while the website verifies you are not a bot.",
+    ],
     0: ["What's your email address?", ""],
     1: ["First, a few details", "So your care team can reach you about your visit."],
     2: ["About you", "These go on your private patient file — your intake will skip them."],
@@ -1145,18 +1183,42 @@ function PatientInfoModal({
     );
   }
 
+  /* The bot check takes the whole screen rather than sitting in a card (client
+     request, 2026-10-08): it is an interstitial, not a step of the form, and a
+     dialog floating over a blurred page invites the patient to dismiss the one
+     thing they have to wait out. The form steps keep the modal. */
+  const takeover = step === -1;
+
   return (
     /* data-lenis-prevent: Lenis intercepts touchmove globally, so without it a
        modal taller than the phone viewport can't be scrolled at all. */
-    <div onClick={onClose} data-lenis-prevent className="fixed inset-0 z-120 flex overflow-y-auto bg-ink/65 p-6 backdrop-blur-sm">
+    <div
+      /* No click-to-close on the takeover: with no visible backdrop, every
+         click would land on what looks like the page itself. */
+      onClick={takeover ? undefined : onClose}
+      data-lenis-prevent
+      className={
+        takeover
+          ? "fixed inset-0 z-120 flex overflow-y-auto bg-surface"
+          : "fixed inset-0 z-120 flex overflow-y-auto bg-ink/65 p-6 backdrop-blur-sm"
+      }
+    >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative m-auto w-full max-w-110 rounded-3xl border border-line bg-surface p-6 nv-shadow-lg md:p-8"
+        className={
+          takeover
+            ? "relative m-auto flex w-full max-w-110 flex-col items-center px-6 py-12 text-center"
+            : "relative m-auto w-full max-w-110 rounded-3xl border border-line bg-surface p-6 nv-shadow-lg md:p-8"
+        }
       >
         <button
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+          /* Fixed to the screen on the takeover: absolute would pin it to the
+             narrow centred column instead of the corner of the page. */
+          className={`grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink ${
+            takeover ? "fixed right-5 top-5" : "absolute right-4 top-4"
+          }`}
         >
           <X size={18} />
         </button>
@@ -1167,8 +1229,11 @@ function PatientInfoModal({
             of the flow keeps the patient avatar, which is about them, not us. */}
         {step === -1 ? (
           <>
-            <img src="/logo.png" alt="NovaMDK" className="h-10 w-auto" />
-            <p className="mt-2.5 font-mono text-[0.74rem] tracking-[0.04em] text-muted">
+            <img src="/logo-2026.png" alt="NovaMDK" className="h-12 w-auto sm:h-14" />
+            {/* The domain leads, the way Cloudflare's own interstitial sets it
+                out: the one thing this screen has to answer is whose site is
+                asking, before the patient has typed anything. */}
+            <p className="mt-5 font-display text-[clamp(1.65rem,6vw,2.4rem)] font-extrabold leading-tight tracking-tight text-ink">
               www.novamdk.com
             </p>
           </>
@@ -1177,13 +1242,29 @@ function PatientInfoModal({
             <UserRound size={22} />
           </span>
         )}
-        <h3 className="mt-3 font-display text-[1.35rem] font-extrabold leading-tight">{TITLES[step][0]}</h3>
-        {TITLES[step][1] && <p className="mt-1 text-[0.86rem] text-muted">{TITLES[step][1]}</p>}
+        <h3
+          className={`font-display font-extrabold leading-tight ${
+            takeover ? "mt-2 text-[clamp(1.15rem,3.6vw,1.45rem)]" : "mt-3 text-[1.35rem]"
+          }`}
+        >
+          {TITLES[step][0]}
+        </h3>
+        {TITLES[step][1] && (
+          <p
+            className={
+              takeover
+                ? "mt-2.5 text-[0.92rem] leading-relaxed text-muted"
+                : "mt-1 text-[0.86rem] text-muted"
+            }
+          >
+            {TITLES[step][1]}
+          </p>
+        )}
         {step > 0 && (
           <p className="mt-2 font-mono text-[0.64rem] uppercase tracking-[0.16em] text-primary">Step {step} of 3</p>
         )}
 
-        <form onSubmit={submit} className="mt-4 flex flex-col gap-3">
+        <form onSubmit={submit} className="mt-4 flex w-full flex-col gap-3">
           {/* Rendered once and never unmounted, only hidden once the check has
               passed. A Turnstile token is good for 300 seconds, and the patient
               now has the whole email step and step 1 to get through before it is

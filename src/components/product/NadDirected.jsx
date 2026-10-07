@@ -128,11 +128,16 @@ function Elbow({ side }) {
         className={`nv-coen__drop absolute top-0 h-full w-px ${left ? "left-[18%]" : "right-[18%]"}`}
         style={{ background: RULE, animationDelay: "1.15s" }}
       />
-      {/* The run carries on past its own column and into the gap, so it stops
-          just short of the vial rather than at the column's edge. */}
+      {/* The run has to carry on past its own column, across the gap and into
+          the glass, or it ends in mid-air (2026-10-08). A fixed -8 was nowhere
+          near: the vial sits in a canvas 170% of its column with the glass
+          filling about a third of it, so the distance from this column's edge
+          to the glass is a proportion of the grid, not a number of pixels. 26%
+          of the column lands just inside the glass at every width from lg up,
+          and the vial is raised above these so they tuck behind it. */}
       <span
         className={`nv-coen__rule absolute bottom-0 h-px ${
-          left ? "-right-8 left-[18%]" : "nv-coen__rule--rtl -left-8 right-[18%]"
+          left ? "-right-[26%] left-[18%]" : "nv-coen__rule--rtl -left-[26%] right-[18%]"
         }`}
         style={{ background: RULE, animationDelay: "1.4s" }}
       />
@@ -195,8 +200,8 @@ export function CoenzymeBand() {
             className="nv-coen__card nv-weight-keep font-display text-[clamp(1.6rem,4vw,2.5rem)] font-extrabold leading-[1.14]"
             style={{ color: CREAM, animationDelay: "0.05s" }}
           >
-            <span className="block">A coenzyme your</span>
-            <span className="block">cells naturally use</span>
+            <span className="block">A Coenzyme Your</span>
+            <span className="block">Cells Naturally Use</span>
           </h2>
 
           <span
@@ -211,17 +216,6 @@ export function CoenzymeBand() {
           >
             {COENZYME_NOTE}
           </p>
-        </div>
-
-        {/* The drop from the note down to the row below. Right-hand column
-            only, under the note, which is where the comp hangs it. */}
-        <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,0.78fr)]">
-          <span />
-          <span
-            aria-hidden="true"
-            className="nv-coen__drop mx-auto block h-[clamp(2rem,5vw,4rem)] w-px"
-            style={{ background: RULE, animationDelay: "0.7s" }}
-          />
         </div>
 
         {/* ---- the two nodes either side of the vial ---- */}
@@ -239,7 +233,10 @@ export function CoenzymeBand() {
               It runs wide because the art sits in a square canvas with the vial
               filling only 36% of its width, so the element has to be much wider
               than the glass for the glass to read at the comp's size. */}
-          <div className="relative order-first mx-auto w-[min(72%,15rem)] sm:order-none sm:col-span-2 lg:left-1/2 lg:col-span-1 lg:w-[170%] lg:-translate-x-1/2">
+          {/* z-10 so both runs pass behind the glass. Without it the left one
+              would tuck under and the right one would paint over, because the
+              only thing deciding that was DOM order. */}
+          <div className="relative z-10 order-first mx-auto w-[min(72%,15rem)] sm:order-none sm:col-span-2 lg:left-1/2 lg:col-span-1 lg:w-[170%] lg:-translate-x-1/2">
             <div className="nv-coen__vial">
               {/* The tilt gets a wrapper of its own: the float animates the
                   image's transform, and would wipe a rotate set on it. */}
@@ -255,9 +252,22 @@ export function CoenzymeBand() {
             </div>
           </div>
 
-          <div className="flex flex-col">
+          {/* The drop from the note down to this card used to be its own block
+              above the row, with a clamped height that left it hanging a couple
+              of hundred pixels short (2026-10-08). The row's height is the
+              vial's, so no fixed height could ever reach. It lives in this
+              column now and takes whatever room is left above the card, with a
+              matching spacer underneath so the card stays centred on the vial
+              exactly as the left one is. */}
+          <div className="flex flex-col self-stretch">
+            <span
+              aria-hidden="true"
+              className="nv-coen__drop mx-auto hidden w-px flex-1 lg:block"
+              style={{ background: RULE, animationDelay: "0.7s" }}
+            />
             <NodeCard node={NODES[1]} delay={1} />
             <Elbow side="right" />
+            <span aria-hidden="true" className="hidden flex-1 lg:block" />
           </div>
         </div>
 

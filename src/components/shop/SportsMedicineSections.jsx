@@ -485,7 +485,15 @@ function LdnPanel() {
   return (
     <div className="mx-auto max-w-[1320px] px-5 pt-[clamp(3rem,7vw,5rem)] md:px-10">
       <Reveal as="div">
-        <div className={`relative px-6 py-9 sm:px-10 sm:py-12 ${CARD_R}`} style={{ background: "#f2eee6" }}>
+        {/* overflow-hidden (2026-10-08): the glow below is 205% of this card's
+            inner column and centred on it, so on a phone it ran about 115px
+            past each edge. Nothing clipped it, so it widened the document and
+            the whole page could be dragged sideways. It is a pool of light
+            inside the panel, so the panel is what should bound it. */}
+        <div
+          className={`relative overflow-hidden px-6 py-9 sm:px-10 sm:py-12 ${CARD_R}`}
+          style={{ background: "#f2eee6" }}
+        >
           <div className="relative mx-auto flex w-full max-w-[46rem] flex-col items-center sm:block">
             <span
               className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[145%] w-[205%] -translate-x-1/2 -translate-y-1/2"

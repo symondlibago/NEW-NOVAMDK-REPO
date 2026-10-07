@@ -467,7 +467,7 @@ export default function StripeCheckout({
   if (status === "dead") {
     return (
       <div className={`${PANEL} text-center`}>
-        <img src="/logo.png" alt="NovaMDK" className="mx-auto h-12 w-auto sm:h-14" />
+        <img src="/logo-2026.png" alt="NovaMDK" className="mx-auto h-12 w-auto sm:h-14" />
         <p className="mt-5 text-[0.92rem] font-semibold text-red-600">
           We couldn&rsquo;t load the secure card form.
         </p>
@@ -482,7 +482,7 @@ export default function StripeCheckout({
   if (status === "done") {
     return (
       <div className={`${PANEL} text-center`}>
-        <img src="/logo.png" alt="NovaMDK" className="mx-auto h-12 w-auto sm:h-14" />
+        <img src="/logo-2026.png" alt="NovaMDK" className="mx-auto h-12 w-auto sm:h-14" />
         <ShieldCheck size={34} className="mx-auto mt-6 text-primary" />
         <p className="mt-3 font-journal text-[1.4rem] font-semibold">Payment received</p>
         <p className="mt-1.5 text-[0.88rem] text-muted">Taking you back to your visit…</p>
@@ -515,7 +515,7 @@ export default function StripeCheckout({
        cream rather than white: the tinted total has to read as deeper than the
        panel around it. */
     <form onSubmit={pay} className={`flex-1 ${SHELL}`}>
-      <img src="/logo.png" alt="NovaMDK" className="mx-auto h-9 w-auto sm:h-10" />
+      <img src="/logo-2026.png" alt="NovaMDK" className="mx-auto h-9 w-auto sm:h-10" />
 
       {/* The order, as a line in a basket rather than a hero.
           The big centred photo and headline name were the thing John called out

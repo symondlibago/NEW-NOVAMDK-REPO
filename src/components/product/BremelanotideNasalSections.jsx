@@ -31,25 +31,29 @@ const BOTTLE_TILT = { rotate: "11deg" };
 const SIGNALS = [
   {
     icon: Check,
-    title: "Needle-free",
-    body: ["Nasal delivery,", "no injection required"],
+    title: "Peptide-based",
+    body: ["Bremelanotide is a", "synthetic cyclic peptide"],
     pos: "left-[25%] top-[13%] w-[22%]",
   },
   {
     icon: ArrowUpDown,
-    title: "Melanocortin receptor activity",
-    body: ["Bremelanotide is a", "melanocortin receptor agonist"],
-    pos: "left-[60%] top-[38%] w-[22%]",
+    title: "Melanocortin activity",
+    /* Wider than it was: the 2026-10-08 comp gives this card three lines where
+       the old copy ran to two. */
+    body: ["Activates several melanocortin", "receptor subtypes, including", "MC1R and MC4R"],
+    pos: "left-[60%] top-[38%] w-[25%]",
   },
   {
     icon: Split,
-    title: "Alternative option",
-    body: ["Also available as an", "injection"],
-    pos: "left-[23%] top-[59%] w-[22%]",
+    title: "Central pathway",
+    body: ["Works through pathways in the", "central nervous system rather than", "acting directly on genital tissue"],
+    /* Starts further left than its neighbours so its three longer lines still
+       stop clear of the bottle's glass. */
+    pos: "left-[16%] top-[57%] w-[28%]",
   },
 ];
 
-const STEPS = ["Nasal format", "Provider-directed", "Use as prescribed"];
+const STEPS = ["Nasal use", "Absorption", "Response pathway"];
 const STEP_GAP = 0.16;
 
 /* The fill fades out at the left so the card dissolves into the brass instead
@@ -77,14 +81,18 @@ function SignalCard({ signal, className = "" }) {
         >
           {signal.title}
         </h3>
-        {/* The comp sets its own line break rather than letting the card width
-            decide where the phrase splits. */}
+        {/* The comp sets its own line breaks rather than letting the card width
+            decide where the phrase splits, and not every card takes the same
+            number of lines, so the whole list is walked. */}
         <p
           className="mt-1 text-[0.8rem] leading-[1.35] lg:text-[0.84rem]"
           style={{ color: CREAM_SOFT }}
         >
-          {signal.body[0]}
-          <span className="block">{signal.body[1]}</span>
+          {signal.body.map((line) => (
+            <span key={line} className="block">
+              {line}
+            </span>
+          ))}
         </p>
       </div>
     </div>
@@ -199,8 +207,8 @@ function ApproachToDesire({ startTo }) {
               className={`${TITLE} max-w-[18ch] text-[clamp(1.8rem,4vw,2.9rem)]`}
               style={{ color: CREAM }}
             >
-              A Needle-Free
-              <span className="block">PT-141 Option</span>
+              A Different Approach
+              <span className="block">to Desire</span>
             </h2>
             <Link
               to={startTo}
@@ -216,8 +224,8 @@ function ApproachToDesire({ startTo }) {
             className="max-w-[46ch] text-[clamp(0.92rem,1.05vw,1.02rem)] leading-[1.6] md:pt-1"
             style={{ color: CREAM }}
           >
-            PT-141 is a compounded prescription nasal spray containing bremelanotide, a
-            melanocortin receptor agonist
+            PT-141 (bremelanotide) is a prescription treatment that acts on pathways involved in
+            sexual desire and response. The nasal spray offers a needle-free way to take it
           </Reveal>
         </div>
 

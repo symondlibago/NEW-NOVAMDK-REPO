@@ -1,4 +1,5 @@
 import posts from "../content/blog/posts.json";
+import images from "../content/blog/images.json";
 
 /* The blog's data layer, and the ONLY file that knows where posts come from.
    Pages and components import from here and never touch the source.
@@ -125,6 +126,38 @@ export function tagLabel(tag) {
 /** One post by slug, or null. */
 export function getPost(slug) {
   return posts.find((p) => p.slug === slug) || null;
+}
+
+/* Props for a post's hero image, resized.
+ *
+ * GoHighLevel's CDN serves the author's original upload and honours no resize
+ * parameter, so post.image is routinely a 6000x4000 PNG — around 96MB of RAM
+ * once decoded, and the home page shows eight at once. scripts/blog-images.mjs
+ * builds a small WebP ladder for each one; images.json maps the original URL to
+ * it. Anything the script has not processed falls back to the original URL, so
+ * a brand new post still renders, just slowly.
+ *
+ * `sizes` describes how wide the image will be laid out, and callers must pass
+ * their own: get it wrong and the browser fetches the wrong rung. "100vw" is
+ * the safe answer for a full-width image.
+ *
+ * @param {object} post
+ * @param {string} sizes a CSS `sizes` list, e.g. "(min-width: 1024px) 33vw, 100vw"
+ */
+export function imageProps(post, sizes = "100vw") {
+  const src = post?.image;
+  if (!src) return null;
+  const set = images[src];
+  if (!set) return { src, loading: "lazy", decoding: "async" };
+  return {
+    src: `${set.base}-${set.widths[set.widths.length - 1]}.webp`,
+    srcSet: set.widths.map((w) => `${set.base}-${w}.webp ${w}w`).join(", "),
+    sizes,
+    width: set.w,
+    height: set.h,
+    loading: "lazy",
+    decoding: "async",
+  };
 }
 
 /** Up to `limit` other posts, preferring ones that share a tag. */

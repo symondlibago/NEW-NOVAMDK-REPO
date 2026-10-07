@@ -285,7 +285,7 @@ export default function Navbar() {
               there that the frame is not already doing. */}
           {!isKiosk && (
             <Link to="/" aria-label="Nova MDK home" onClick={closePanel}>
-              <img src="/logo.png" alt="Nova MDK" className="h-[46px] w-auto md:h-[52px]" />
+              <img src="/logo-2026.png" alt="Nova MDK" className="h-[46px] w-auto md:h-[52px]" />
             </Link>
           )}
 
@@ -335,7 +335,7 @@ export default function Navbar() {
               <Link
                 to="/portal"
                 onClick={closePanel}
-                className="hidden h-10 items-center gap-2 rounded-full border-2 border-primary bg-surface px-5 text-[14px] font-semibold text-primary transition-all hover:-translate-y-0.5 hover:bg-primary hover:text-on-primary nv-shadow lg:flex"
+                className="hidden h-10 items-center gap-2 whitespace-nowrap rounded-full border-2 border-primary bg-surface px-5 text-[14px] font-semibold text-primary transition-all hover:-translate-y-0.5 hover:bg-primary hover:text-on-primary nv-shadow lg:flex"
               >
                 <LogIn size={15} /> Patient Portal
               </Link>
@@ -398,7 +398,7 @@ export default function Navbar() {
               className="fixed right-0 top-0 z-[101] flex h-full w-[86%] max-w-sm flex-col overflow-y-auto bg-surface lg:hidden nv-scroll"
             >
               <div className="flex items-center justify-between border-b border-line p-4">
-                <img src="/logo.png" alt="Nova MDK" className="h-9 w-auto" />
+                <img src="/logo-2026.png" alt="Nova MDK" className="h-9 w-auto" />
                 <button aria-label="Close" onClick={() => setMobileOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-surface-2 text-muted hover:text-ink">
                   <X size={20} />
                 </button>

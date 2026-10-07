@@ -30,7 +30,7 @@ export default function Footer() {
           <div className="col-span-2 lg:col-span-1 md:pr-8">
             {/* The white pill existed to lift a dark logo off a dark panel — on a
                 light base it's just a floating box, so the mark sits direct. */}
-            <img src="/logo.png" alt="Nova MDK" className="h-[42px] w-auto" />
+            <img src="/logo-2026.png" alt="Nova MDK" className="h-[42px] w-auto" />
             <p className="mt-5 max-w-[34ch] text-sm leading-relaxed text-muted">
               Personalized prescription treatments, reviewed by licensed physicians and, if prescribed, shipped discreetly by a licensed pharmacy.
             </p>

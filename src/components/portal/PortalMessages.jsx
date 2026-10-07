@@ -506,8 +506,15 @@ export default function PortalMessages({ onUnauthorized, about, onClearAbout }) 
             </div>
           )}
 
-          <p className="mt-2 text-center text-[0.74rem] text-muted">
-            For billing, shipping or account questions,{" "}
+          {/* This thread is the CLINICAL one, and the line under it has to say
+              so plainly now that a support chat sits in the corner of the same
+              page. John's rule, 2026-10-07: medical questions go to the
+              provider here, everything else to support. Saying it in both
+              places is the only thing keeping a symptom out of the CRM. */}
+          <p className="mt-2 text-center text-[0.74rem] leading-relaxed text-muted">
+            This thread reaches your provider and care team. For billing,
+            shipping or account questions, use the support chat in the corner of
+            this page, or{" "}
             <Link to="/contact" className="font-medium text-primary underline-offset-4 hover:underline">
               contact support
             </Link>

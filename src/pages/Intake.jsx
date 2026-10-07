@@ -351,7 +351,7 @@ export default function IntakePage() {
       {/* slim header — logo home, context label, exit back to the product */}
       <header className="flex h-[60px] shrink-0 items-center justify-between border-b border-line bg-surface px-4 md:px-6">
         <Link to="/" aria-label="Nova MDK home">
-          <img src="/logo.png" alt="Nova MDK" className="h-9 w-auto" />
+          <img src="/logo-2026.png" alt="Nova MDK" className="h-9 w-auto" />
         </Link>
         <span className="hidden items-center gap-2 text-[0.85rem] font-medium text-muted sm:flex">
           <Lock size={13} className="text-primary" />
@@ -938,7 +938,7 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
               /* Padded here rather than on the wrapper, because the branch
                  below brings its own panel and must not be inset. */
               <div className="p-5 md:p-6">
-                <img src="/logo.png" alt="NovaMDK" className="mx-auto h-7 w-auto" />
+                <img src="/logo-2026.png" alt="NovaMDK" className="mx-auto h-7 w-auto" />
                 <p className="mt-5 text-center text-[0.95rem] font-semibold">Choose your plan</p>
                 <div role="radiogroup" aria-label="Choose your plan" className="mt-3 space-y-2.5">
                   {choices.map((p) => (

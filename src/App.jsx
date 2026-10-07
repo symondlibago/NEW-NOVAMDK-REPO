@@ -6,6 +6,7 @@ import ScrollToTop from "./components/Nav/ScrollToTop";
 import { trackPageView, applyRouteConsent } from "./lib/analytics";
 import { trackPixelPageView } from "./lib/metaPixel";
 import { trackGtmPageView } from "./lib/gtm";
+import { applySupportChat } from "./lib/supportChat";
 import SmoothScroll from "./components/SmoothScroll";
 import RouteTransition from "./components/transition/RouteTransition";
 import Platform from "./pages/Platform";
@@ -51,6 +52,10 @@ function RouteAnalytics() {
        index.html, so a tag John adds in GTM's UI cannot start running on a
        questionnaire page without anyone deciding that it should. */
     trackGtmPageView(pathname);
+    /* The support chat belongs to the portal and nowhere else, least of all
+       floating over the questionnaire. It shows, hides and loads itself from
+       here on the strength of the path. */
+    applySupportChat(pathname);
   }, [pathname]);
   return null;
 }

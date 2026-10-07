@@ -554,7 +554,7 @@ const page = "mx-auto w-full max-w-5xl";
     );
   }
 
-  return (
+  return (  
     <div className={shell} data-lenis-prevent>
       <div className={page}>
         <h1 className="text-[1.45rem] leading-tight text-ink">Your Treatments</h1>

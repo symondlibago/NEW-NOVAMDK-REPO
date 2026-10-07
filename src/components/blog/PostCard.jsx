@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
-import { formatDate } from "../../lib/blog";
+import { formatDate, imageProps } from "../../lib/blog";
 
 /** Post teaser used on the blog index and in the related strip on an article. */
 export default function PostCard({ post, featured = false }) {
@@ -18,10 +18,11 @@ export default function PostCard({ post, featured = false }) {
       <div className={`relative overflow-hidden ${featured ? "md:w-1/2" : ""}`}>
         <div className={featured ? "aspect-[16/11] h-full w-full" : "aspect-[16/10]"}>
           <img
-            src={post.image}
+            {...imageProps(
+              post,
+              featured ? "(min-width: 768px) 46vw, 92vw" : "(min-width: 1024px) 31vw, (min-width: 640px) 47vw, 92vw",
+            )}
             alt={post.imageAlt || ""}
-            loading="lazy"
-            decoding="async"
             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
           />
         </div>

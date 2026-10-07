@@ -6,7 +6,7 @@ import Seo from "../components/Seo";
 import Navbar from "../components/Nav/Navbar";
 import Footer from "../components/Nav/Footer";
 import Reveal from "../components/ui/Reveal";
-import { getPosts, formatDate, CATEGORIES, inCategory, categoryOf } from "../lib/blog";
+import { getPosts, formatDate, CATEGORIES, inCategory, categoryOf, imageProps } from "../lib/blog";
 
 /**
  * The journal index (2026-09-11 redesign).
@@ -66,9 +66,8 @@ function Featured({ post }) {
     >
       <span className="block aspect-11/5 w-full overflow-hidden">
         <img
-          src={post.image}
+          {...imageProps(post, "(min-width: 1024px) 64vw, 92vw")}
           alt={post.imageAlt || ""}
-          loading="lazy"
           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
         />
       </span>
@@ -99,9 +98,8 @@ function Row({ post }) {
     >
       <span className="block aspect-4/3 w-30 shrink-0 overflow-hidden rounded-xl sm:w-38">
         <img
-          src={post.image}
+          {...imageProps(post, "(min-width: 640px) 152px, 120px")}
           alt={post.imageAlt || ""}
-          loading="lazy"
           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.05]"
         />
       </span>

@@ -6,6 +6,8 @@ import {
   createVisitOpportunity,
   claimFill,
   recordPlan,
+  tagContact,
+  CHECKIN_TAG,
   cancelRenewal,
   stripeCustomerOf,
   INTAKE_STAGE,
@@ -920,6 +922,16 @@ async function portal(req, res) {
       } else {
         await claimFill(fill.opportunityId, fill.nextMonth, { name: fill.name });
       }
+
+      /* The stop point for GoHighLevel's refill reminder sequence, set the
+         moment the check-in actually starts rather than when a clinician later
+         picks the case up. Cleared by recordFillShipped when the next intake
+         becomes due. See CHECKIN_TAG in _ghl.js for why it is not mdi-in-review.
+         Never fatal: the patient has their voucher and their card by now, and a
+         tag is not worth failing that over. */
+      await tagContact(fill.contactId, [CHECKIN_TAG]).catch((e) =>
+        console.warn(`next_fill could not tag ${fill.contactId}:`, e.message)
+      );
 
       console.info(
         (renewing

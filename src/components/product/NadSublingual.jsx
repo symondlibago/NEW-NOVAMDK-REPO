@@ -15,26 +15,32 @@ import useRunOnceInView from "../../lib/useRunOnceInView";
  * 2026-09-08 compliance pass as outcome language; the new comp brings both back
  * and carries a disclaimer naming the meter, which is reproduced verbatim at the
  * foot of the band.
+ *
+ * On white since 2026-10-08 (client request). It ran on the same brass as the
+ * graph band above it, with every part of it drawn in cream, so the ground
+ * could not change on its own: the palette below is the whole band restated for
+ * a light background. The brass identity is kept in the ink rather than the
+ * ground — deep brass headings, a brass meter fill, tan card tints.
  */
 
-const CREAM = "#f4e3c1";
-const CREAM_SOFT = "rgba(244,227,193,0.82)";
-const CREAM_DIM = "rgba(244,227,193,0.58)";
-const CREAM_FAINT = "rgba(244,227,193,0.44)";
-const GROUND = "radial-gradient(circle at 50% 50%, #c1a27a, #9a7843)";
+const GROUND = "#ffffff";
 
-/* Sampled off the comp, pixel by pixel (2026-09-25). The two panels are NOT the
-   same fill: the first is cream over the brass and the second is the meter's own
-   gray brown over it, so the pair reads light then dark. Both were cream here,
-   which is what made the second one wrong. */
-const CARD_LIGHT = {
-  background: "rgba(244,227,193,0.27)",
-  borderColor: "rgba(244,227,193,0.42)",
-};
-const CARD_DARK = {
-  background: "rgba(114,88,38,0.34)",
-  borderColor: "rgba(244,227,193,0.30)",
-};
+const INK = "#4a3a20";
+const HEADING = "#705529";
+const BODY = "#6b5e4b";
+const FAINT = "#8c7f6a";
+/* The rail's resting state. Dimmed by colour rather than opacity, because the
+   entry animation owns opacity and its `both` fill would win. */
+const BODY_OFF = "#a3977f";
+const HEADING_OFF = "#9b8c73";
+
+const EDGE = "#e3d6ba";
+
+/* The two panels still read light then dark, which is the beat the comp has.
+   Over brass that was cream over gray brown; over white it is the same pair of
+   tints, both light enough to take dark type. */
+const CARD_LIGHT = { background: "#faf4e9", borderColor: "#eee0c6" };
+const CARD_DARK = { background: "#ecdfc5", borderColor: "#dccca9" };
 
 /* The fill ends on the bottle's own centre line, which is 63% of the track in
    the comp. Ending it anywhere short of that leaves the rounded cap out in the
@@ -43,10 +49,12 @@ const CARD_DARK = {
    the bottle at every width. The two share a constant so they cannot drift. */
 const BOTTLE_AT = "63%";
 const METER_FILL = BOTTLE_AT;
-/* Gray brown, straight off the comp's colour picker. */
+/* Gray brown, straight off the comp's colour picker. It was chosen against the
+   brass and still carries on white, so the meter keeps its own colour. */
 const METER_INK = "#725826";
-/* Sampled off the comp's track, a shade under the lighter of the two cards. */
-const METER_TRACK = "rgba(244,227,193,0.24)";
+/* The track is the empty half of the meter, so it stays a shade of the card
+   tints rather than a neutral gray. */
+const METER_TRACK = "#f1e8d8";
 
 const CARDS = [
   {
@@ -78,7 +86,7 @@ function EnergyMeter() {
     <div ref={ref} className={`nv-meter mt-[clamp(2rem,5vw,3.25rem)] ${running ? "is-in" : ""}`}>
       <span
         className="block text-[0.68rem] font-bold uppercase tracking-[0.2em] sm:text-[0.74rem]"
-        style={{ color: CREAM_SOFT }}
+        style={{ color: FAINT }}
       >
         Daily energy
       </span>
@@ -92,8 +100,8 @@ function EnergyMeter() {
           className="relative h-12 w-full overflow-hidden rounded-full border sm:h-14 lg:h-16"
           style={{
             background: METER_TRACK,
-            borderColor: CARD_LIGHT.borderColor,
-            boxShadow: "inset 0 1px 2px rgba(78,58,26,0.16)",
+            borderColor: EDGE,
+            boxShadow: "inset 0 1px 2px rgba(78,58,26,0.10)",
           }}
         >
           <span
@@ -121,8 +129,10 @@ function EnergyMeter() {
               loading="lazy"
               /* Sized off the bar rather than the viewport: the comp stands the
                  bottle at about 2.9x the track's height, which is also what
-                 keeps it wide enough to hide the end of the fill. */
-              className="nv-float block h-28 w-auto max-w-none object-contain drop-shadow-[0_14px_26px_rgba(70,50,20,0.42)] sm:h-40 lg:h-46"
+                 keeps it wide enough to hide the end of the fill. The shadow is
+                 lighter than it was over the brass: at the old strength it read
+                 as a smudge on white. */
+              className="nv-float block h-28 w-auto max-w-none object-contain drop-shadow-[0_12px_22px_rgba(70,50,20,0.22)] sm:h-40 lg:h-46"
             />
           </span>
         </span>
@@ -130,9 +140,9 @@ function EnergyMeter() {
 
       {/* Three stops under the track, at its ends and its middle. */}
       <div className="mt-2.5 flex items-center justify-between text-[0.76rem] font-medium sm:text-[0.92rem]">
-        <span style={{ color: CREAM }}>Low</span>
-        <span style={{ color: CREAM }}>Steady</span>
-        <span style={{ color: CREAM }}>High</span>
+        <span style={{ color: BODY }}>Low</span>
+        <span style={{ color: BODY }}>Steady</span>
+        <span style={{ color: BODY }}>High</span>
       </div>
     </div>
   );
@@ -156,7 +166,7 @@ function FactRail() {
       <span
         aria-hidden="true"
         className="nv-facts__line absolute bottom-6 left-1.5 top-2 w-px"
-        style={{ background: "rgba(244,227,193,0.35)" }}
+        style={{ background: EDGE }}
       />
       <ol className="flex flex-col gap-8 sm:gap-10">
         {FACTS.map((f, i) => {
@@ -171,8 +181,10 @@ function FactRail() {
                 aria-hidden="true"
                 className="absolute left-0 top-1.5 h-3 w-3 rounded-full transition-all duration-500 ease-out"
                 style={{
-                  background: on ? CREAM : "rgba(244,227,193,0.45)",
-                  boxShadow: on ? "0 0 18px 5px rgba(244,227,193,0.35)" : "none",
+                  background: on ? METER_INK : "#d8c7a6",
+                  /* A halo, not a glow: on white the lit dot needs a ring
+                     around it rather than light thrown off it. */
+                  boxShadow: on ? "0 0 0 5px rgba(114,88,38,0.14)" : "none",
                   transform: on ? "scale(1.25)" : "scale(1)",
                 }}
               />
@@ -180,13 +192,13 @@ function FactRail() {
                   opacity and its `both` fill would win. */}
               <h3
                 className="font-display text-[0.94rem] font-bold uppercase tracking-[0.06em] transition-colors duration-500 sm:text-[1.02rem]"
-                style={{ color: on ? CREAM : CREAM_DIM }}
+                style={{ color: on ? HEADING : HEADING_OFF }}
               >
                 {f.label}
               </h3>
               <p
                 className="mt-1.5 max-w-[40ch] text-[0.92rem] leading-relaxed transition-colors duration-500 sm:text-[0.98rem]"
-                style={{ color: on ? CREAM_SOFT : CREAM_FAINT }}
+                style={{ color: on ? BODY : BODY_OFF }}
               >
                 {f.body}
               </p>
@@ -200,10 +212,7 @@ function FactRail() {
 
 export default function NadSublingual({ startTo = "/start" }) {
   return (
-    /* No top padding: the graph band (NadSupport) runs on the same brass
-       directly above this one, and the comp has the two as a single panel. The
-       cream strip between them was this section's own padding (2026-09-24). */
-    <section className="pb-[clamp(2rem,4vw,3.5rem)]" style={{ background: "#faf8f4" }}>
+    <section className="pb-[clamp(2rem,4vw,3.5rem)]" style={{ background: GROUND }}>
       <style>{`
         /* The fill sweeps out to its resting width the first time the meter is
            reached, then stays there. Animating width rather than a transform so
@@ -243,25 +252,11 @@ export default function NadSublingual({ startTo = "/start" }) {
       `}</style>
 
       <div className="w-full">
-        {/* Lighter on top than underneath: the band above already ends on its
-            own bottom padding, so a full pad here would leave a canyon between
-            the source line and this heading. */}
-        <div
-          className="relative overflow-hidden px-6 pb-9 pt-6 sm:px-10 sm:pb-12 sm:pt-8 lg:px-14 lg:pb-16 lg:pt-10"
-          style={{ background: GROUND }}
-        >
-          {/* Both bands paint the same radial, but over boxes of very different
-              heights, so the two meet about 3% apart at the centre line where
-              the gradient peaks. This lifts the join back level. Radial, not
-              flat: the mismatch is only in the middle. */}
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-36"
-            style={{
-              background:
-                "radial-gradient(70% 100% at 50% 0%, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 72%)",
-            }}
-          />
+        {/* Its own top padding now (2026-10-08). The band used to open straight
+            on the heading because the brass carried on from the graph above it
+            and the two were one panel; against the brass edge, white needs the
+            room. */}
+        <div className="relative overflow-hidden px-6 pb-9 pt-[clamp(2.5rem,5vw,4rem)] sm:px-10 sm:pb-12 lg:px-14 lg:pb-16">
           {/* The band is full bleed; its contents are not (2026-09-19). */}
           <div className="mx-auto w-full max-w-[1180px]">
             {/* ---------------------- the heading ---------------------- */}
@@ -271,14 +266,14 @@ export default function NadSublingual({ startTo = "/start" }) {
                     than left to the measure. */}
                 <h2
                   className="nv-weight-keep font-display text-[clamp(1.7rem,5vw,2.75rem)] font-extrabold leading-[1.12]"
-                  style={{ color: CREAM }}
+                  style={{ color: HEADING }}
                 >
                   <span className="block">Elevate Your NAD+</span>
                   <span className="block">Routine</span>
                 </h2>
                 <p
                   className="max-w-[40ch] text-[0.94rem] font-semibold leading-relaxed lg:pt-3"
-                  style={{ color: CREAM_SOFT }}
+                  style={{ color: BODY }}
                 >
                   A naturally occurring coenzyme involved in cellular energy and metabolism
                 </p>
@@ -292,7 +287,7 @@ export default function NadSublingual({ startTo = "/start" }) {
             <Reveal as="div" className="mt-[clamp(2.5rem,6vw,4rem)] text-center">
               <h2
                 className="nv-weight-keep font-display text-[clamp(1.5rem,4.4vw,2.35rem)] font-extrabold leading-tight"
-                style={{ color: CREAM }}
+                style={{ color: HEADING }}
               >
                 Support Your Everyday Energy
               </h2>
@@ -307,13 +302,13 @@ export default function NadSublingual({ startTo = "/start" }) {
                   >
                     <h3
                       className="text-[0.8rem] font-bold uppercase tracking-[0.12em] sm:text-[0.86rem]"
-                      style={{ color: CREAM }}
+                      style={{ color: HEADING }}
                     >
                       {c.label}
                     </h3>
                     <p
                       className="mt-3 max-w-[38ch] text-[0.96rem] font-medium leading-relaxed"
-                      style={{ color: CREAM }}
+                      style={{ color: INK }}
                     >
                       {c.body}
                     </p>
@@ -325,10 +320,11 @@ export default function NadSublingual({ startTo = "/start" }) {
             <Reveal as="div" delay={0.12} className="mt-[clamp(1.5rem,3vw,2.25rem)] text-center">
               <Link
                 to={startTo}
-                /* Darker than the ground, not a cream wash over it: the comp's
-                   pill reads as a recess in the panel. */
-                className="inline-flex rounded-full px-7 py-3.5 text-[0.82rem] font-semibold transition-all duration-300 hover:-translate-y-0.5"
-                style={{ color: CREAM, background: "rgba(92,72,38,0.38)" }}
+                /* A solid brass pill rather than the comp's recess: over the
+                   brass the button was a darker well in the panel, and on white
+                   a well has nothing to sink into. */
+                className="inline-flex rounded-full px-7 py-3.5 text-[0.82rem] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
+                style={{ background: METER_INK }}
               >
                 See If NAD+ Is Right for You
               </Link>
@@ -345,7 +341,7 @@ export default function NadSublingual({ startTo = "/start" }) {
                     alt=""
                     aria-hidden="true"
                     loading="lazy"
-                    className="block h-auto w-full"
+                    className="block h-auto w-full drop-shadow-[0_14px_26px_rgba(70,50,20,0.14)]"
                   />
                 </div>
               </Reveal>
@@ -355,10 +351,10 @@ export default function NadSublingual({ startTo = "/start" }) {
             {/* Required qualifiers, verbatim from the comp and inside the band
                 where it puts them. The second one names the meter. */}
             <div className="mt-[clamp(2rem,5vw,3.5rem)] flex flex-col gap-2.5">
-              <p className="text-[0.76rem] leading-relaxed" style={{ color: CREAM_FAINT }}>
+              <p className="text-[0.76rem] leading-relaxed" style={{ color: FAINT }}>
                 Prescription treatment requires medical evaluation. Individual responses may vary.
               </p>
-              <p className="max-w-[86ch] text-[0.76rem] leading-relaxed" style={{ color: CREAM_FAINT }}>
+              <p className="max-w-[86ch] text-[0.76rem] leading-relaxed" style={{ color: FAINT }}>
                 The energy meter and other graphics shown are for illustrative purposes only and do
                 not represent expected or guaranteed results. If prescribed, compounded medications
                 are not FDA-approved drug products.
