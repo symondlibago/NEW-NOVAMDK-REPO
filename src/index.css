@@ -40,6 +40,24 @@
   --font-brand: var(--nv-font-display);
 }
 
+/* ---- Checkout palette: fixed cream and gold, so the payment screen looks the
+   same whichever theme the Design Studio is set to. Inter is imported above. ---- */
+@theme {
+  --color-co-page: #F7F4EE;
+  --color-co-ink: #1D1B18;
+  --color-co-ink-2: #4A453E;
+  --color-co-muted: #7A7368;
+  --color-co-line: #E7E0D2;
+  --color-co-line-2: #D9CFBB;
+  --color-co-gold: #B08433;
+  --color-co-gold-hi: #C9A04F;
+  --color-co-gold-deep: #A87B2C;
+  --color-co-tint: #F5EDDD;
+  --color-co-wash: #FBF7EF;
+  --color-co-error: #B4462F;
+  --font-checkout: 'Inter', system-ui, sans-serif;
+}
+
 /* ---- Runtime defaults (Slate & Stone · Grotesk · Medium). JS overrides these. ---- */
 :root {
   --nv-bg: #FFFFFF;

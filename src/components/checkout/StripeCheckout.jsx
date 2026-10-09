@@ -1,15 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ArrowRight,
-  CalendarDays,
-  Check,
-  CreditCard,
-  HelpCircle,
-  Loader2,
-  Lock,
-  Receipt,
-  ShieldCheck,
-} from "lucide-react";
+import { Check, HelpCircle, Info, Loader2, Lock } from "lucide-react";
 import { declineMessage, HOLD_NOTICE, PAYMENT_DUE } from "./declineMessage";
 import PlanTerms from "./PlanTerms";
 
@@ -79,13 +69,10 @@ const usd = (n) =>
   typeof n === "number" ? n.toLocaleString("en-US", { style: "currency", currency: "USD" }) : "";
 
 /* focus-within, because the input itself lives inside Stripe's iframe and never
-   receives our focus styles. The left padding leaves room for the icon sitting
-   over the field: it cannot go inside the iframe, so it is positioned on top. */
+   receives our focus styles. */
 const FIELD =
-  "rounded-xl border border-line bg-bg py-3.5 pl-11 pr-3.5 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15";
-const LABEL =
-  "mb-1.5 block font-mono text-[0.66rem] font-semibold uppercase tracking-[0.12em] text-muted";
-const ICON = "pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/70";
+  "rounded-xl border border-co-line-2 bg-white px-3.5 py-3.5 transition-shadow focus-within:border-co-gold focus-within:ring-4 focus-within:ring-co-gold-hi/15";
+const LABEL = "mb-1.5 block text-sm font-medium text-co-ink-2";
 
 /* What the patient is agreeing to, as four short assurances rather than the
    numbered three-step list this replaced (John, 2026-10-01: the steps under the
@@ -222,14 +209,14 @@ export default function StripeCheckout({
       /* Card elements take `style`, not the Payment Element's `appearance`. */
       const style = {
         base: {
-          fontFamily: "inherit",
+          fontFamily: "Inter, system-ui, sans-serif",
           fontSize: "15px",
-          color: "#1a1a1a",
-          "::placeholder": { color: "#9a9a9a" },
+          color: "#1D1B18",
+          "::placeholder": { color: "#AFA79A" },
         },
-        invalid: { color: "#dc2626", iconColor: "#dc2626" },
+        invalid: { color: "#B4462F", iconColor: "#B4462F" },
       };
-      const card = elements.create("cardNumber", { style, placeholder: "Card number" });
+      const card = elements.create("cardNumber", { style, showIcon: true });
       const expiry = elements.create("cardExpiry", { style });
       const cvc = elements.create("cardCvc", { style });
       sdk.current = { stripe, card };
@@ -456,36 +443,46 @@ export default function StripeCheckout({
     finish();
   };
 
+  /* Cream page, white panel, gold accents, in the checkout's own palette so it
+     does not shift with the Design Studio theme. Flush inside the intake sheet,
+     which already supplies the rounding; standalone in the dev harness. */
   const SHELL = flush
-    ? "p-6 sm:p-8"
-    : "rounded-3xl border border-primary/25 bg-surface-2/30 p-6 sm:p-8";
-  /* The same panel the form uses, so a failure or a success doesn't look like
+    ? "bg-co-page px-4 py-5 sm:px-7 sm:py-6"
+    : "rounded-3xl border border-co-line bg-co-page px-4 py-5 sm:px-7 sm:py-6";
+  /* The same page the form uses, so a failure or a success doesn't look like
      it belongs to a different screen. m-auto because both states are short:
      in the full-height sheet they centre instead of clinging to the top. */
-  const PANEL = `m-auto w-full ${SHELL}`;
+  const STATE = `flex w-full flex-1 flex-col font-checkout text-co-ink ${SHELL}`;
+  const CARD = "rounded-2xl border border-co-line bg-white p-6 shadow-xl shadow-co-gold/5";
 
   if (status === "dead") {
     return (
-      <div className={`${PANEL} text-center`}>
-        <img src="/logo-2026.png" alt="NovaMDK" className="mx-auto h-12 w-auto sm:h-14" />
-        <p className="mt-5 text-[0.92rem] font-semibold text-red-600">
-          We couldn&rsquo;t load the secure card form.
-        </p>
-        <p className="mt-2 text-[0.85rem] leading-relaxed text-muted">
-          Please refresh the page, or email support@novamdk.com and we&rsquo;ll take your payment
-          another way.
-        </p>
+      <div className={STATE}>
+        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start" />
+        <div className={`m-auto mt-8 w-full text-center ${CARD}`}>
+          <p className="text-base font-semibold text-co-error">
+            We couldn&rsquo;t load the secure card form.
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-co-ink-2">
+            Please refresh the page, or email support@novamdk.com and we&rsquo;ll take your payment
+            another way.
+          </p>
+        </div>
       </div>
     );
   }
 
   if (status === "done") {
     return (
-      <div className={`${PANEL} text-center`}>
-        <img src="/logo-2026.png" alt="NovaMDK" className="mx-auto h-12 w-auto sm:h-14" />
-        <ShieldCheck size={34} className="mx-auto mt-6 text-primary" />
-        <p className="mt-3 font-journal text-[1.4rem] font-semibold">Payment received</p>
-        <p className="mt-1.5 text-[0.88rem] text-muted">Taking you back to your visit…</p>
+      <div className={STATE}>
+        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start" />
+        <div role="status" aria-live="polite" className={`m-auto mt-8 w-full text-center ${CARD}`}>
+          <span className="mx-auto mb-3.5 grid h-14 w-14 place-items-center rounded-full bg-co-tint">
+            <Check size={26} strokeWidth={2.4} className="text-co-gold" />
+          </span>
+          <p className="text-xl font-semibold tracking-tight">Payment received</p>
+          <p className="mt-2 text-sm text-co-ink-2">Taking you back to your visit…</p>
+        </div>
       </div>
     );
   }
@@ -510,42 +507,50 @@ export default function StripeCheckout({
     .slice(0, 3);
 
   return (
-    /* The panel is the component's own, not the container's, so it looks the
-       same in the intake popup and in the dev harness. Two tints of the house
-       cream rather than white: the tinted total has to read as deeper than the
-       panel around it. */
-    <form onSubmit={pay} className={`flex-1 ${SHELL}`}>
-      <img src="/logo-2026.png" alt="NovaMDK" className="mx-auto h-9 w-auto sm:h-10" />
+    <form onSubmit={pay} className={`flex-1 font-checkout text-co-ink ${SHELL}`}>
+      <div className="flex items-center justify-between gap-4">
+        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto" />
+        <span className="flex items-center gap-1.5 text-sm text-co-muted">
+          <Lock size={14} />
+          Secure checkout
+        </span>
+      </div>
 
-      {/* The order, as a line in a basket rather than a hero.
-          The big centred photo and headline name were the thing John called out
-          (2026-10-01): hims, AgelessRx and Ready RX all put a small thumbnail,
-          the name and the price on one row and give the space to the receipt and
-          the card instead. The dosage form stays directly under the name because
-          it is what patients check twice: a spray and an injection of the same
-          drug are easy to confuse on the last screen. */}
-      <div className="mt-6 flex items-center gap-3.5">
+      <h1 className="mt-6 text-2xl font-semibold tracking-tight sm:text-3xl">
+        Review your treatment request
+      </h1>
+
+      {/* The order, as a line in a basket rather than a hero. The product's own
+          picture, so it matches the page the patient came from. The dosage form
+          stays directly under the name because it is what patients check twice:
+          a spray and an injection of the same drug are easy to confuse. */}
+      <div className="mt-6 flex items-center gap-4 rounded-2xl border border-co-line bg-white p-4">
         {image ? (
-          <img
-            src={image}
-            alt=""
-            className="h-16 w-16 flex-none rounded-xl bg-surface-2 object-contain p-1"
-            loading="eager"
-          />
+          <span className="grid h-18 w-18 flex-none place-items-center overflow-hidden rounded-xl bg-co-tint">
+            <img src={image} alt="" className="h-full w-full object-contain p-1.5" loading="eager" />
+          </span>
         ) : null}
         <div className="min-w-0 flex-1">
-          {/* font-journal, so the name keeps this serif whichever palette the
-              Design Studio is set to. */}
-          <p className="font-journal text-[1.05rem] font-semibold leading-tight sm:text-[1.15rem]">
-            {name}
-          </p>
-          <p className="mt-0.5 text-[0.8rem] leading-snug text-muted">
+          <p className="text-lg font-semibold leading-tight tracking-tight">{name}</p>
+          <p className="mt-0.5 text-sm leading-snug text-co-muted">
             {product?.dosageForm ? `${product.dosageForm} · ` : ""}
             {planMonths > 1 ? `${planMonths} month plan, paid once` : "One-time payment"}
           </p>
         </div>
-        <span className="flex-none text-[0.95rem] font-semibold">{usd(quote?.amount ?? total)}</span>
       </div>
+
+      {highlights.length > 0 && (
+        <ul className="mt-3 flex flex-wrap gap-1.5">
+          {highlights.map((text) => (
+            <li
+              key={text}
+              className="rounded-full bg-co-tint px-2.5 py-0.5 text-xs font-medium text-co-ink-2"
+            >
+              {text}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <PlanTerms
         terms={quote?.terms}
@@ -556,168 +561,141 @@ export default function StripeCheckout({
         disabled={status !== "ready"}
       />
 
-      {highlights.length > 0 && (
-        <ul className="mt-3.5 flex flex-wrap gap-1.5">
-          {highlights.map((text) => (
-            <li
-              key={text}
-              className="rounded-full border border-line bg-surface-2/70 px-2.5 py-0.5 text-[0.68rem] font-medium text-muted"
-            >
-              {text}
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className={`mt-7 ${CARD}`}>
+        <h2 className="text-lg font-semibold tracking-tight">Order summary</h2>
 
-      {/* An itemised receipt, always, not only when there is a second line to
-          show: a total with nothing above it reads like a number we picked.
+        {/* An itemised receipt, always, not only when there is a second line to
+            show: a total with nothing above it reads like a number we picked.
 
-          No shipping row. The quote's second amount is a telehealth
-          consultation fee, not postage, so nothing here knows what delivery
-          costs or whether it is charged at all, and a "Shipping: Included" line
-          was inventing an answer. */}
-      <dl className="mt-5 space-y-2 border-t border-line-strong/40 pt-4 text-[0.85rem]">
-        <div className="flex justify-between gap-4">
-          <dt className="min-w-0 truncate text-muted">Subtotal</dt>
-          <dd className="shrink-0 font-medium">{usd(quote?.amount ?? total)}</dd>
-        </div>
-        {hasFee && (
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted">Telehealth consultation fee</dt>
-            <dd className="shrink-0 font-medium">{usd(quote.shipping)}</dd>
+            No shipping row. The quote's second amount is a telehealth
+            consultation fee, not postage, so nothing here knows what delivery
+            costs or whether it is charged at all. */}
+        <dl className="mt-4 text-sm text-co-ink-2">
+          <div className="flex justify-between gap-3 py-1.5">
+            <dt className="min-w-0 truncate">Subtotal</dt>
+            <dd className="shrink-0">{usd(quote?.amount ?? total)}</dd>
           </div>
-        )}
-      </dl>
+          {hasFee && (
+            <div className="flex justify-between gap-3 py-1.5">
+              <dt>Telehealth consultation fee</dt>
+              <dd className="shrink-0">{usd(quote.shipping)}</dd>
+            </div>
+          )}
+        </dl>
 
-      {/* The one number they are agreeing to, on its own tinted line. */}
-      <div className="mt-4 flex items-center gap-3 rounded-2xl bg-surface-2/80 px-4 py-3.5">
-        <Receipt size={18} className="flex-none text-primary" />
-        {/* min-w-0, or the label refuses to shrink and a four figure total
-            pushes the amount off the edge of a 320px screen. */}
-        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[0.92rem] font-semibold">
-          <span className="min-w-0 truncate">Total due today</span>
-          {/* type=button, or it submits the form it sits in and tries to pay. */}
-          <button
-            type="button"
-            onClick={() => setExplainDue(true)}
-            aria-label={PAYMENT_DUE.title}
-            className="grid h-4 w-4 flex-none place-items-center rounded-full text-muted transition-colors hover:text-primary"
-          >
-            <HelpCircle size={15} />
-          </button>
-        </span>
-        <span className="flex-none font-display text-[1.4rem] font-extrabold leading-none text-primary sm:text-[1.55rem]">
-          {usd(total)}
-        </span>
-      </div>
+        {/* The one number they are agreeing to. min-w-0, or the label refuses
+            to shrink and a four figure total pushes the amount off the edge of
+            a 320px screen. */}
+        <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-co-line pt-4">
+          <span className="flex min-w-0 items-center gap-1.5 font-medium">
+            <span className="min-w-0 truncate">Total due today</span>
+            {/* type=button, or it submits the form it sits in and tries to pay. */}
+            <button
+              type="button"
+              onClick={() => setExplainDue(true)}
+              aria-label={PAYMENT_DUE.title}
+              className="grid h-4 w-4 flex-none place-items-center rounded-full text-co-muted transition-colors hover:text-co-gold"
+            >
+              <HelpCircle size={15} />
+            </button>
+          </span>
+          <strong className="flex-none text-2xl font-semibold tracking-tight">{usd(total)}</strong>
+        </div>
 
-      {/* Directly under the amount, where the question it answers gets asked. */}
-      <p className="mt-2.5 flex items-start gap-2 text-[0.78rem] leading-relaxed text-muted">
-        <ShieldCheck size={14} className="mt-0.5 flex-none text-primary" />
-        <span>{HOLD_NOTICE}</span>
-      </p>
+        {/* Directly under the amount, where the question it answers gets asked. */}
+        <p className="mt-3.5 flex gap-2.5 rounded-xl border border-co-tint bg-co-wash px-3.5 py-3 text-sm leading-relaxed text-co-ink-2">
+          <Info size={16} className="mt-0.5 flex-none text-co-gold" />
+          <span>{HOLD_NOTICE}</span>
+        </p>
 
-      {/* Stripe's iframes mount into these. Labelled rather than bare boxes:
-          three unlabelled rectangles is a guessing game, and the security code
-          in particular gets mistaken for a PIN. */}
-      <div className={status === "boot" ? "hidden" : "mt-6 flex flex-col gap-3.5"}>
-        {/* A named section, as every one of these checkouts has: it marks where
-            the summary stops and the thing being filled in starts. */}
-        <p className="font-journal text-[1rem] font-semibold text-ink">Payment</p>
-        <div>
-          <span className={LABEL}>Card number</span>
-          <div className="relative">
-            <CreditCard size={17} className={ICON} />
+        <div className="my-6 h-px bg-co-line" />
+
+        <h2 className="text-lg font-semibold tracking-tight">Payment details</h2>
+
+        {/* Stripe's iframes mount into these. Labelled rather than bare boxes:
+            three unlabelled rectangles is a guessing game, and the security code
+            in particular gets mistaken for a PIN. */}
+        <div className={status === "boot" ? "hidden" : "mt-3 flex flex-col gap-3"}>
+          <div>
+            <span className={LABEL}>Card number</span>
             <div ref={numberRef} className={FIELD} />
           </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3.5">
-          <div>
-            <span className={LABEL}>Expiry</span>
-            <div className="relative">
-              <CalendarDays size={17} className={ICON} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <span className={LABEL}>Expiration date</span>
               <div ref={expiryRef} className={FIELD} />
             </div>
-          </div>
-          <div>
-            <span className={LABEL}>Security code</span>
-            <div className="relative">
-              <Lock size={16} className={ICON} />
+            <div>
+              <span className={LABEL}>Security code</span>
               <div ref={cvcRef} className={FIELD} />
             </div>
           </div>
         </div>
-      </div>
-      {status === "boot" && (
-        <div className="flex items-center justify-center gap-2 py-10 text-[0.85rem] text-muted">
-          <Loader2 size={15} className="animate-spin" />
-          Loading secure payment…
-        </div>
-      )}
+        {status === "boot" && (
+          <div className="flex items-center justify-center gap-2 py-10 text-sm text-co-muted">
+            <Loader2 size={15} className="animate-spin" />
+            Loading secure payment…
+          </div>
+        )}
 
-      {message && (
-        <p
-          role="alert"
-          className="mt-3 rounded-xl bg-red-50 px-3.5 py-2.5 text-[0.84rem] font-medium leading-relaxed text-red-700"
+        {message && (
+          <p
+            role="alert"
+            className="mt-3 rounded-xl border border-co-error/20 bg-co-error/5 px-3.5 py-2.5 text-sm font-medium leading-relaxed text-co-error"
+          >
+            {message}
+          </p>
+        )}
+
+        {/* repricing: the chosen term has not reached the open payment yet, so
+            the total on screen is not what the card would be charged. */}
+        <button
+          type="submit"
+          disabled={status !== "ready" || repricing}
+          className="mt-5 flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-linear-to-b from-co-gold-hi to-co-gold-deep text-base font-semibold tracking-wide text-white shadow-lg shadow-co-gold-deep/25 transition hover:-translate-y-px hover:shadow-xl disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
         >
-          {message}
-        </p>
-      )}
-
-      {/* The lock sits on the button, where it reassures at the moment of the
-          click. The arrow is the only decoration: it says this goes somewhere,
-          which matters when the button is also the end of the questionnaire. */}
-      {/* repricing: the chosen term has not reached the open payment yet, so
-          the total on screen is not what the card would be charged. */}
-      <button
-        type="submit"
-        disabled={status !== "ready" || repricing}
-        className="mt-6 flex w-full items-center gap-3 rounded-2xl bg-primary px-5 py-4 text-[1rem] font-bold text-on-primary transition-opacity disabled:opacity-45"
-      >
-        {status === "paying" ? (
-          <span className="flex flex-1 items-center justify-center gap-2">
-            <Loader2 size={17} className="animate-spin" />
-            Processing…
-          </span>
-        ) : (
-          <>
-            <span className="flex flex-1 items-center justify-center gap-2.5">
+          {status === "paying" ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              <span className="opacity-80">Processing…</span>
+            </>
+          ) : (
+            <>
               <Lock size={16} />
               Pay {usd(total)}
-            </span>
-            <ArrowRight size={18} className="flex-none" />
-          </>
-        )}
-      </button>
+            </>
+          )}
+        </button>
 
-      {/* Under the button, not above it. These four are the last thing read
-          before the card goes in, and on every one of the sites John named the
-          reassurance sits here rather than between the price and the fields,
-          where it pushed the card form down the screen. */}
-      <ul className="mt-5 grid gap-x-4 gap-y-2 sm:grid-cols-2">
-        {ASSURANCES.map((text) => (
-          <li key={text} className="flex items-start gap-2">
-            <Check size={14} className="mt-0.5 flex-none text-primary" />
-            <span className="text-[0.76rem] leading-snug text-muted">{text}</span>
-          </li>
-        ))}
-      </ul>
+        {/* Under the button, where they are the last thing read before the card
+            goes in, rather than between the price and the fields. */}
+        <ul className="mt-5 grid gap-x-4 gap-y-2 sm:grid-cols-2">
+          {ASSURANCES.map((text) => (
+            <li key={text} className="flex items-start gap-2">
+              <Check size={14} className="mt-0.5 flex-none text-co-gold" />
+              <span className="text-xs leading-snug text-co-ink-2">{text}</span>
+            </li>
+          ))}
+        </ul>
 
-      <div className="mt-5 flex items-center gap-3">
-        <span className="h-px flex-1 bg-line-strong/40" />
-        <ShieldCheck size={15} className="flex-none text-primary/70" />
-        <span className="h-px flex-1 bg-line-strong/40" />
+        <p className="mt-5 flex items-start justify-center gap-1.5 text-center text-xs leading-relaxed text-co-muted">
+          <Lock size={13} className="mt-0.5 flex-none" />
+          <span>
+            Payments are processed by Stripe. Your card details are encrypted and never reach
+            NovaMDK. A receipt goes to the email address you gave us.
+          </span>
+        </p>
       </div>
-      <p className="mt-2.5 text-center text-[0.73rem] leading-relaxed text-muted">
-        Payments are processed by Stripe. Your card details are encrypted and never reach NovaMDK.
-        A receipt goes to the email address you gave us.
-      </p>
+
       {/* A way out that isn't the back button. A patient who stalls at the card
-          field currently has nowhere to go, and abandoning here means losing a
+          field otherwise has nowhere to go, and abandoning here means losing a
           questionnaire they have already finished. */}
-      <p className="mt-2 text-center text-[0.73rem] leading-relaxed text-muted">
-        Questions before you pay? Email{" "}
-        <a href="mailto:support@novamdk.com" className="font-semibold text-primary underline">
+      <p className="mt-6 border-t border-co-line pt-5 text-sm text-co-muted">
+        Questions before you pay?{" "}
+        <a
+          href="mailto:support@novamdk.com"
+          className="border-b border-co-line-2 text-co-ink-2 transition-colors hover:border-co-gold hover:text-co-gold"
+        >
           support@novamdk.com
         </a>
       </p>
@@ -734,16 +712,16 @@ export default function StripeCheckout({
           aria-label={PAYMENT_DUE.title}
           data-lenis-prevent
           onClick={() => setExplainDue(false)}
-          className="fixed inset-0 z-130 flex overflow-y-auto bg-ink/65 p-6 backdrop-blur-sm"
+          className="fixed inset-0 z-130 flex overflow-y-auto bg-co-ink/60 p-6 backdrop-blur-sm"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="m-auto w-full max-w-md rounded-3xl border border-line bg-surface p-6 nv-shadow-lg"
+            className="m-auto w-full max-w-md rounded-2xl border border-co-line bg-white p-6 shadow-xl"
           >
-            <p className="font-journal text-[1.15rem] font-semibold">{PAYMENT_DUE.title}</p>
+            <p className="text-lg font-semibold tracking-tight">{PAYMENT_DUE.title}</p>
             <div className="mt-3 space-y-2.5">
               {PAYMENT_DUE.paragraphs.map((text) => (
-                <p key={text} className="text-[0.85rem] leading-relaxed text-muted">
+                <p key={text} className="text-sm leading-relaxed text-co-ink-2">
                   {text}
                 </p>
               ))}
@@ -751,7 +729,7 @@ export default function StripeCheckout({
             <button
               type="button"
               onClick={() => setExplainDue(false)}
-              className="mt-5 w-full rounded-full border border-line-strong bg-surface px-5 py-3 text-[0.9rem] font-semibold text-ink transition-colors hover:bg-surface-2"
+              className="mt-5 w-full rounded-xl border border-co-line-2 bg-white px-5 py-3 text-sm font-semibold text-co-ink transition-colors hover:border-co-gold hover:text-co-gold"
             >
               Close
             </button>
