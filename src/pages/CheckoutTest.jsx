@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { productsData } from "../components/data/products";
 import StripeCheckout from "../components/checkout/StripeCheckout";
@@ -34,9 +34,15 @@ const TEST_CARDS = [
 export default function CheckoutTest() {
   const [params, setParams] = useSearchParams();
   const pid = params.get("pid");
-  const [quote, setQuote] = useState(null);
+  const [priceList, setPriceList] = useState(null);
   const [failed, setFailed] = useState(false);
   const [paid, setPaid] = useState(false);
+  /* The plan term. The harness used to pass neither this nor its setter, so
+     PlanTerms rendered with months undefined: no row matched, nothing was
+     selected, and a click called an onChange that wasn't there. The chooser
+     looked live and was inert, which only showed up here because the real
+     intake owns this state and always passed it. */
+  const [months, setMonths] = useState(1);
 
   const visible = productsData.filter((p) => !p.hidden);
   const product = pid ? productsData.find((p) => String(p.id) === String(pid)) : null;
@@ -66,18 +72,32 @@ export default function CheckoutTest() {
 
   useEffect(() => {
     if (!pid) return;
-    setQuote(null);
+    setPriceList(null);
     setFailed(false);
     setPaid(false);
+    setMonths(1);
     fetch(`/api/pay?pid=${encodeURIComponent(pid)}`)
       .then((r) => r.json())
-      .then((q) => (q?.ok ? setQuote(q) : setFailed(true)))
+      .then((q) => (q?.ok ? setPriceList(q) : setFailed(true)))
       .catch(() => setFailed(true));
   }, [pid]);
 
+  /* Every term arrives priced in the one response, so switching between them
+     needs no round trip. Same arrangement as the real intake, deliberately:
+     refetching on each click empties the quote and the chooser disappears on
+     its own press. Nothing is computed here, only chosen. */
+  const quote = useMemo(() => {
+    if (!priceList) return null;
+    const term = (priceList.terms || []).find((t) => t.months === months);
+    return term ? { ...priceList, ...term } : priceList;
+  }, [priceList, months]);
+
   return (
     <main className="min-h-screen bg-bg px-4 py-10 text-ink">
-      <div className="mx-auto max-w-lg">
+      {/* Matches the width the intake sheet takes at the payment step, so the
+          harness shows the two column layout the patient actually gets rather
+          than the stacked one it falls back to in a narrow box. */}
+      <div className="mx-auto max-w-6xl">
         <p className="font-mono text-[0.64rem] uppercase tracking-[0.16em] text-primary">
           Checkout harness · dev only
         </p>
@@ -169,6 +189,8 @@ export default function CheckoutTest() {
               productName={product?.name}
               pid={pid}
               quote={quote}
+              months={months}
+              onMonths={setMonths}
               treatment={product?.name}
               submitted={false}
               onPaid={() => setPaid(true)}

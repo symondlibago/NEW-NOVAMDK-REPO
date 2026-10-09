@@ -32,6 +32,27 @@ export const HOLD_NOTICE =
   "your treatment. Your plan then renews automatically, and you can cancel any time in your " +
   "patient portal.";
 
+/* The recurring billing authorisation, beside the checkbox that unlocks the
+ * submit button. A plan that renews on its own needs the patient's express
+ * agreement to the amount and the interval before the card is taken, not a
+ * sentence buried in the terms, which is also what every card scheme asks for.
+ *
+ * NOT YET REVIEWED BY COUNSEL. Same standing as the rest of the consent copy
+ * on this site: the wording is ours, the sign-off is John's lawyer's. It is
+ * here rather than inline in the component so there is one place to change.
+ *
+ * Returned in pieces so the component can set the two amounts in bold without
+ * either of them drifting away from the sentence they belong to. Both are
+ * passed in already formatted by the caller, from the server's quote.
+ */
+export const renewalConsent = ({ charge, renewal }) => ({
+  lead: "I authorize NovaMDK to charge",
+  charge,
+  mid: "after approval and automatically renew my plan at",
+  renewal,
+  tail: "until I cancel. I can cancel future renewals through my patient portal.",
+});
+
 /* The long version, behind the question mark on the total.
  *
  * Our own wording, not Ready RX's. Theirs describes a renewal schedule we do

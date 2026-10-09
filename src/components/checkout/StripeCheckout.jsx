@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Check, HelpCircle, Info, Loader2, Lock } from "lucide-react";
-import { declineMessage, HOLD_NOTICE, PAYMENT_DUE } from "./declineMessage";
+import { declineMessage, HOLD_NOTICE, PAYMENT_DUE, renewalConsent } from "./declineMessage";
 import PlanTerms from "./PlanTerms";
 
 /* The whole checkout, on one screen.
@@ -114,6 +114,10 @@ export default function StripeCheckout({
   const [status, setStatus] = useState("boot");
   const [message, setMessage] = useState("");
   const [explainDue, setExplainDue] = useState(false);
+  /* The recurring billing authorisation. Unticked on every mount on purpose:
+     a plan that renews on its own needs a deliberate agreement each time, and
+     a box that remembers a previous answer is not one. */
+  const [agreed, setAgreed] = useState(false);
   /* The open payment, and the term it is actually priced at.
    *
    * State rather than a ref because the render depends on it: while these two
@@ -476,12 +480,33 @@ export default function StripeCheckout({
     return (
       <div className={STATE}>
         <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start" />
-        <div role="status" aria-live="polite" className={`m-auto mt-8 w-full text-center ${CARD}`}>
-          <span className="mx-auto mb-3.5 grid h-14 w-14 place-items-center rounded-full bg-co-tint">
-            <Check size={26} strokeWidth={2.4} className="text-co-gold" />
+        {/* Not "Payment received": the card is held here and only charged once
+            a provider approves, so that heading contradicted the line the
+            patient agreed to on the screen before.
+
+            max-w-md, because the panel it replaces is now the full width of the
+            page: without it this was two short lines adrift in a white band
+            1900px across. The spinner is the honest part of "taking you back",
+            and the only thing on the screen that says it is still working. */}
+        <div
+          role="status"
+          aria-live="polite"
+          className={`m-auto w-full max-w-md text-center ${CARD}`}
+        >
+          <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-linear-to-b from-co-gold-hi to-co-gold-deep shadow-lg shadow-co-gold-deep/30 ring-8 ring-co-tint">
+            <Check size={36} strokeWidth={3} className="text-white" />
           </span>
-          <p className="text-xl font-semibold tracking-tight">Payment received</p>
-          <p className="mt-2 text-sm text-co-ink-2">Taking you back to your visit…</p>
+          <p className="mt-6 text-2xl font-semibold tracking-tight">Request submitted</p>
+          <p className="mt-2.5 text-sm leading-relaxed text-co-ink-2">
+            A licensed provider will review your information.
+            {total
+              ? ` You’ll only be charged ${usd(total)} if your treatment is approved.`
+              : ""}
+          </p>
+          <p className="mt-6 flex items-center justify-center gap-2 border-t border-co-line pt-4 text-xs text-co-muted">
+            <Loader2 size={13} className="animate-spin" />
+            Taking you back to your visit…
+          </p>
         </div>
       </div>
     );
@@ -498,6 +523,19 @@ export default function StripeCheckout({
   const repricing = priced !== null && months ? priced !== months : false;
   const planMonths = Number(quote?.months) || 1;
 
+  /* The quote's own entry for the term it was priced at, which is where the
+     per-month figure and the saving come from. When a quote carries no term
+     breakdown there is nothing to read, and the panel shows the one number we
+     were given rather than dividing it here: no money arithmetic in the
+     browser, same rule the chooser follows. */
+  const quoted = (quote?.terms || []).find((t) => t.months === planMonths) || null;
+  /* How the renewal reads in the authorisation: a one month plan renews at its
+     own price every month, a longer one renews as a whole on its own cycle. */
+  const renewalText =
+    planMonths === 1 ? `${usd(total)} per month` : `${usd(total)} every ${planMonths} months`;
+  const consent = renewalConsent({ charge: usd(total), renewal: renewalText });
+  const payable = status === "ready" && !repricing && agreed;
+
   /* The product page's own highlights, not copy written for the checkout. They
      are already cleared for public use and already what the patient read on the
      way here, so the last screen cannot end up claiming something different. */
@@ -508,197 +546,333 @@ export default function StripeCheckout({
 
   return (
     <form onSubmit={pay} className={`flex-1 font-checkout text-co-ink ${SHELL}`}>
-      <div className="flex items-center justify-between gap-4">
-        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto" />
-        <span className="flex items-center gap-1.5 text-sm text-co-muted">
-          <Lock size={14} />
-          Secure checkout
-        </span>
-      </div>
-
-      <h1 className="mt-6 text-2xl font-semibold tracking-tight sm:text-3xl">
-        Review your treatment request
-      </h1>
-
-      {/* The order, as a line in a basket rather than a hero. The product's own
-          picture, so it matches the page the patient came from. The dosage form
-          stays directly under the name because it is what patients check twice:
-          a spray and an injection of the same drug are easy to confuse. */}
-      <div className="mt-6 flex items-center gap-4 rounded-2xl border border-co-line bg-white p-4">
-        {image ? (
-          <span className="grid h-18 w-18 flex-none place-items-center overflow-hidden rounded-xl bg-co-tint">
-            <img src={image} alt="" className="h-full w-full object-contain p-1.5" loading="eager" />
+      {/* One column until there is genuinely room for two. The intake sheet
+          widens to match at the payment step; below lg, and inside any narrower
+          host, this stacks in the same order it always did. */}
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="flex items-center justify-between gap-4">
+          <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto" />
+          <span className="flex items-center gap-1.5 text-sm text-co-muted">
+            <Lock size={14} />
+            Secure checkout
           </span>
-        ) : null}
-        <div className="min-w-0 flex-1">
-          <p className="text-lg font-semibold leading-tight tracking-tight">{name}</p>
-          <p className="mt-0.5 text-sm leading-snug text-co-muted">
-            {product?.dosageForm ? `${product.dosageForm} · ` : ""}
-            {planMonths > 1 ? `${planMonths} month plan, paid once` : "One-time payment"}
-          </p>
         </div>
-      </div>
 
-      {highlights.length > 0 && (
-        <ul className="mt-3 flex flex-wrap gap-1.5">
-          {highlights.map((text) => (
-            <li
-              key={text}
-              className="rounded-full bg-co-tint px-2.5 py-0.5 text-xs font-medium text-co-ink-2"
-            >
-              {text}
-            </li>
-          ))}
-        </ul>
-      )}
+        {/* items-start, or the panel cannot stick: a stretched grid item is as
+            tall as the row, which leaves the sticky box nowhere to travel. */}
+        <div className="mt-7 grid items-start gap-8 lg:grid-cols-5 lg:gap-12">
+          {/* ---------- What they are buying ---------- */}
+          <section className="min-w-0 lg:col-span-3">
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Review your treatment request
+            </h1>
+            <p className="mt-3 max-w-xl text-base leading-relaxed text-co-ink-2">
+              Choose your plan and add your payment details. A licensed provider will review your
+              information to determine whether treatment is appropriate.
+            </p>
 
-      <PlanTerms
-        terms={quote?.terms}
-        months={months}
-        onChange={onMonths}
-        /* Locked once a card has been submitted: the amount is with the issuer
-           by then and the chooser would be writing a cheque it cannot cash. */
-        disabled={status !== "ready"}
-      />
+            {/* The order, as a line in a basket rather than a hero. The product's
+                own picture, so it matches the page the patient came from. The
+                dosage form stays directly under the name because it is what
+                patients check twice: a spray and an injection of the same drug
+                are easy to confuse.
 
-      <div className={`mt-7 ${CARD}`}>
-        <h2 className="text-lg font-semibold tracking-tight">Order summary</h2>
-
-        {/* An itemised receipt, always, not only when there is a second line to
-            show: a total with nothing above it reads like a number we picked.
-
-            No shipping row. The quote's second amount is a telehealth
-            consultation fee, not postage, so nothing here knows what delivery
-            costs or whether it is charged at all. */}
-        <dl className="mt-4 text-sm text-co-ink-2">
-          <div className="flex justify-between gap-3 py-1.5">
-            <dt className="min-w-0 truncate">Subtotal</dt>
-            <dd className="shrink-0">{usd(quote?.amount ?? total)}</dd>
-          </div>
-          {hasFee && (
-            <div className="flex justify-between gap-3 py-1.5">
-              <dt>Telehealth consultation fee</dt>
-              <dd className="shrink-0">{usd(quote.shipping)}</dd>
+                The second half of that line used to read "One-time payment" for
+                a one month plan, which was the opposite of true once plans
+                started renewing on their own. What it says now is the thing the
+                patient cannot infer from the price. */}
+            <div className="mt-8 flex items-center gap-4 rounded-2xl border border-co-line bg-white p-4">
+              {image ? (
+                <span className="grid h-14 w-14 flex-none place-items-center overflow-hidden rounded-xl bg-co-tint sm:h-18 sm:w-18">
+                  <img
+                    src={image}
+                    alt=""
+                    className="h-full w-full object-contain p-1.5"
+                    loading="eager"
+                  />
+                </span>
+              ) : null}
+              {/* wrap-break-word, because a catalogue name is one long token
+                  more often than not: "Semaglutide/Cyanocobalamin (B12)" is
+                  wider than the column left beside the picture on a 390px
+                  screen, and min-w-0 only lets the box shrink, it does not let
+                  the word break. Without it the name runs out through the card
+                  edge. */}
+              <div className="min-w-0 flex-1">
+                <p className="text-base font-semibold leading-tight tracking-tight wrap-break-word sm:text-lg">
+                  {name}
+                </p>
+                <p className="mt-0.5 text-sm leading-snug text-co-muted">
+                  {product?.dosageForm ? `${product.dosageForm} · ` : ""}
+                  Requires provider approval
+                </p>
+              </div>
             </div>
-          )}
-        </dl>
 
-        {/* The one number they are agreeing to. min-w-0, or the label refuses
-            to shrink and a four figure total pushes the amount off the edge of
-            a 320px screen. */}
-        <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-co-line pt-4">
-          <span className="flex min-w-0 items-center gap-1.5 font-medium">
-            <span className="min-w-0 truncate">Total due today</span>
-            {/* type=button, or it submits the form it sits in and tries to pay. */}
+            {highlights.length > 0 && (
+              <ul className="mt-3 flex flex-wrap gap-1.5">
+                {highlights.map((text) => (
+                  <li
+                    key={text}
+                    className="rounded-full bg-co-tint px-2.5 py-0.5 text-xs font-medium text-co-ink-2"
+                  >
+                    {text}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <PlanTerms
+              terms={quote?.terms}
+              months={months}
+              onChange={onMonths}
+              /* Locked once a card has been submitted: the amount is with the
+                 issuer by then and the chooser would be writing a cheque it
+                 cannot cash. */
+              disabled={status !== "ready"}
+            />
+
+            {/* Moved out of the payment panel and into the space beside it. Same
+                four lines, read before the card rather than under the button,
+                and they stop the left column running out halfway down. */}
+            <ul className="mt-7 grid gap-x-5 gap-y-2.5 sm:grid-cols-2">
+              {ASSURANCES.map((text) => (
+                <li key={text} className="flex items-start gap-2">
+                  <Check size={15} className="mt-0.5 flex-none text-co-gold" />
+                  <span className="text-sm leading-snug text-co-ink-2">{text}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {/* ---------- What it costs, and the card ---------- */}
+          <aside className={`min-w-0 lg:sticky lg:top-6 lg:col-span-2 ${CARD}`}>
+            <h2 className="text-lg font-semibold tracking-tight">Order summary</h2>
+
+            {/* The headline figure is the per-month price when the quote gives
+                one, because that is the number a patient compares against a
+                pharmacy. The cadence line under it says what actually leaves
+                the account, so the two can never be read as the same thing. */}
+            <div className="mt-3.5 flex items-baseline gap-1.5">
+              <strong className="text-5xl font-semibold tracking-tight">
+                {usd(quoted?.perMonth ?? total)}
+              </strong>
+              {quoted ? <span className="text-base text-co-muted">/month</span> : null}
+            </div>
+            <p className="mt-1.5 text-sm text-co-muted">
+              {planMonths === 1
+                ? `Billed ${usd(total)} monthly after approval`
+                : `Billed ${usd(total)} every ${planMonths} months after approval`}
+            </p>
+
+            {/* An itemised receipt, always, not only when there is a second line
+                to show: a total with nothing above it reads like a number we
+                picked.
+
+                No saving row. The quote's amount is already the discounted
+                one, so a line subtracting the saving from it would take the
+                discount off twice and under-state what the card is charged.
+                The saving is on the plan row instead, where it is a reason to
+                pick that term rather than a step in a sum.
+
+                No shipping row. The quote's second amount is a telehealth
+                consultation fee, not postage, so nothing here knows what
+                delivery costs or whether it is charged at all. */}
+            <dl className="mt-5 text-sm text-co-ink-2">
+              <div className="flex justify-between gap-3 py-1.5">
+                <dt className="min-w-0 truncate">Selected plan</dt>
+                <dd className="shrink-0">
+                  {planMonths === 1 ? "1 month" : `${planMonths} months`}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3 py-1.5">
+                <dt className="min-w-0 truncate">Plan price</dt>
+                <dd className="shrink-0">{usd(quote?.amount ?? total)}</dd>
+              </div>
+              {hasFee && (
+                <div className="flex justify-between gap-3 py-1.5">
+                  <dt>Telehealth consultation fee</dt>
+                  <dd className="shrink-0">{usd(quote.shipping)}</dd>
+                </div>
+              )}
+            </dl>
+
+            {/* The one number they are agreeing to. min-w-0, or the label
+                refuses to shrink and a four figure total pushes the amount off
+                the edge of a 320px screen.
+
+                "Charged after approval", not "due today": the card is held at
+                this step and the money is only taken when a provider approves,
+                so the old label was asking for a payment the code does not
+                take. The zero under it is the honest version of the same row. */}
+            <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-co-line pt-4">
+              <span className="flex min-w-0 items-center gap-1.5 font-medium">
+                <span className="min-w-0 truncate">Charged after approval</span>
+                {/* type=button, or it submits the form it sits in and tries to pay. */}
+                <button
+                  type="button"
+                  onClick={() => setExplainDue(true)}
+                  aria-label={PAYMENT_DUE.title}
+                  className="grid h-4 w-4 flex-none place-items-center rounded-full text-co-muted transition-colors hover:text-co-gold"
+                >
+                  <HelpCircle size={15} />
+                </button>
+              </span>
+              <strong className="flex-none text-2xl font-semibold tracking-tight">
+                {usd(total)}
+              </strong>
+            </div>
+            <div className="mt-2 flex justify-between gap-3 text-sm text-co-muted">
+              <span>Due today</span>
+              <span>{usd(0)}</span>
+            </div>
+
+            {/* Directly under the amount, where the question it answers gets asked. */}
+            <p className="mt-3.5 flex gap-2.5 rounded-xl border border-co-tint bg-co-wash px-3.5 py-3 text-sm leading-relaxed text-co-ink-2">
+              <Info size={16} className="mt-0.5 flex-none text-co-gold" />
+              <span>{HOLD_NOTICE}</span>
+            </p>
+
+            <div className="my-6 h-px bg-co-line" />
+
+            <h2 className="text-lg font-semibold tracking-tight">Payment details</h2>
+
+            {/* Stripe's iframes mount into these. Labelled rather than bare
+                boxes: three unlabelled rectangles is a guessing game, and the
+                security code in particular gets mistaken for a PIN. */}
+            <div className={status === "boot" ? "hidden" : "mt-3 flex flex-col gap-3"}>
+              <div>
+                <span className={LABEL}>Card number</span>
+                <div ref={numberRef} className={FIELD} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className={LABEL}>Expiration date</span>
+                  <div ref={expiryRef} className={FIELD} />
+                </div>
+                <div>
+                  <span className={LABEL}>Security code</span>
+                  <div ref={cvcRef} className={FIELD} />
+                </div>
+              </div>
+            </div>
+            {status === "boot" && (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-co-muted">
+                <Loader2 size={15} className="animate-spin" />
+                Loading secure payment…
+              </div>
+            )}
+
+            {message && (
+              <p
+                role="alert"
+                className="mt-3 rounded-xl border border-co-error/20 bg-co-error/5 px-3.5 py-2.5 text-sm font-medium leading-relaxed text-co-error"
+              >
+                {message}
+              </p>
+            )}
+
+            <p className="mt-5 text-sm font-medium text-co-ink">
+              You won&rsquo;t be charged unless a licensed provider approves your treatment.
+            </p>
+
+            {/* The renewal authorisation, and the gate on the button. A plan
+                that charges again on its own needs an agreement to the amount
+                and the interval that the patient actually made, which a line in
+                the terms is not. Wording lives in declineMessage.js. */}
+            <label className="mt-3.5 flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-co-ink-2">
+              <input
+                type="checkbox"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                disabled={status !== "ready"}
+                className="peer sr-only"
+              />
+              <span className="mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md border-2 border-co-line-2 bg-white transition-colors peer-checked:border-co-gold peer-checked:bg-co-gold peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-co-gold-hi">
+                <Check
+                  size={12}
+                  strokeWidth={3.2}
+                  className={`text-white transition-transform ${agreed ? "scale-100" : "scale-0"}`}
+                />
+              </span>
+              <span>
+                {consent.lead}{" "}
+                <strong className="font-semibold text-co-ink">{consent.charge}</strong>{" "}
+                {consent.mid}{" "}
+                <strong className="font-semibold text-co-ink">{consent.renewal}</strong>{" "}
+                {consent.tail}
+              </span>
+            </label>
+
+            {/* repricing: the chosen term has not reached the open payment yet,
+                so the total on screen is not what the card would be charged. */}
             <button
-              type="button"
-              onClick={() => setExplainDue(true)}
-              aria-label={PAYMENT_DUE.title}
-              className="grid h-4 w-4 flex-none place-items-center rounded-full text-co-muted transition-colors hover:text-co-gold"
+              type="submit"
+              disabled={!payable}
+              className="mt-5 flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-linear-to-b from-co-gold-hi to-co-gold-deep text-base font-semibold tracking-wide text-white shadow-lg shadow-co-gold-deep/25 transition hover:-translate-y-px hover:shadow-xl disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
             >
-              <HelpCircle size={15} />
+              {status === "paying" ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span className="opacity-80">Processing…</span>
+                </>
+              ) : (
+                <>
+                  <Lock size={16} />
+                  Submit treatment request
+                </>
+              )}
             </button>
-          </span>
-          <strong className="flex-none text-2xl font-semibold tracking-tight">{usd(total)}</strong>
+
+            <p className="mt-3 text-center text-xs text-co-muted">
+              Submitting a request does not guarantee a prescription.
+            </p>
+
+            <p className="mt-5 flex items-start justify-center gap-1.5 text-center text-xs leading-relaxed text-co-muted">
+              <Lock size={13} className="mt-0.5 flex-none" />
+              <span>
+                Payments are processed by Stripe. Your card details are encrypted and never reach
+                NovaMDK. A receipt goes to the email address you gave us.
+              </span>
+            </p>
+          </aside>
         </div>
 
-        {/* Directly under the amount, where the question it answers gets asked. */}
-        <p className="mt-3.5 flex gap-2.5 rounded-xl border border-co-tint bg-co-wash px-3.5 py-3 text-sm leading-relaxed text-co-ink-2">
-          <Info size={16} className="mt-0.5 flex-none text-co-gold" />
-          <span>{HOLD_NOTICE}</span>
-        </p>
+        {/* A way out that isn't the back button. A patient who stalls at the
+            card field otherwise has nowhere to go, and abandoning here means
+            losing a questionnaire they have already finished.
 
-        <div className="my-6 h-px bg-co-line" />
-
-        <h2 className="text-lg font-semibold tracking-tight">Payment details</h2>
-
-        {/* Stripe's iframes mount into these. Labelled rather than bare boxes:
-            three unlabelled rectangles is a guessing game, and the security code
-            in particular gets mistaken for a PIN. */}
-        <div className={status === "boot" ? "hidden" : "mt-3 flex flex-col gap-3"}>
-          <div>
-            <span className={LABEL}>Card number</span>
-            <div ref={numberRef} className={FIELD} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <span className={LABEL}>Expiration date</span>
-              <div ref={expiryRef} className={FIELD} />
-            </div>
-            <div>
-              <span className={LABEL}>Security code</span>
-              <div ref={cvcRef} className={FIELD} />
-            </div>
-          </div>
-        </div>
-        {status === "boot" && (
-          <div className="flex items-center justify-center gap-2 py-10 text-sm text-co-muted">
-            <Loader2 size={15} className="animate-spin" />
-            Loading secure payment…
-          </div>
-        )}
-
-        {message && (
-          <p
-            role="alert"
-            className="mt-3 rounded-xl border border-co-error/20 bg-co-error/5 px-3.5 py-2.5 text-sm font-medium leading-relaxed text-co-error"
-          >
-            {message}
-          </p>
-        )}
-
-        {/* repricing: the chosen term has not reached the open payment yet, so
-            the total on screen is not what the card would be charged. */}
-        <button
-          type="submit"
-          disabled={status !== "ready" || repricing}
-          className="mt-5 flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-linear-to-b from-co-gold-hi to-co-gold-deep text-base font-semibold tracking-wide text-white shadow-lg shadow-co-gold-deep/25 transition hover:-translate-y-px hover:shadow-xl disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
-        >
-          {status === "paying" ? (
-            <>
-              <Loader2 size={18} className="animate-spin" />
-              <span className="opacity-80">Processing…</span>
-            </>
-          ) : (
-            <>
-              <Lock size={16} />
-              Pay {usd(total)}
-            </>
-          )}
-        </button>
-
-        {/* Under the button, where they are the last thing read before the card
-            goes in, rather than between the price and the fields. */}
-        <ul className="mt-5 grid gap-x-4 gap-y-2 sm:grid-cols-2">
-          {ASSURANCES.map((text) => (
-            <li key={text} className="flex items-start gap-2">
-              <Check size={14} className="mt-0.5 flex-none text-co-gold" />
-              <span className="text-xs leading-snug text-co-ink-2">{text}</span>
-            </li>
-          ))}
-        </ul>
-
-        <p className="mt-5 flex items-start justify-center gap-1.5 text-center text-xs leading-relaxed text-co-muted">
-          <Lock size={13} className="mt-0.5 flex-none" />
+            The policies open in a new tab on purpose: this usually sits inside
+            the intake sheet, and navigating away mid visit throws away answers
+            the patient has already given. */}
+        <div className="mt-10 flex flex-wrap justify-between gap-x-6 gap-y-3 border-t border-co-line pt-5 text-sm text-co-muted">
           <span>
-            Payments are processed by Stripe. Your card details are encrypted and never reach
-            NovaMDK. A receipt goes to the email address you gave us.
+            Questions before you pay?{" "}
+            <a
+              href="mailto:support@novamdk.com"
+              className="border-b border-co-line-2 text-co-ink-2 transition-colors hover:border-co-gold hover:text-co-gold"
+            >
+              support@novamdk.com
+            </a>
           </span>
-        </p>
+          <span className="flex gap-5">
+            {[
+              ["Terms of Service", "/legal/terms-and-conditions"],
+              ["Privacy Policy", "/legal/privacy-policy"],
+            ].map(([text, href]) => (
+              <a
+                key={href}
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                className="border-b border-co-line-2 text-co-ink-2 transition-colors hover:border-co-gold hover:text-co-gold"
+              >
+                {text}
+              </a>
+            ))}
+          </span>
+        </div>
       </div>
-
-      {/* A way out that isn't the back button. A patient who stalls at the card
-          field otherwise has nowhere to go, and abandoning here means losing a
-          questionnaire they have already finished. */}
-      <p className="mt-6 border-t border-co-line pt-5 text-sm text-co-muted">
-        Questions before you pay?{" "}
-        <a
-          href="mailto:support@novamdk.com"
-          className="border-b border-co-line-2 text-co-ink-2 transition-colors hover:border-co-gold hover:text-co-gold"
-        >
-          support@novamdk.com
-        </a>
-      </p>
 
       {/* The question mark on the total opens this.
           z-130, because the intake sheet this checkout usually sits inside is

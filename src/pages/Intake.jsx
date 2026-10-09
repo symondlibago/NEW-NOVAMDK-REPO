@@ -865,27 +865,67 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
   const usd = (n) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
   const sectionLabel = "font-mono text-[11px] font-medium uppercase tracking-[0.13em] text-muted";
   const canPay = status === "ready" && Boolean(quote);
+  /* The Stripe path owns the whole viewport, confirmation included. Dropping
+     back to a small dialog the moment the card went through was a jump from a
+     full screen cream page to a themed box, which read as a different site. */
+  const fullScreen = processor === "stripe";
 
+  /* The Stripe step takes the whole screen; every other state stays a centred
+     dialog over the dimmed questionnaire.
+
+     It is the one step that is a page rather than a prompt: it lays the plan
+     out beside the payment panel, and a dimmed questionnaire showing around the
+     edges of a payment screen reads as something that could be dismissed rather
+     than the step you are on. No tint and no blur there either, since nothing
+     shows through to tint. The checkout caps its own content at 1120px, so a
+     wide monitor gets a cream page, not a stretched form. */
   return (
-    <div className="fixed inset-0 z-120 flex items-end justify-center bg-ink/65 backdrop-blur-sm md:items-center md:p-6">
+    <div
+      className={`fixed inset-0 z-120 flex justify-center ${
+        fullScreen
+          ? "items-stretch"
+          : "items-end bg-ink/65 backdrop-blur-sm md:items-center md:p-6"
+      }`}
+    >
       {/* h-full on phones, where this is a sheet rather than a dialog. With
           only max-h-full it took the height of its content, which left the
           checkout as a short strip across the bottom two fifths of the screen
           with the dimmed questionnaire still showing above it: it read as a
           notification rather than as the step you are on. Desktop keeps the
           centred auto-height card. */}
-      <div className="flex h-full max-h-full w-full max-w-lg flex-col overflow-hidden bg-surface nv-shadow-lg md:h-auto md:rounded-3xl md:border md:border-line">
+      <div
+        className={`flex h-full max-h-full w-full flex-col overflow-hidden bg-surface ${
+          fullScreen
+            ? "max-w-none"
+            : "max-w-lg nv-shadow-lg md:h-auto md:rounded-3xl md:border md:border-line"
+        }`}
+      >
         {status === "done" ? (
-          /* m-auto, so this sits in the middle of the taller sheet rather than
-             at the top of a mostly empty one. */
-          <div className="m-auto flex flex-col items-center gap-3 px-6 py-14 text-center">
-            <CheckCircle2 size={44} className="text-primary" />
-            <h2 className="text-[1.25rem] font-bold">Payment received</h2>
-            {!submitted && (
-              <p className="text-[0.9rem] text-muted">
-                Finish any remaining screens and press Submit to send your request to a provider.
+          /* Continues the checkout rather than starting a new screen: same
+             cream page, same gold, same type. m-auto, so it sits in the middle
+             of the viewport rather than at the top of a mostly empty one.
+
+             Not "Payment received". The card is held at this step and the money
+             is only taken when a provider approves, so the old heading
+             contradicted the line the patient had agreed to one screen earlier,
+             on the very point they are most likely to ring up about. */
+          <div className="flex flex-1 flex-col bg-co-page px-6 py-12 font-checkout text-co-ink">
+            <div className="m-auto w-full max-w-md rounded-2xl border border-co-line bg-white p-8 text-center shadow-xl shadow-co-gold/5">
+              <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-linear-to-b from-co-gold-hi to-co-gold-deep shadow-lg shadow-co-gold-deep/30 ring-8 ring-co-tint">
+                <CheckCircle2 size={36} strokeWidth={2.4} className="text-white" />
+              </span>
+              <h2 className="mt-6 text-2xl font-semibold tracking-tight">
+                {submitted ? "Request submitted" : "You’re nearly done"}
+              </h2>
+              <p className="mt-2.5 text-sm leading-relaxed text-co-ink-2">
+                {submitted
+                  ? "A licensed provider will review your information."
+                  : "Finish any remaining screens and press Submit to send your request to a provider."}
+                {quote?.total
+                  ? ` You’ll only be charged ${usd(quote.total)} if your treatment is approved.`
+                  : ""}
               </p>
-            )}
+            </div>
           </div>
         ) : processor === "prepaid" ? (
           /* A month of a plan that has already been paid for. No card, no
