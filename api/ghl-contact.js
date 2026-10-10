@@ -10,6 +10,7 @@ import {
 } from "./_ghl.js";
 import { blocked } from "./_guard.js";
 import { checkHuman } from "./_turnstile.js";
+import { PRICES } from "./_prices.js";
 
 /* ------------------------------ contact form ----------------------------- */
 
@@ -112,6 +113,86 @@ async function contactForm(req, res) {
   }
 }
 
+/* ----------------------------- kiosk text-me ----------------------------- */
+
+/* "Text me the link" on the in-store kiosk (client approved, 2026-10-10). The
+   number is saved with a link to start the visit, then tagged; a GHL workflow
+   on that tag sends the text, so its wording and opt-outs live in GHL. Same
+   field-then-tag order as the contact form above.
+
+   The link names the product by id, never by name, so nothing about a
+   treatment reaches GHL from here. It is always built on the live site rather
+   than from the request's Origin: a forged Origin must not be able to put
+   another domain's link into a text sent from the clinic's number. */
+const TEXT_LINK_TAG = "kiosk-text-link";
+const SITE = "https://www.novamdk.com";
+const KIOSK_ID_RE = /^[a-z0-9-]{1,40}$/;
+
+/* At most three texts to one number in fifteen minutes on a warm instance,
+   on top of the per-IP limit, so the form can't be used to flood a stranger. */
+const TEXT_WINDOW_MS = 15 * 60_000;
+const TEXT_MAX = 3;
+const textsSent = new Map();
+function tooManyTexts(phone) {
+  const now = Date.now();
+  const recent = (textsSent.get(phone) || []).filter((t) => now - t < TEXT_WINDOW_MS);
+  if (recent.length >= TEXT_MAX) return true;
+  textsSent.set(phone, [...recent, now]);
+  if (textsSent.size > 5000) textsSent.clear();
+  return false;
+}
+
+async function kioskTextLink(req, res) {
+  const body = req.body || {};
+  const digits = String(body.phone || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+  const pid = String(body.pid || "");
+  const kiosk = KIOSK_ID_RE.test(body.kiosk || "") ? body.kiosk : null;
+  const consent = text(body.consent, 300);
+
+  if (digits.length !== 10 || !PRICES[pid] || !consent) {
+    return res.status(400).json({ ok: false, error: "invalid" });
+  }
+
+  const human = await checkHuman(req);
+  if (!human.ok) {
+    return res.status(403).json({ ok: false, error: "human_check_failed" });
+  }
+
+  if (!ghlConfigured()) {
+    console.warn("GHL env vars missing — kiosk text link could not be saved.");
+    return res.status(503).json({ ok: false, error: "not_configured" });
+  }
+
+  if (tooManyTexts(digits)) {
+    return res.status(429).json({ ok: false, error: "too_many" });
+  }
+
+  const params = new URLSearchParams({ start: "1", ...(kiosk && { from: kiosk }) });
+  const link = `${SITE}/product/${pid}?${params}`;
+
+  try {
+    const contact = await upsertContact({ patient: { phone_number: digits } });
+    if (!contact?.id) throw new Error("GHL returned no contact");
+
+    await updateContactFields(contact.id, { kiosk_link: link });
+
+    // The consent record: what the screen said, where, and when (the note's own date).
+    await addContactNote(contact.id, `Kiosk text-me${kiosk ? ` (${kiosk})` : ""}. Agreed to: "${consent}"`).catch((e) =>
+      console.error("Kiosk text-me note failed:", e.message)
+    );
+
+    // Removed first so a second request fires the workflow again.
+    await untagContact(contact.id, [TEXT_LINK_TAG]).catch(() => {});
+    await tagContact(contact.id, [TEXT_LINK_TAG]);
+
+    console.info(`Kiosk text-me saved for contact ${contact.id}`);
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error("Kiosk text-me failed:", e.message, e.details ?? "");
+    return res.status(502).json({ ok: false, error: "upstream_failed" });
+  }
+}
+
 /* -------------------------------- handler -------------------------------- */
 
 export default async function handler(req, res) {
@@ -120,12 +201,15 @@ export default async function handler(req, res) {
   }
 
   const isContactForm = req.body?.kind === "contact_form";
+  const isTextLink = req.body?.kind === "kiosk_text_link";
 
   /* Tighter for the public form: it's the one path here a stranger can post
-     free text to, and six messages a minute is already more than a person sends. */
-  if (blocked(req, res, isContactForm ? { max: 6 } : undefined)) return;
+     free text to, and six messages a minute is already more than a person sends.
+     The kiosk's text-me sends an SMS, so it gets the same limit. */
+  if (blocked(req, res, isContactForm || isTextLink ? { max: 6 } : undefined)) return;
 
   if (isContactForm) return contactForm(req, res);
+  if (isTextLink) return kioskTextLink(req, res);
 
   if (!ghlConfigured()) {
     console.warn("GHL env vars missing (GHL_API_TOKEN / GHL_LOCATION_ID) — skipping contact sync.");

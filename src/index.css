@@ -58,6 +58,20 @@
   --font-checkout: 'Inter', system-ui, sans-serif;
 }
 
+/* ---- Kiosk screens (/kiosk/home): the brass, cream and gold the site already
+   uses as one-off hex values, named so the kiosk can use plain utilities. ---- */
+@theme {
+  --color-ks-brass: #977E43;
+  --color-ks-brass-deep: #836C39;
+  --color-ks-heading: #725826;
+  --color-ks-cream: #F8E8C5;
+  --color-ks-panel: #A4854F;
+  --color-ks-panel-deep: #8F6F3C;
+  --color-ks-gold-hi: #D3B46A;
+  --color-ks-gold: #B08B34;
+  --color-ks-gold-lo: #6B511E;
+}
+
 /* ---- Runtime defaults (Slate & Stone · Grotesk · Medium). JS overrides these. ---- */
 :root {
   --nv-bg: #FFFFFF;

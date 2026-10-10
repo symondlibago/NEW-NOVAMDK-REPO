@@ -20,9 +20,10 @@ export default function KioskAttractLoop() {
   const isKiosk = useKioskMode();
   const navigate = useNavigate();
   // Suspend on the intake and portal pages: both run in a cross-origin iframe,
-  // whose touches never reach our window — the ad would fire mid-visit.
+  // whose touches never reach our window — the ad would fire mid-visit. The
+  // kiosk app under /kiosk/ runs its own standby film instead.
   const { pathname } = useLocation();
-  const suspended = pathname === "/intake" || pathname === "/portal";
+  const suspended = pathname === "/intake" || pathname === "/portal" || pathname.startsWith("/kiosk/");
   const [active, setActive] = useState(false);
   const activeRef = useRef(false);
   const timerRef = useRef(null);

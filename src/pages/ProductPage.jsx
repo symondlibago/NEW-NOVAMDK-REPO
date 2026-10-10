@@ -25,7 +25,7 @@ import {
 } from "../lib/kioskLocations";
 import { isBlockedState, availableInState } from "../lib/serviceArea";
 import KioskQr from "../components/kiosk/KioskQr";
-import { ComplianceBadges, CompoundedDisclaimer } from "../components/Compliance";
+import { ComplianceBadges, CompoundedDisclaimer, closingDisclaimer } from "../components/Compliance";
 import useKioskMode from "../lib/useKioskMode";
 import useLockBodyScroll from "../lib/useLockBodyScroll";
 import Turnstile, { turnstileOn } from "../components/Turnstile";
@@ -163,7 +163,11 @@ export default function ProductPage() {
   if (isHidden(product)) {
     return <Navigate to={isOtc(product) || product.categorySlug === "supplements" ? "/treatments" : `/treatments/${product.categorySlug}`} replace />;
   }
-  if (id !== productSlug(product)) return <Navigate to={productPath(product)} replace />;
+  /* The query rides along: a link by id (the kiosk's texted link) carries
+     ?start=1 and the kiosk's tag, and both have to reach the slug page. */
+  if (id !== productSlug(product)) {
+    return <Navigate to={`${productPath(product)}${search.size ? `?${search}` : ""}`} replace />;
+  }
 
   const categoryLabel = product.categoryName;
   const active = product;
@@ -713,12 +717,7 @@ const fmtCountdown = (s) => `${Math.floor(s / 60)}:${String(Math.max(0, s % 60))
  *
  * Legal to confirm the two it did not supply. */
 function ClosingDisclaimer({ product }) {
-  const name = product.name.split("—")[0].split("(")[0].split("/")[0].trim();
-  const body = isOtc(product)
-    ? `${name} is a dietary supplement, not a prescription medication. These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease. Individual outcomes may vary.`
-    : isCompounded(product)
-      ? `${name} is a compounded prescription medication and is not FDA-approved. It has not been reviewed by the FDA for safety, effectiveness, or quality. Eligibility and dosing are determined by a licensed healthcare provider. Individual outcomes may vary.`
-      : `${name} is a prescription medication. Eligibility and dosing are determined by a licensed healthcare provider. Individual outcomes may vary.`;
+  const body = closingDisclaimer(product);
 
   return (
     <section className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.5rem,5vw,4rem)] md:px-10">

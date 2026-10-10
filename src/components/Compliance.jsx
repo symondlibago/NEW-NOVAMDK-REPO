@@ -1,4 +1,5 @@
 import React from "react";
+import { isCompounded, isOtc } from "./data/products";
 const CHIP_LG = "gap-2 border-[#b47f2f]/45 px-3.5 py-1.5 text-[0.66rem] tracking-[0.1em] text-[#b47f2f]";
 const CHIP_SM =
   "gap-1 border-line px-2 py-0.5 text-[0.5rem] tracking-[0.08em] sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[0.58rem] sm:tracking-[0.1em]";
@@ -67,4 +68,16 @@ export function CompoundedDisclaimer({ className = "", tone = "muted" }) {
       </p>
     </div>
   );
+}
+
+/* The sentence that closes a product's safety information, chosen from the
+   catalogue's flags. See ClosingDisclaimer in ProductPage for why; the kiosk's
+   product screen reads it too. */
+export function closingDisclaimer(product) {
+  const name = product.name.split("—")[0].split("(")[0].split("/")[0].trim();
+  return isOtc(product)
+    ? `${name} is a dietary supplement, not a prescription medication. These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease. Individual outcomes may vary.`
+    : isCompounded(product)
+      ? `${name} is a compounded prescription medication and is not FDA-approved. It has not been reviewed by the FDA for safety, effectiveness, or quality. Eligibility and dosing are determined by a licensed healthcare provider. Individual outcomes may vary.`
+      : `${name} is a prescription medication. Eligibility and dosing are determined by a licensed healthcare provider. Individual outcomes may vary.`;
 }

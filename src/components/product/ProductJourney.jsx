@@ -11,7 +11,7 @@ import TreatmentCard from "../shop/TreatmentCard";
 /* Four brass panels rather than the old carousel: the comp shows every step at
    once, each with its cut-out standing on the panel floor and the caption over
    the photo's lower edge. */
-const STEPS = [
+export const STEPS = [
   {
     title: "Complete your medical intake",
     text: "Tell us about your health history, medications, and treatment goals",
