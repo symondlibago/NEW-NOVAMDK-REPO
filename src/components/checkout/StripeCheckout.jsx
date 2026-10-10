@@ -529,6 +529,14 @@ export default function StripeCheckout({
      were given rather than dividing it here: no money arithmetic in the
      browser, same rule the chooser follows. */
   const quoted = (quote?.terms || []).find((t) => t.months === planMonths) || null;
+  /* The term's saving, and the plan price before it, so the summary can show
+     the discount as a line that adds up: plan price, less the discount, is what
+     the card is charged. Both come from the quote for this term, and the one
+     sum here is display only: the charge is priced on the server. */
+  const saving = quoted?.saving > 0 ? quoted.saving : 0;
+  const listPrice = saving
+    ? Math.round((quoted.amount + saving) * 100) / 100
+    : quote?.amount ?? total;
   /* How the renewal reads in the authorisation: a one month plan renews every
      month, a longer one renews as a whole on its own cycle, at the same price. */
   const renewalText = planMonths === 1 ? "monthly" : `every ${planMonths} months`;
@@ -653,11 +661,10 @@ export default function StripeCheckout({
                 to show: a total with nothing above it reads like a number we
                 picked.
 
-                No saving row. The quote's amount is already the discounted
-                one, so a line subtracting the saving from it would take the
-                discount off twice and under-state what the card is charged.
-                The saving is on the plan row instead, where it is a reason to
-                pick that term rather than a step in a sum.
+                The discount sits under the plan (client, 2026-10-10), so on a
+                discounted term the plan price is the undiscounted one: the rows
+                then add up to the amount charged instead of taking the discount
+                off twice. A single month has no discount row, just its price.
 
                 No shipping row. The quote's second amount is a telehealth
                 consultation fee, not postage, so nothing here knows what
@@ -671,8 +678,14 @@ export default function StripeCheckout({
               </div>
               <div className="flex justify-between gap-3 py-1.5">
                 <dt className="min-w-0 truncate">Plan price</dt>
-                <dd className="shrink-0">{usd(quote?.amount ?? total)}</dd>
+                <dd className="shrink-0">{usd(listPrice)}</dd>
               </div>
+              {saving > 0 && (
+                <div className="flex justify-between gap-3 py-1.5 font-medium text-co-gold">
+                  <dt className="min-w-0 truncate">{planMonths}-month discount</dt>
+                  <dd className="shrink-0">&minus;{usd(saving)}</dd>
+                </div>
+              )}
               {hasFee && (
                 <div className="flex justify-between gap-3 py-1.5">
                   <dt>Telehealth consultation fee</dt>

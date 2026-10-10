@@ -33,9 +33,10 @@ const cadence = (months) =>
   months === 1 ? "Auto-renews every month" : `Auto-renews every ${months} months`;
 
 /* What the selected term actually commits them to, opened under the row they
-   picked. Every number is the server's: the saving and the per-month price are
-   quoted figures, not this file dividing a total by a month count. */
-const detailsFor = (t, base) => {
+   picked. Every number is the server's: the per-month price is a quoted figure,
+   not this file dividing a total by a month count. The saving is shown in the
+   order summary instead (client, 2026-10-10). */
+const detailsFor = (t) => {
   if (t.months === 1) {
     return [
       `${usd(t.total)} charged after approval`,
@@ -45,11 +46,8 @@ const detailsFor = (t, base) => {
   }
   return [
     `${usd(t.total)} charged once after approval (${usd(t.perMonth)}/month)`,
-    t.saving > 0 && typeof base === "number"
-      ? `${usd(t.saving)} less than ${t.months} months at ${usd(base)}/month`
-      : null,
     "Ships one month at a time, with a check-in before each refill",
-  ].filter(Boolean);
+  ];
 };
 
 export default function PlanTerms({ terms = [], months, onChange, disabled = false }) {
@@ -144,7 +142,7 @@ export default function PlanTerms({ terms = [], months, onChange, disabled = fal
 
               {on && (
                 <ul className="mx-4 mb-4 list-disc space-y-1 border-t border-co-line pt-3 pl-5 text-sm leading-relaxed text-co-ink-2 sm:mx-5 sm:mb-5">
-                  {detailsFor(t, base).map((line) => (
+                  {detailsFor(t).map((line) => (
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
