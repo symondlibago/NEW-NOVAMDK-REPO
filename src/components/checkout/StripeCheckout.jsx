@@ -529,10 +529,9 @@ export default function StripeCheckout({
      were given rather than dividing it here: no money arithmetic in the
      browser, same rule the chooser follows. */
   const quoted = (quote?.terms || []).find((t) => t.months === planMonths) || null;
-  /* How the renewal reads in the authorisation: a one month plan renews at its
-     own price every month, a longer one renews as a whole on its own cycle. */
-  const renewalText =
-    planMonths === 1 ? `${usd(total)} per month` : `${usd(total)} every ${planMonths} months`;
+  /* How the renewal reads in the authorisation: a one month plan renews every
+     month, a longer one renews as a whole on its own cycle, at the same price. */
+  const renewalText = planMonths === 1 ? "monthly" : `every ${planMonths} months`;
   const consent = renewalConsent({ charge: usd(total), renewal: renewalText });
   const payable = status === "ready" && !repricing && agreed;
 
@@ -806,15 +805,12 @@ export default function StripeCheckout({
               ) : (
                 <>
                   <Lock size={16} />
-                  Pay now
+                  Submit for Provider Review
                 </>
               )}
             </button>
 
-            <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-co-muted">
-              <Lock size={13} className="flex-none" />
-              Secure payment powered by Stripe
-            </p>
+            <p className="mt-3 text-center text-sm text-co-muted">Cancel anytime</p>
           </aside>
         </div>
 
@@ -824,8 +820,9 @@ export default function StripeCheckout({
 
             The policies open in a new tab on purpose: this usually sits inside
             the intake sheet, and navigating away mid visit throws away answers
-            the patient has already given. */}
-        <div className="mt-10 flex flex-wrap justify-between gap-x-6 gap-y-3 border-t border-co-line pt-5 text-sm text-co-muted">
+            the patient has already given. Centred while it stacks on a phone,
+            spread across the row once both halves fit side by side. */}
+        <div className="mt-10 flex flex-col items-center gap-y-3 border-t border-co-line pt-5 text-center text-sm text-co-muted md:flex-row md:justify-between md:gap-x-6 md:text-left">
           <span>
             Questions before you pay?{" "}
             <a
