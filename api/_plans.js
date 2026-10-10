@@ -26,7 +26,9 @@ import { PRICES } from "./_prices.js";
  *
  * Straight multiples until 2026-10-10 (the client's 2026-10-02 placeholder).
  * The client then set the 3 month term to 10% off, so a $149 month is $134 a
- * month on 3 months, $402 for the term. */
+ * month on 3 months, $402 for the term. A product whose catalogue entry sets
+ * price3 is priced at that total instead (fixedTerm, below), and one marked
+ * singleMonth is only sold on the 1 month term (termsOffered). */
 /* 1 and 3 only. John, 2026-10-03: "there's only 1 month and 3 months, no 2
    months." Adding a term back is a line here and nothing else: the chooser,
    the quote, the charge and the allowlist that validates what the browser
@@ -145,6 +147,24 @@ export function monthsFrom(value) {
   return Number.isInteger(n) && termFor(n) ? n : DEFAULT_MONTHS;
 }
 
+/* The terms a NEW checkout may offer for this product.
+ *
+ * singleMonth (client's pricing table, 2026-10-10) is applied here and not in
+ * quoteFor on purpose: a patient who bought 3 months before the product went
+ * single month still renews on the term they bought, and a renewal clamped to
+ * one month would be held for one month's money while plan_months said three. */
+export function termsOffered(pid) {
+  const item = PRICES[String(pid)];
+  if (!item) return [];
+  return planAllowed(item.amount) && !item.singleMonth ? PLAN_TERMS : PLAN_TERMS.slice(0, 1);
+}
+
+/** monthsFrom, narrowed to the terms this product is sold on at checkout. */
+export function checkoutMonths(pid, value) {
+  const months = monthsFrom(value);
+  return termsOffered(pid).some((t) => t.months === months) ? months : DEFAULT_MONTHS;
+}
+
 /* What one month costs on a given term.
  *
  * Rounded to the dollar on the discounted terms so the chooser reads "$152 a
@@ -180,7 +200,7 @@ export function quoteFor(pid, months = DEFAULT_MONTHS) {
      only in the chooser, since the chooser is in the browser. */
   const asked = planAllowed(item.amount) ? months : DEFAULT_MONTHS;
   const term = termFor(asked) || termFor(DEFAULT_MONTHS);
-  const priced = priceTerm(item.amount, term);
+  const priced = fixedTerm(item, term) || priceTerm(item.amount, term);
   return {
     ...priced,
     shipping: SHIPPING_FEE,
@@ -197,6 +217,22 @@ export function priceTerm(base, term) {
     perMonth,
     amount,
     saving: Math.round((base * term.months - amount) * 100) / 100,
+  };
+}
+
+/* A 3 month term the client priced outright (price3 in the catalogue) rather
+ * than as a discount off the month: Semaglutide $587, Tirzepatide $765.
+ *
+ * The per-month figure keeps its cents, $587 reads $195.67 a month, because
+ * rounding it to the dollar would show a monthly price that doesn't add back up
+ * to the total being charged. */
+function fixedTerm(item, term) {
+  if (term.months !== 3 || !item.amount3) return null;
+  return {
+    months: term.months,
+    perMonth: Math.round((item.amount3 / term.months) * 100) / 100,
+    amount: item.amount3,
+    saving: Math.round((item.amount * term.months - item.amount3) * 100) / 100,
   };
 }
 

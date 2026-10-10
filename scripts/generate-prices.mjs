@@ -24,10 +24,19 @@ for (const p of extractProducts({ includeHidden: true })) {
     skipped.push(p.id);
     continue;
   }
+  const amount3 = p.price3 ? Number(String(p.price3).replace(/[^0-9.]/g, "")) : null;
+  /* A 3 month price that doesn't parse, or that isn't a saving on three single
+     months, is a typo in the catalogue, and charging it would be worse than
+     failing the build. */
+  if (amount3 !== null && !(Number.isFinite(amount3) && amount3 > 0 && amount3 <= amount * 3)) {
+    throw new Error(`generate-prices: product ${p.id} has an unusable price3 "${p.price3}"`);
+  }
   // Rounded to cents here so the endpoint never has to think about floats.
   priced.push({
     id: p.id,
     amount: Math.round(amount * 100) / 100,
+    amount3: amount3 === null ? null : Math.round(amount3 * 100) / 100,
+    singleMonth: p.singleMonth,
     name: p.name,
     /* So the server can name a card the same way the browser does, which is
        "{category} - {product}". A later month of a plan opens its visit from
@@ -67,6 +76,8 @@ const body = priced
       `, categoryName: ${JSON.stringify(p.categoryName)}` +
       `, questionnaireId: ${JSON.stringify(p.questionnaireId)}` +
       (p.nextRung ? `, nextRung: ${p.nextRung}` : "") +
+      (p.amount3 ? `, amount3: ${p.amount3.toFixed(2)}` : "") +
+      (p.singleMonth ? `, singleMonth: true` : "") +
       ` },`
   )
   .join("\n");

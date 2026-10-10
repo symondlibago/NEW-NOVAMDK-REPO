@@ -47,6 +47,10 @@ export function extractProducts({ includeHidden = false } = {}) {
          decided server side. */
       questionnaireId: field(block, "questionnaireId"),
       nextRung: number(block, "nextRung"),
+      /* Per-product plan pricing (client's table, 2026-10-10), mirrored the same
+         way: a fixed 3 month total, and products sold one month at a time. */
+      price3: field(block, "price3"),
+      singleMonth: flag(block, "singleMonth"),
     };
   });
 
