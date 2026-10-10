@@ -567,8 +567,11 @@ export default function StripeCheckout({
               Review your treatment request
             </h1>
             <p className="mt-3 max-w-xl text-base leading-relaxed text-co-ink-2">
-              Choose your plan and add your payment details. A licensed provider will review your
-              information to determine whether treatment is appropriate.
+              {/* A product over the plan cap has one term and no chooser, so
+                  there is no plan to choose. */}
+              {quote?.terms?.length > 1 ? "Choose your plan and add" : "Add"} your payment details. A
+              licensed provider will review your information to determine whether treatment is
+              appropriate.
             </p>
 
             {/* The order, as a line in a basket rather than a hero. The product's
@@ -582,8 +585,11 @@ export default function StripeCheckout({
                 started renewing on their own. What it says now is the thing the
                 patient cannot infer from the price. */}
             <div className="mt-8 flex items-center gap-4 rounded-2xl border border-co-line bg-white p-4">
+              {/* A block box, not a grid cell: the grid's auto row grew to the
+                  photo's own height, so h-full never applied and tall bottles
+                  were cropped at the top and bottom. */}
               {image ? (
-                <span className="grid h-14 w-14 flex-none place-items-center overflow-hidden rounded-xl bg-co-tint sm:h-18 sm:w-18">
+                <span className="block h-16 w-16 flex-none overflow-hidden rounded-xl bg-co-tint sm:h-20 sm:w-20">
                   <img
                     src={image}
                     alt=""
@@ -707,7 +713,9 @@ export default function StripeCheckout({
                 take. The zero under it is the honest version of the same row. */}
             <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-co-line pt-4">
               <span className="flex min-w-0 items-center gap-1.5 font-medium">
-                <span className="min-w-0 truncate">Charged after approval</span>
+                {/* Wraps rather than truncating: on a phone the amount beside
+                    it left room for "Charged after a…" and nothing more. */}
+                <span className="min-w-0">Charged after approval</span>
                 {/* type=button, or it submits the form it sits in and tries to pay. */}
                 <button
                   type="button"
@@ -718,7 +726,7 @@ export default function StripeCheckout({
                   <HelpCircle size={15} />
                 </button>
               </span>
-              <strong className="flex-none text-2xl font-semibold tracking-tight">
+              <strong className="flex-none text-xl font-semibold tracking-tight sm:text-2xl">
                 {usd(total)}
               </strong>
             </div>
@@ -828,12 +836,9 @@ export default function StripeCheckout({
               Submitting a request does not guarantee a prescription.
             </p>
 
-            <p className="mt-5 flex items-start justify-center gap-1.5 text-center text-xs leading-relaxed text-co-muted">
-              <Lock size={13} className="mt-0.5 flex-none" />
-              <span>
-                Payments are processed by Stripe. Your card details are encrypted and never reach
-                NovaMDK. A receipt goes to the email address you gave us.
-              </span>
+            <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-co-muted">
+              <Lock size={13} className="flex-none" />
+              Secure payment powered by Stripe
             </p>
           </aside>
         </div>

@@ -21,22 +21,19 @@ import { PRICES } from "./_prices.js";
  * read it from here through /api/pay.
  */
 
-/* Straight multiples of the catalogue price: 2 months is twice, 3 months is
- * three times. Client's decision, 2026-10-02, and the right placeholder while
- * final prices are still unset, since any discount invented here would be a
- * number nobody agreed to.
+/* `off` is a fraction taken off the monthly price on that term. Everything
+ * else, the chooser, the quote, the charge and the receipt, reads it from here.
  *
- * `off` is a fraction taken off the monthly price on that term. All zero today.
- * When the client does want the longer terms to cost less, which is what hims,
- * IvyRx and ReadyRx all do, this is the one place to put it: everything else,
- * the chooser, the quote, the charge and the receipt, reads it from here. */
+ * Straight multiples until 2026-10-10 (the client's 2026-10-02 placeholder).
+ * The client then set the 3 month term to 10% off, so a $149 month is $134 a
+ * month on 3 months, $402 for the term. */
 /* 1 and 3 only. John, 2026-10-03: "there's only 1 month and 3 months, no 2
    months." Adding a term back is a line here and nothing else: the chooser,
    the quote, the charge and the allowlist that validates what the browser
    asked for all read this list. */
 export const PLAN_TERMS = [
   { months: 1, off: 0 },
-  { months: 3, off: 0 },
+  { months: 3, off: 0.1 },
 ];
 
 export const DEFAULT_MONTHS = 1;

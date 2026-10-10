@@ -114,14 +114,18 @@ export default function PlanTerms({ terms = [], months, onChange, disabled = fal
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2 text-base font-semibold text-co-ink">
                     {label(t.months)}
-                    {bestValue && t.months === bestValue.months ? (
-                      <span className="rounded-full bg-co-gold px-2.5 py-0.5 text-xs font-semibold text-white">
-                        Best value
-                      </span>
-                    ) : null}
+                    {/* One group, so on a phone the two badges drop below the
+                        name together rather than one per line. */}
                     {t.saving > 0 ? (
-                      <span className="rounded-full bg-co-tint px-2.5 py-0.5 text-xs font-semibold text-co-gold">
-                        Save {usd(t.saving)}
+                      <span className="flex gap-1.5 whitespace-nowrap">
+                        {bestValue && t.months === bestValue.months ? (
+                          <span className="rounded-full bg-co-gold px-2.5 py-0.5 text-xs font-semibold text-white">
+                            Best value
+                          </span>
+                        ) : null}
+                        <span className="rounded-full bg-co-tint px-2.5 py-0.5 text-xs font-semibold text-co-gold">
+                          Save {usd(t.saving)}
+                        </span>
                       </span>
                     ) : null}
                   </span>
