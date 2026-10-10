@@ -1,7 +1,9 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { FlaskConical, Lock, MessageSquareText, Stethoscope, Truck } from "lucide-react";
 import KioskTopBar from "./KioskTopBar";
 import KioskQr from "./KioskQr";
+import KioskFaq from "./KioskFaq";
+import KioskSiteSections from "./KioskSiteSections";
 import { ComplianceBadges, CompoundedDisclaimer, closingDisclaimer } from "../Compliance";
 import { STEPS } from "../product/ProductJourney";
 import { isCompounded, priceUnit } from "../data/products";
@@ -18,9 +20,13 @@ const ASSURANCES = [
 
 const SECTION_TITLE = "font-display text-3xl font-extrabold tracking-tight text-ks-heading lg:text-5xl";
 
-function QrDock({ card, locId, onTextMe }) {
+function QrDock({ card, locId, onTextMe, flash }) {
   return (
-    <div className="mx-8 flex flex-none items-center gap-6 rounded-3xl bg-panel p-6 text-on-panel lg:mx-16 lg:gap-10 lg:p-9">
+    <div
+      className={`mx-8 flex flex-none items-center gap-6 rounded-3xl bg-panel p-6 text-on-panel ring-ks-gold-hi transition-shadow duration-300 lg:mx-16 lg:gap-10 lg:p-9 ${
+        flash ? "ring-8" : "ring-0"
+      }`}
+    >
       <div className="flex min-w-0 flex-1 flex-col gap-3 lg:gap-4">
         <span className="font-display text-3xl font-extrabold leading-tight text-white lg:text-5xl">Scan to start your visit</span>
         <span className="text-lg leading-snug text-on-panel/80 lg:text-2xl">
@@ -80,7 +86,17 @@ function Hero({ card }) {
 
 export default function KioskProduct({ cards, card, locId, onSelect, onTextMe, onBack, onStartOver }) {
   const p = card.product;
-  const mechanism = p.mechanism;
+
+  /* A tap on one of the site's own buttons lights the code instead, since the
+     visit starts on the patient's phone, not here. */
+  const [flash, setFlash] = useState(false);
+  const flashTimer = useRef(null);
+  const pointToQr = () => {
+    setFlash(true);
+    clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlash(false), 1600);
+  };
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
 
   /* Counted once per product the kiosk shows a code for, like the product
      page's QR modal. The id stands in for the name. */
@@ -114,85 +130,76 @@ export default function KioskProduct({ cards, card, locId, onSelect, onTextMe, o
         </nav>
       )}
 
-      <QrDock card={card} locId={locId} onTextMe={onTextMe} />
+      <QrDock card={card} locId={locId} onTextMe={onTextMe} flash={flash} />
       <p className="flex-none py-3 text-center text-base text-muted lg:py-4 lg:text-xl">Scroll for details. The code stays here.</p>
 
-      <main key={card.key} data-lenis-prevent className="flex-1 space-y-12 overflow-y-auto px-8 pb-16 lg:space-y-16 lg:px-16 lg:pb-24">
-        <Hero card={card} />
+      <main key={card.key} data-lenis-prevent className="flex-1 overflow-y-auto pb-16 lg:pb-24">
+        <div className="space-y-12 px-8 lg:space-y-16 lg:px-16">
+          <Hero card={card} />
 
-        <section className="grid grid-cols-3 gap-4 lg:gap-6">
-          {ASSURANCES.map(({ icon, label }) => (
-            <div key={label} className="flex flex-col items-center gap-3 rounded-2xl bg-surface-2 px-4 py-6 text-center lg:py-8">
-              {icon}
-              <span className="text-lg font-semibold leading-snug text-ink lg:text-2xl">{label}</span>
-            </div>
-          ))}
-        </section>
-
-        {card.program && (
-          <section>
-            <h3 className={SECTION_TITLE}>{card.program.blends.length > 1 ? "Formulations" : "Formulation"}</h3>
-            <ul className="mt-5 space-y-3">
-              {card.program.blends.map((b) => (
-                <li key={b.slug} className="flex flex-wrap items-baseline justify-between gap-x-4 rounded-2xl border-2 border-line px-6 py-5">
-                  <span className="text-xl font-bold text-ink lg:text-3xl">{b.name}</span>
-                  <span className="text-lg text-muted lg:text-2xl">{b.note}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {mechanism?.timeline && (
-          <section>
-            <h3 className={SECTION_TITLE}>{mechanism.timelineTitle}</h3>
-            {mechanism.description && <p className="mt-3 text-lg leading-relaxed text-muted lg:text-2xl">{mechanism.description}</p>}
-            <ol className="mt-6 space-y-5">
-              {mechanism.timeline.map((step, i) => (
-                <li key={step.label} className="flex gap-5">
-                  <span className="grid size-12 flex-none place-items-center rounded-full bg-ks-brass text-xl font-bold text-white lg:size-14 lg:text-2xl">
-                    {i + 1}
-                  </span>
-                  <span className="pt-1">
-                    <span className="block text-xl font-bold text-ink lg:text-3xl">{step.label}</span>
-                    <span className="mt-1 block text-lg leading-snug text-muted lg:text-2xl">{step.text}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
-
-        <section>
-          <h3 className={SECTION_TITLE}>Getting started</h3>
-          <p className="mt-3 text-lg text-muted lg:text-2xl">Scan the code at the top and the rest happens on your phone.</p>
-          <div className="mt-6 grid grid-cols-2 gap-4 lg:gap-6">
-            {STEPS.map((step, i) => (
-              <div key={step.title} className="relative flex min-h-96 flex-col overflow-hidden rounded-3xl bg-linear-to-br from-ks-panel to-ks-panel-deep p-6 lg:min-h-112 lg:p-8">
-                <span className="relative z-10 font-mono text-sm uppercase tracking-widest text-ks-cream/70 lg:text-lg">Step {i + 1}</span>
-                <span className="relative z-10 mt-2 font-display text-2xl font-bold leading-tight text-ks-cream lg:text-4xl">{step.title}</span>
-                <span className="relative z-10 mt-2 max-w-4/5 text-base leading-snug text-ks-cream/80 lg:text-xl">{step.text}</span>
-                <img src={step.img} alt="" aria-hidden="true" className="absolute bottom-0 right-0 h-2/5 w-auto object-contain" />
+          <section className="grid grid-cols-3 gap-4 lg:gap-6">
+            {ASSURANCES.map(({ icon, label }) => (
+              <div key={label} className="flex flex-col items-center gap-3 rounded-2xl bg-surface-2 px-4 py-6 text-center lg:py-8">
+                {icon}
+                <span className="text-lg font-semibold leading-snug text-ink lg:text-2xl">{label}</span>
               </div>
             ))}
-          </div>
-        </section>
+          </section>
 
-        {isCompounded(p) && (
-          <section className="flex gap-4 rounded-3xl border border-line bg-surface-2/60 p-6 lg:p-8">
-            <FlaskConical className="size-7 flex-none text-primary lg:size-9" />
-            <div>
-              <h4 className="font-mono text-sm font-semibold uppercase tracking-widest text-ink lg:text-lg">Compounded drug notice</h4>
-              <CompoundedDisclaimer className="mt-2 lg:text-lg" />
+          {card.program && (
+            <section>
+              <h3 className={SECTION_TITLE}>{card.program.blends.length > 1 ? "Formulations" : "Formulation"}</h3>
+              <ul className="mt-5 space-y-3">
+                {card.program.blends.map((b) => (
+                  <li key={b.slug} className="flex flex-wrap items-baseline justify-between gap-x-4 rounded-2xl border-2 border-line px-6 py-5">
+                    <span className="text-xl font-bold text-ink lg:text-3xl">{b.name}</span>
+                    <span className="text-lg text-muted lg:text-2xl">{b.note}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+
+        {/* The product page's own sections, full width as on the site. */}
+        <div className="my-12 lg:my-16">
+          <KioskSiteSections product={p} onLink={pointToQr} />
+        </div>
+
+        <div className="space-y-12 px-8 lg:space-y-16 lg:px-16">
+          <KioskFaq product={p} />
+
+          <section>
+            <h3 className={SECTION_TITLE}>Getting started</h3>
+            <p className="mt-3 text-lg text-muted lg:text-2xl">Scan the code at the top and the rest happens on your phone.</p>
+            <div className="mt-6 grid grid-cols-2 gap-4 lg:gap-6">
+              {STEPS.map((step, i) => (
+                <div key={step.title} className="relative flex min-h-96 flex-col overflow-hidden rounded-3xl bg-linear-to-br from-ks-panel to-ks-panel-deep p-6 lg:min-h-112 lg:p-8">
+                  <span className="relative z-10 font-mono text-sm uppercase tracking-widest text-ks-cream/70 lg:text-lg">Step {i + 1}</span>
+                  <span className="relative z-10 mt-2 font-display text-2xl font-bold leading-tight text-ks-cream lg:text-4xl">{step.title}</span>
+                  <span className="relative z-10 mt-2 max-w-4/5 text-base leading-snug text-ks-cream/80 lg:text-xl">{step.text}</span>
+                  <img src={step.img} alt="" aria-hidden="true" className="absolute bottom-0 right-0 h-2/5 w-auto object-contain" />
+                </div>
+              ))}
             </div>
           </section>
-        )}
 
-        <section>
-          <h3 className="font-display text-xl font-bold text-ink lg:text-3xl">Important safety information</h3>
-          {p.safety && <p className="mt-3 text-base leading-relaxed text-muted lg:text-xl">{p.safety}</p>}
-          <p className="mt-3 text-base leading-relaxed text-muted lg:text-xl">{closingDisclaimer(p)}</p>
-        </section>
+          {isCompounded(p) && (
+            <section className="flex gap-4 rounded-3xl border border-line bg-surface-2/60 p-6 lg:p-8">
+              <FlaskConical className="size-7 flex-none text-primary lg:size-9" />
+              <div>
+                <h4 className="font-mono text-sm font-semibold uppercase tracking-widest text-ink lg:text-lg">Compounded drug notice</h4>
+                <CompoundedDisclaimer className="mt-2 lg:text-lg" />
+              </div>
+            </section>
+          )}
+
+          <section>
+            <h3 className="font-display text-xl font-bold text-ink lg:text-3xl">Important safety information</h3>
+            {p.safety && <p className="mt-3 text-base leading-relaxed text-muted lg:text-xl">{p.safety}</p>}
+            <p className="mt-3 text-base leading-relaxed text-muted lg:text-xl">{closingDisclaimer(p)}</p>
+          </section>
+        </div>
       </main>
     </div>
   );
