@@ -16,7 +16,7 @@ export default function KioskTopBar({ onBack, backLabel = "Back", onStartOver })
           </button>
         )}
       </div>
-      <img src="/logo-2026.png" alt="Nova MDK" className="h-10 w-auto justify-self-center lg:h-14" />
+      <img src="/logo-2026.png" alt="Nova MDK" className="h-16 w-auto justify-self-center lg:h-24" />
       <div className="justify-self-end">
         {onStartOver && (
           <button type="button" onClick={onStartOver} className={PILL}>

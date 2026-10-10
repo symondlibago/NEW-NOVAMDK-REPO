@@ -38,8 +38,9 @@ export default function KioskScreen() {
   useEffect(() => setLocId(readKioskLocation()), []);
 
   /* Back to the film after two minutes untouched, so the next person never
-     lands on someone else's screen. Capture phase, so scrolls inside the
-     screens' own panes count too. */
+     lands on someone else's screen. Start over only goes back to the goals:
+     someone pressing it is still at the kiosk. Capture phase, so scrolls
+     inside the screens' own panes count too. */
   const timer = useRef(null);
   useEffect(() => {
     if (view.screen === "standby") return undefined;
@@ -66,10 +67,10 @@ export default function KioskScreen() {
   let screen;
   switch (view.screen) {
     case "goals":
-      screen = <KioskGoals onPick={(slug) => toCategory(slug)} onQuiz={() => go({ screen: "quiz" })} onStartOver={reset} />;
+      screen = <KioskGoals onPick={(slug) => toCategory(slug)} onQuiz={() => go({ screen: "quiz" })} />;
       break;
     case "quiz":
-      screen = <KioskQuiz onDone={toCategory} onBack={toGoals} onStartOver={reset} />;
+      screen = <KioskQuiz onDone={toCategory} onBack={toGoals} onStartOver={toGoals} />;
       break;
     case "category":
       screen = (
@@ -79,7 +80,7 @@ export default function KioskScreen() {
           form={view.form}
           onOpen={toProduct}
           onBack={toGoals}
-          onStartOver={reset}
+          onStartOver={toGoals}
         />
       );
       break;
@@ -92,7 +93,7 @@ export default function KioskScreen() {
           onSelect={toProduct}
           onTextMe={() => go({ ...view, screen: "text" })}
           onBack={() => go({ ...view, screen: "category" })}
-          onStartOver={reset}
+          onStartOver={toGoals}
         />
       );
       break;
@@ -102,8 +103,8 @@ export default function KioskScreen() {
           card={card}
           locId={locId}
           onBack={() => go({ ...view, screen: "product" })}
-          onDone={reset}
-          onStartOver={reset}
+          onDone={toGoals}
+          onStartOver={toGoals}
         />
       );
       break;
