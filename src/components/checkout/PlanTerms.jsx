@@ -1,4 +1,4 @@
-import { Truck } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 /* How many months the patient is buying, chosen at checkout.
  *
@@ -154,13 +154,15 @@ export default function PlanTerms({ terms = [], months, onChange, disabled = fal
         })}
       </div>
 
-      {/* No "pay today" here any more: checkout places a hold and the money is
-          only taken once a provider approves, so the old line said the one
-          thing on this screen that was not true. */}
+      {/* How renewal works, under the choice it follows from. No "pay today":
+          checkout places a hold and the money is only taken once a provider
+          approves. */}
       <p className="mt-4 flex gap-2.5 text-sm leading-relaxed text-co-ink-2">
-        <Truck size={16} className="mt-0.5 flex-none text-co-gold" />
+        <RefreshCw size={16} className="mt-0.5 flex-none text-co-gold" />
         <span>
-          Your treatment ships one month at a time. Complete a short check-in before each refill.
+          Your plan auto-renews at the frequency you choose above. Before each refill, you&rsquo;ll
+          complete a short check-in so your provider can confirm you&rsquo;re happy with your
+          dosage and treatment.
         </span>
       </p>
     </div>

@@ -462,7 +462,7 @@ export default function StripeCheckout({
   if (status === "dead") {
     return (
       <div className={STATE}>
-        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start" />
+        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start md:h-11" />
         <div className={`m-auto mt-8 w-full text-center ${CARD}`}>
           <p className="text-base font-semibold text-co-error">
             We couldn&rsquo;t load the secure card form.
@@ -479,7 +479,7 @@ export default function StripeCheckout({
   if (status === "done") {
     return (
       <div className={STATE}>
-        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start" />
+        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start md:h-11" />
         {/* Not "Payment received": the card is held here and only charged once
             a provider approves, so that heading contradicted the line the
             patient agreed to on the screen before.
@@ -536,22 +536,14 @@ export default function StripeCheckout({
   const consent = renewalConsent({ charge: usd(total), renewal: renewalText });
   const payable = status === "ready" && !repricing && agreed;
 
-  /* The product page's own highlights, not copy written for the checkout. They
-     are already cleared for public use and already what the patient read on the
-     way here, so the last screen cannot end up claiming something different. */
-  const highlights = (product?.highlights || [])
-    .map((h) => h?.text)
-    .filter(Boolean)
-    .slice(0, 3);
-
   return (
     <form onSubmit={pay} className={`flex-1 font-checkout text-co-ink ${SHELL}`}>
-      {/* One column until there is genuinely room for two. The intake sheet
-          widens to match at the payment step; below lg, and inside any narrower
-          host, this stacks in the same order it always did. */}
+      {/* One column on phones, two from tablet width up: the treatment and plan
+          on the left, the price and card on the right. Even halves until lg,
+          where the plan side takes the wider share. */}
       <div className="mx-auto w-full max-w-6xl">
         <div className="flex items-center justify-between gap-4">
-          <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto" />
+          <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto md:h-11" />
           <span className="flex items-center gap-1.5 text-sm text-co-muted">
             <Lock size={14} />
             Secure checkout
@@ -560,7 +552,7 @@ export default function StripeCheckout({
 
         {/* items-start, or the panel cannot stick: a stretched grid item is as
             tall as the row, which leaves the sticky box nowhere to travel. */}
-        <div className="mt-7 grid items-start gap-8 lg:grid-cols-5 lg:gap-12">
+        <div className="mt-7 grid items-start gap-8 md:grid-cols-2 lg:grid-cols-5 lg:gap-12">
           {/* ---------- What they are buying ---------- */}
           <section className="min-w-0 lg:col-span-3">
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -615,19 +607,6 @@ export default function StripeCheckout({
               </div>
             </div>
 
-            {highlights.length > 0 && (
-              <ul className="mt-3 flex flex-wrap gap-1.5">
-                {highlights.map((text) => (
-                  <li
-                    key={text}
-                    className="rounded-full bg-co-tint px-2.5 py-0.5 text-xs font-medium text-co-ink-2"
-                  >
-                    {text}
-                  </li>
-                ))}
-              </ul>
-            )}
-
             <PlanTerms
               terms={quote?.terms}
               months={months}
@@ -641,7 +620,7 @@ export default function StripeCheckout({
             {/* Moved out of the payment panel and into the space beside it. Same
                 four lines, read before the card rather than under the button,
                 and they stop the left column running out halfway down. */}
-            <ul className="mt-7 grid gap-x-5 gap-y-2.5 sm:grid-cols-2">
+            <ul className="mt-7 grid gap-x-5 gap-y-2.5 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
               {ASSURANCES.map((text) => (
                 <li key={text} className="flex items-start gap-2">
                   <Check size={15} className="mt-0.5 flex-none text-co-gold" />
@@ -652,7 +631,7 @@ export default function StripeCheckout({
           </section>
 
           {/* ---------- What it costs, and the card ---------- */}
-          <aside className={`min-w-0 lg:sticky lg:top-6 lg:col-span-2 ${CARD}`}>
+          <aside className={`min-w-0 md:sticky md:top-6 lg:col-span-2 ${CARD}`}>
             <h2 className="text-lg font-semibold tracking-tight">Order summary</h2>
 
             {/* The headline figure is the per-month price when the quote gives
@@ -726,7 +705,7 @@ export default function StripeCheckout({
                   <HelpCircle size={15} />
                 </button>
               </span>
-              <strong className="flex-none text-xl font-semibold tracking-tight sm:text-2xl">
+              <strong className="flex-none text-xl font-semibold tracking-tight lg:text-2xl">
                 {usd(total)}
               </strong>
             </div>
@@ -827,16 +806,12 @@ export default function StripeCheckout({
               ) : (
                 <>
                   <Lock size={16} />
-                  Submit treatment request
+                  Pay now
                 </>
               )}
             </button>
 
-            <p className="mt-3 text-center text-xs text-co-muted">
-              Submitting a request does not guarantee a prescription.
-            </p>
-
-            <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-co-muted">
+            <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-co-muted">
               <Lock size={13} className="flex-none" />
               Secure payment powered by Stripe
             </p>
