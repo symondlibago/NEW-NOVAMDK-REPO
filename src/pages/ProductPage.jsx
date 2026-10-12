@@ -38,6 +38,7 @@ import ProductJourney from "../components/product/ProductJourney";
 import ProductWhy from "../components/product/ProductWhy";
 import ProductRelated from "../components/product/ProductRelated";
 import { SafetySheet } from "../components/product/ProductSafety";
+import ProductStickyStart from "../components/product/ProductStickyStart";
 import NadSupport from "../components/product/NadSupport";
 import NadDirected from "../components/product/NadDirected";
 import NadSublingual from "../components/product/NadSublingual";
@@ -122,6 +123,8 @@ export default function ProductPage() {
      step. A ref, not state: it only travels on the next request and never
      renders anything. */
   const humanPass = useRef(null);
+  /* The hero's start button, watched by the pinned one on phones. */
+  const heroCta = useRef(null);
 
   useEffect(() => {
     if (!product || isKiosk) return;
@@ -445,6 +448,7 @@ export default function ProductPage() {
               {/* Highlights moved down into the "What this supports" section, so
                   the hero stays on one job: what it is, what it costs, start. */}
 
+              <div ref={heroCta}>
               {otc ? (
                 /* No prescription, so no intake — the care team handles retail orders. */
                 <Link
@@ -473,6 +477,7 @@ export default function ProductPage() {
                   )}
                 </button>
               )}
+              </div>
               {err && !isKiosk && <p className="mt-2 text-center text-[0.84rem] font-medium text-primary">{err}</p>}
               {/* Straight under the button, as on hims.com (client, 2026-10-12).
                   It is the page's only way into Important Safety Information:
@@ -672,6 +677,20 @@ export default function ProductPage() {
             ))}
           </div>
         </section>
+      )}
+
+      {!isKiosk && (
+        <ProductStickyStart
+          anchor={heroCta}
+          name={product.heroTitle || primaryName(product)}
+          price={`${active.price}${priceUnit(active)}`}
+          note={active.priceNote}
+          fromPrice={!active.exactPrice}
+          cta={otc ? "Ask about it" : "Start Consultation"}
+          to={otc ? "/contact" : undefined}
+          onStart={() => setShowInfo(true)}
+          loading={loading}
+        />
       )}
 
       {/* Important Safety Information lives in this panel only, opened from
