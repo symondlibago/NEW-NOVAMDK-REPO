@@ -14,6 +14,7 @@ const BAND = "radial-gradient(circle at 30% 40%, #c1a27a, #9a7843)";
 const DARK = "linear-gradient(160deg, #3a2f1f 0%, #2a2217 55%, #1f1a12 100%)";
 const CREAM = "#ffe8b1";
 const GROUND = "#fbfaf7";
+const SAND = "linear-gradient(160deg, #f6eee1 0%, #efe3cf 100%)";
 const TITLE = "font-display font-extrabold leading-[1.1]";
 const H2 = `${TITLE} text-[clamp(1.7rem,3.4vw,2.5rem)] text-[#725826]`;
 const CARD_R = "rounded-[calc(24px*var(--nv-r-scale,1))]";
@@ -110,24 +111,24 @@ function Compare({ product, startTo }) {
   );
 }
 
-/* 2. BMI: the reference carries a calculator on the product page. The site's
-   own widget, as on the weight loss page. */
+/* 2. BMI: the reference carries a calculator on the product page, set in one
+   clean card of its own. The site's widget in its frameless layout, in a card
+   as wide as the price card below (client, 2026-10-12). */
 
 function Bmi() {
   return (
-    <section className="pb-[clamp(2.75rem,6vw,5.5rem)]">
-      <div className="mx-auto max-w-[1180px] px-5 md:px-10">
-        <Reveal as="div" className="mx-auto max-w-[46ch] text-center">
-          <span className="nv-eyebrow">Weight loss calculator</span>
-          <h2 className={`${H2} mx-auto mt-3`}>Check Your BMI</h2>
-          <p className="mt-4 text-[1rem] leading-relaxed text-muted">
-            BMI uses your height and weight. It is one of the things a provider looks at, not the whole picture.
-          </p>
-        </Reveal>
-        <Reveal as="div" delay={0.06} className="mx-auto mt-9 max-w-4xl">
-          <BmiCalculator />
-        </Reveal>
-      </div>
+    <section className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.75rem,6vw,5.5rem)] md:px-10">
+      <Reveal as="div">
+        <div className={`px-6 py-9 sm:px-10 sm:py-12 lg:px-14 ${CARD_R}`} style={{ background: SAND }}>
+          <BmiCalculator variant="panel">
+            <span className="nv-eyebrow">Weight loss calculator</span>
+            <h2 className={`${H2} mt-3`}>Check Your BMI</h2>
+            <p className="mt-4 max-w-[44ch] text-[1rem] leading-relaxed text-muted">
+              BMI uses your height and weight. It is one of the things a provider looks at, not the whole picture.
+            </p>
+          </BmiCalculator>
+        </div>
+      </Reveal>
     </section>
   );
 }

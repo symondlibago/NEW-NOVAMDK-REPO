@@ -163,7 +163,12 @@ function SliderField({ id, label, value, display, min, max, onChange, minLabel, 
 
 /* -------------------------------- component ------------------------------- */
 
-export default function BmiCalculator({ className = "" }) {
+/* Two looks. "card" is the framed widget the weight loss page carries.
+   "panel" (product pages, client 2026-10-12, after goodlifemeds.com) drops the
+   frame and the rules between parts, so the page can set it inside a card of
+   its own: inputs on the left under whatever `children` passes in as the
+   heading, the reading on the right. */
+export default function BmiCalculator({ className = "", variant = "card", children }) {
   const [cm, setCm] = useState(DEFAULT_CM);
   const [kg, setKg] = useState(DEFAULT_KG);
 
@@ -186,6 +191,113 @@ export default function BmiCalculator({ className = "" }) {
 
   if (!result) return null;
 
+  const panel = variant === "panel";
+
+  const height = (
+    <SliderField
+      id="bmi-height-in" label="Height"
+      value={clamp(heightIn, RANGE.heightIn)} display={feetInches(clamp(heightIn, RANGE.heightIn))}
+      min={RANGE.heightIn.min} max={RANGE.heightIn.max}
+      minLabel={feetInches(RANGE.heightIn.min)} maxLabel={feetInches(RANGE.heightIn.max)}
+      onChange={(v) => setCm(v * IN_TO_CM)}
+      className={panel ? "" : "sm:pr-9"}
+    />
+  );
+  const weight = (
+    <SliderField
+      id="bmi-weight-lb" label="Current weight"
+      value={clamp(weightLb, RANGE.weightLb)} display={`${clamp(weightLb, RANGE.weightLb)} lb`}
+      min={RANGE.weightLb.min} max={RANGE.weightLb.max}
+      minLabel={`${RANGE.weightLb.min} lb`} maxLabel={`${RANGE.weightLb.max} lb`}
+      onChange={(v) => setKg(v * LB_TO_KG)}
+      className={panel ? "" : "sm:border-l sm:border-line sm:pl-9"}
+    />
+  );
+  const privacy = (
+    <p className="mt-6 flex items-center gap-2 text-[0.82rem] leading-relaxed text-muted">
+      <Lock size={13} className="shrink-0 text-primary/70" />
+      Your inputs are private and stay in your browser.
+    </p>
+  );
+  const bands = (
+    <ul className="flex flex-col gap-1.5">
+      {BANDS.map((b) => {
+        const on = b.key === result.band.key;
+        const Icon = b.icon;
+        return (
+          <li
+            key={b.key}
+            className="flex items-center gap-3 rounded-[calc(12px*var(--nv-r-scale,1))] px-3.5 py-2.5 transition-colors duration-300"
+            style={on ? { background: `color-mix(in oklab, ${b.color} 13%, var(--nv-surface))` } : undefined}
+          >
+            {/* The lit row trades its glyph for a filled bead, which is
+                what makes "you are here" readable at a glance. */}
+            <span className="grid h-4 w-4 shrink-0 place-items-center">
+              {on ? (
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} />
+              ) : (
+                <Icon size={15} strokeWidth={1.6} className="text-muted" />
+              )}
+            </span>
+            <span
+              className={`min-w-0 flex-1 text-[0.9rem] ${on ? "font-semibold" : "text-ink"}`}
+              style={on ? { color: b.color } : undefined}
+            >
+              {b.label}
+            </span>
+            <span
+              className="shrink-0 font-mono text-[0.72rem] tabular-nums"
+              style={{ color: on ? b.color : "var(--nv-muted)" }}
+            >
+              {b.range}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+  const note = (
+    <p
+      className={`mt-3 flex items-start gap-2.5 text-[0.82rem] leading-relaxed text-muted ${
+        panel ? "px-3.5" : "rounded-[calc(12px*var(--nv-r-scale,1))] bg-surface-2 px-3.5 py-3"
+      }`}
+    >
+      <Info size={14} className="mt-0.5 shrink-0 text-primary/70" />
+      BMI is a screening tool. Treatment eligibility is determined by a licensed provider.
+    </p>
+  );
+  const cta = (
+    <Link
+      to="/start/weight-loss"
+      onClick={onSeeOptions}
+      className="group flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-3.5 text-[0.95rem] font-semibold text-on-primary transition-all hover:-translate-y-0.5 nv-shadow"
+    >
+      {result.mayQualify ? "See my treatment options" : "Talk to a provider"}
+      <ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5" />
+    </Link>
+  );
+
+  if (panel) {
+    return (
+      <div className={`grid gap-10 lg:grid-cols-2 lg:gap-14 ${className}`}>
+        <div>
+          {children}
+          <div className="mt-8 grid gap-7">
+            {height}
+            {weight}
+          </div>
+          {privacy}
+        </div>
+        <div aria-live="polite">
+          <Dial bmi={result.bmi} band={result.band} />
+          <div className="mt-6">{bands}</div>
+          {note}
+          <div className="mt-6 flex sm:justify-end">{cta}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`overflow-hidden rounded-[calc(24px*var(--nv-r-scale,1))] border border-line bg-surface nv-shadow ${className}`}
@@ -198,28 +310,11 @@ export default function BmiCalculator({ className = "" }) {
             outlive the layout: below sm the pair stacks and it simply does not
             apply. */}
         <div className="mt-5 grid gap-6 sm:grid-cols-2 sm:gap-x-0">
-          <SliderField
-            id="bmi-height-in" label="Height"
-            value={clamp(heightIn, RANGE.heightIn)} display={feetInches(clamp(heightIn, RANGE.heightIn))}
-            min={RANGE.heightIn.min} max={RANGE.heightIn.max}
-            minLabel={feetInches(RANGE.heightIn.min)} maxLabel={feetInches(RANGE.heightIn.max)}
-            onChange={(v) => setCm(v * IN_TO_CM)}
-            className="sm:pr-9"
-          />
-          <SliderField
-            id="bmi-weight-lb" label="Current weight"
-            value={clamp(weightLb, RANGE.weightLb)} display={`${clamp(weightLb, RANGE.weightLb)} lb`}
-            min={RANGE.weightLb.min} max={RANGE.weightLb.max}
-            minLabel={`${RANGE.weightLb.min} lb`} maxLabel={`${RANGE.weightLb.max} lb`}
-            onChange={(v) => setKg(v * LB_TO_KG)}
-            className="sm:border-l sm:border-line sm:pl-9"
-          />
+          {height}
+          {weight}
         </div>
 
-        <p className="mt-6 flex items-center gap-2 text-[0.82rem] leading-relaxed text-muted">
-          <Lock size={13} className="shrink-0 text-primary/70" />
-          Your inputs are private and stay in your browser.
-        </p>
+        {privacy}
       </div>
 
       {/* ------------------------------ reading ------------------------------
@@ -235,60 +330,13 @@ export default function BmiCalculator({ className = "" }) {
         </div>
 
         <div className="px-6 pb-7 pt-4 md:border-l md:border-line md:px-9 md:py-7">
-          <ul className="flex flex-col gap-1.5">
-            {BANDS.map((b) => {
-              const on = b.key === result.band.key;
-              const Icon = b.icon;
-              return (
-                <li
-                  key={b.key}
-                  className="flex items-center gap-3 rounded-[calc(12px*var(--nv-r-scale,1))] px-3.5 py-2.5 transition-colors duration-300"
-                  style={on ? { background: `color-mix(in oklab, ${b.color} 13%, var(--nv-surface))` } : undefined}
-                >
-                  {/* The lit row trades its glyph for a filled bead, which is
-                      what makes "you are here" readable at a glance. */}
-                  <span className="grid h-4 w-4 shrink-0 place-items-center">
-                    {on ? (
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} />
-                    ) : (
-                      <Icon size={15} strokeWidth={1.6} className="text-muted" />
-                    )}
-                  </span>
-                  <span
-                    className={`min-w-0 flex-1 text-[0.9rem] ${on ? "font-semibold" : "text-ink"}`}
-                    style={on ? { color: b.color } : undefined}
-                  >
-                    {b.label}
-                  </span>
-                  <span
-                    className="shrink-0 font-mono text-[0.72rem] tabular-nums"
-                    style={{ color: on ? b.color : "var(--nv-muted)" }}
-                  >
-                    {b.range}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-
-          <p className="mt-3 flex items-start gap-2.5 rounded-[calc(12px*var(--nv-r-scale,1))] bg-surface-2 px-3.5 py-3 text-[0.82rem] leading-relaxed text-muted">
-            <Info size={14} className="mt-0.5 shrink-0 text-primary/70" />
-            BMI is a screening tool. Treatment eligibility is determined by a licensed provider.
-          </p>
+          {bands}
+          {note}
         </div>
       </div>
 
       {/* ----------------------------- CTA rail ----------------------------- */}
-      <div className="flex justify-end border-t border-line bg-surface-2 px-6 py-5 md:px-9">
-        <Link
-          to="/start/weight-loss"
-          onClick={onSeeOptions}
-          className="group flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-3.5 text-[0.95rem] font-semibold text-on-primary transition-all hover:-translate-y-0.5 nv-shadow"
-        >
-          {result.mayQualify ? "See my treatment options" : "Talk to a provider"}
-          <ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5" />
-        </Link>
-      </div>
+      <div className="flex justify-end border-t border-line bg-surface-2 px-6 py-5 md:px-9">{cta}</div>
     </div>
   );
 }

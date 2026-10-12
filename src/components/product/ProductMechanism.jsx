@@ -8,10 +8,13 @@ const barWidth = (i, n) => `${34 + (i * 22) / Math.max(1, n - 1)}%`;
 const barWidthNarrow = (i, n) => `${58 + (i * 42) / Math.max(1, n - 1)}%`;
 const BAR_FILL = 0.75;
 const LABEL_LEAD = 0.55;
+/* Each label is pinned by the end nearest the vial, at the elbow, and sits on
+   its line from the bottom, so a long label grows away from the vial and up
+   instead of running over the slanted part of its wire (client, 2026-10-12). */
 const WIRES = [
-  { label: "left-[4%] top-[12%] text-left", points: "4,20 26,20 33,32" },
-  { label: "left-[14%] top-[66%] text-left", points: "14,74 32,74 39,62" },
-  { label: "right-[4%] top-[32%] text-right", points: "96,40 71,40 62,46" },
+  { label: "right-[74%] bottom-[82%] text-right", points: "0,20 26,20 33,32" },
+  { label: "right-[68%] bottom-[28%] text-right", points: "2,74 32,74 39,62" },
+  { label: "left-[71%] bottom-[62%] text-left", points: "100,40 71,40 62,46" },
 ];
 
 const LABEL = "text-[0.78rem] font-bold uppercase leading-tight tracking-[0.12em] text-[#ffe8b1]";
