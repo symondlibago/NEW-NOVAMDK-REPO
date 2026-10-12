@@ -1,4 +1,4 @@
-import { Truck } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 /* How many months the patient is buying, chosen at checkout.
  *
@@ -33,9 +33,10 @@ const cadence = (months) =>
   months === 1 ? "Auto-renews every month" : `Auto-renews every ${months} months`;
 
 /* What the selected term actually commits them to, opened under the row they
-   picked. Every number is the server's: the saving and the per-month price are
-   quoted figures, not this file dividing a total by a month count. */
-const detailsFor = (t, base) => {
+   picked. Every number is the server's: the per-month price is a quoted figure,
+   not this file dividing a total by a month count. The saving is shown in the
+   order summary instead (client, 2026-10-10). */
+const detailsFor = (t) => {
   if (t.months === 1) {
     return [
       `${usd(t.total)} charged after approval`,
@@ -45,11 +46,8 @@ const detailsFor = (t, base) => {
   }
   return [
     `${usd(t.total)} charged once after approval (${usd(t.perMonth)}/month)`,
-    t.saving > 0 && typeof base === "number"
-      ? `${usd(t.saving)} less than ${t.months} months at ${usd(base)}/month`
-      : null,
     "Ships one month at a time, with a check-in before each refill",
-  ].filter(Boolean);
+  ];
 };
 
 export default function PlanTerms({ terms = [], months, onChange, disabled = false }) {
@@ -114,14 +112,18 @@ export default function PlanTerms({ terms = [], months, onChange, disabled = fal
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2 text-base font-semibold text-co-ink">
                     {label(t.months)}
-                    {bestValue && t.months === bestValue.months ? (
-                      <span className="rounded-full bg-co-gold px-2.5 py-0.5 text-xs font-semibold text-white">
-                        Best value
-                      </span>
-                    ) : null}
+                    {/* One group, so on a phone the two badges drop below the
+                        name together rather than one per line. */}
                     {t.saving > 0 ? (
-                      <span className="rounded-full bg-co-tint px-2.5 py-0.5 text-xs font-semibold text-co-gold">
-                        Save {usd(t.saving)}
+                      <span className="flex gap-1.5 whitespace-nowrap">
+                        {bestValue && t.months === bestValue.months ? (
+                          <span className="rounded-full bg-co-gold px-2.5 py-0.5 text-xs font-semibold text-white">
+                            Best value
+                          </span>
+                        ) : null}
+                        <span className="rounded-full bg-co-tint px-2.5 py-0.5 text-xs font-semibold text-co-gold">
+                          Save {usd(t.saving)}
+                        </span>
                       </span>
                     ) : null}
                   </span>
@@ -140,7 +142,7 @@ export default function PlanTerms({ terms = [], months, onChange, disabled = fal
 
               {on && (
                 <ul className="mx-4 mb-4 list-disc space-y-1 border-t border-co-line pt-3 pl-5 text-sm leading-relaxed text-co-ink-2 sm:mx-5 sm:mb-5">
-                  {detailsFor(t, base).map((line) => (
+                  {detailsFor(t).map((line) => (
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
@@ -150,13 +152,15 @@ export default function PlanTerms({ terms = [], months, onChange, disabled = fal
         })}
       </div>
 
-      {/* No "pay today" here any more: checkout places a hold and the money is
-          only taken once a provider approves, so the old line said the one
-          thing on this screen that was not true. */}
+      {/* How renewal works, under the choice it follows from. No "pay today":
+          checkout places a hold and the money is only taken once a provider
+          approves. */}
       <p className="mt-4 flex gap-2.5 text-sm leading-relaxed text-co-ink-2">
-        <Truck size={16} className="mt-0.5 flex-none text-co-gold" />
+        <RefreshCw size={16} className="mt-0.5 flex-none text-co-gold" />
         <span>
-          Your treatment ships one month at a time. Complete a short check-in before each refill.
+          Your plan auto-renews at the frequency you choose above. Before each refill, you&rsquo;ll
+          complete a short check-in so your provider can confirm you&rsquo;re happy with your
+          dosage and treatment.
         </span>
       </p>
     </div>

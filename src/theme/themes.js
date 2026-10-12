@@ -448,13 +448,24 @@ export const PALETTES = [
 
 export const TYPOGRAPHIES = [
   {
+    /* Site font. IBM Plex Sans on 2026-10-12, Helvetica Neue on 2026-10-13,
+       both the client's. The id stays so saved choices still land here.
+
+       Helvetica Neue is not a web font. It is licensed, it is not on Google
+       Fonts, and there is nothing to download, so it only appears for visitors
+       who already have it: macOS and iOS. The stack after it is what everyone
+       else actually sees, in order. Arial is the one that matters, because it
+       is what Windows gets and it shares Helvetica's metrics, so the line
+       lengths and the tracking below hold either way. */
     id: "grotesk",
-    name: "Grotesk Modern",
+    name: "Helvetica Neue",
     sample: "Aa",
-    note: "Hanken Grotesk · IBM Plex Mono",
+    note: "Helvetica Neue · IBM Plex Mono",
     vars: {
-      "--nv-font-display": "'Hanken Grotesk', system-ui, sans-serif",
-      "--nv-font-body": "'Hanken Grotesk', system-ui, sans-serif",
+      "--nv-font-display":
+        "'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', system-ui, sans-serif",
+      "--nv-font-body":
+        "'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', system-ui, sans-serif",
       "--nv-font-mono": "'IBM Plex Mono', ui-monospace, monospace",
       "--nv-display-tracking": "-0.032em",
     },

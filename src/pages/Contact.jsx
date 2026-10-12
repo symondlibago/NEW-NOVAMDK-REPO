@@ -282,7 +282,9 @@ export default function ContactPage() {
           <div className="grid overflow-hidden rounded-3xl border border-line bg-surface shadow-xl shadow-black/5 md:grid-cols-2">
             {/* Form first on a phone: it's what the visitor came to do. The
                 reassurance panel follows, and sits on the left from md up. */}
-            <div className="order-2 flex flex-col p-6 sm:p-10 md:order-1" style={panel}>
+            {/* Desktop only since 2026-10-12: on a phone the client's layout is the
+                form alone, with the email and hours folded into its foot. */}
+            <div className="order-2 hidden flex-col p-6 sm:p-10 md:order-1 md:flex" style={panel}>
               {/* Client copy, 2026-09-24. */}
               <p className={`${eyebrow} text-primary`}>Stay in touch</p>
               <h1 className="mt-3 text-[clamp(1.9rem,4vw,2.6rem)] font-bold leading-[1.08] tracking-tight">
@@ -334,8 +336,12 @@ export default function ContactPage() {
                 </div>
               ) : (
                 <>
+                  <h1 className="sr-only md:hidden">Contact Nova MDK</h1>
                   <h2 className="text-[clamp(1.5rem,3vw,1.9rem)] font-bold tracking-tight">Send us a message</h2>
-                  <p className="mt-1.5 text-[0.98rem] text-muted">Fill this out and we'll get right back to you.</p>
+                  <p className="mt-1.5 text-[0.98rem] text-muted">
+                    <span className="md:hidden">Questions? Our care team is here.</span>
+                    <span className="hidden md:inline">Fill this out and we'll get right back to you.</span>
+                  </p>
 
                   <form onSubmit={submit} noValidate className="mt-7">
                     <div className="grid gap-5 sm:grid-cols-2">
@@ -455,11 +461,31 @@ export default function ContactPage() {
                       Your details are private and never sold.
                     </p>
                   </form>
+
+                  <div className="mt-7 divide-y divide-line overflow-hidden rounded-2xl border border-line md:hidden" style={tint}>
+                    <a href={`mailto:${SUPPORT_EMAIL}`} className="flex items-center gap-3 px-4 py-3.5 text-[0.95rem] font-semibold">
+                      <Mail size={18} className="shrink-0 text-primary" />
+                      <span className="min-w-0 flex-1">{SUPPORT_EMAIL}</span>
+                      <ArrowRight size={17} className="shrink-0 text-muted" />
+                    </a>
+                    <div className="flex items-start gap-3 px-4 py-3.5">
+                      <Clock size={18} className="mt-0.5 shrink-0 text-primary" />
+                      <span className="text-[0.95rem]">
+                        <span className="block font-semibold">Mon-Fri, 8am-8pm ET</span>
+                        <span className="mt-0.5 block text-[0.85rem] text-muted">
+                          Most messages get a reply the same business day.
+                        </span>
+                      </span>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
           </div>
         </Reveal>
+        <p className="mt-4 px-1 text-[0.8rem] leading-relaxed text-muted md:hidden">
+          For a medical emergency, call 911. This inbox isn't monitored for urgent clinical needs.
+        </p>
       </section>
 
       <Footer />

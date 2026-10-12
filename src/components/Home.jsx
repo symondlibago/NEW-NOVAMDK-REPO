@@ -9,6 +9,7 @@ import MattersToYou from "./home/MattersToYou";
 import HowItWorks from "./home/HowItWorks";
 import MoreWays from "./home/MoreWays";
 import Articles from "./home/Articles";
+import GoalGrid from "./shop/GoalGrid";
 
 /* useKioskVariant and the HeroStage card grid it drove went with the
    2026-09-11 hero redesign. The new hero is one full-bleed clip and reads the
@@ -26,6 +27,11 @@ export default function Home() {
     <main className="min-h-screen w-full bg-bg text-ink">
       <Navbar />
       <HeroVideo />
+      {/* Phone only: the six goal tiles, all on one screen (client, 2026-10-12).
+          From md the orbiting goals band under it does this job. */}
+      <section className="px-4 pb-8 pt-4 md:hidden">
+        <GoalGrid source="home" />
+      </section>
       <ImproveGoals />
       <StartingPoint />
       <MattersToYou />

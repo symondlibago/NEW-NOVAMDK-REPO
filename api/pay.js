@@ -28,7 +28,7 @@ import {
   addToMonth,
 } from "./_kurv.js";
 import { stripe, stripeEnabled, stripeMode, toCents, holdExpiresAt, findHold, customerFor } from "./_stripe.js";
-import { PLAN_TERMS, DEFAULT_MONTHS, monthsFrom, planAllowed, quoteFor, chargeFor } from "./_plans.js";
+import { DEFAULT_MONTHS, checkoutMonths, termsOffered, quoteFor, chargeFor } from "./_plans.js";
 import { fillForProduct, isFollowOnRung, matchesFill } from "./_fills.js";
 import { readSession } from "./_session.js";
 
@@ -107,8 +107,7 @@ const TEST_SHIPPING = money(envAny("TEST_CHARGE_SHIPPING", "NMI_TEST_SHIPPING"))
 function termsFor(pid) {
   const item = PRICES[String(pid)];
   if (!item) return [];
-  const offered = planAllowed(item.amount) ? PLAN_TERMS : PLAN_TERMS.slice(0, 1);
-  return offered.map((term) => {
+  return termsOffered(pid).map((term) => {
     const q = quoteFor(pid, term.months);
     return { months: q.months, perMonth: q.perMonth, amount: q.amount, total: q.total, saving: q.saving };
   });
@@ -292,7 +291,7 @@ async function stripeIntent(req, res) {
   }
 
   const { pid, contact_id, opportunity_id, treatment, submitted } = req.body || {};
-  const months = monthsFrom(req.body?.months);
+  const months = checkoutMonths(pid, req.body?.months);
   /* A prepaid month of a plan is settled through prepaid_fill, never charged.
      Refused here as well as at the quote so no card can ever be taken for one,
      whatever the browser asks for. */
@@ -488,7 +487,7 @@ async function stripeRetotal(req, res) {
 
   const id = clean(req.body?.payment_intent_id, 80);
   const { pid } = req.body || {};
-  const months = monthsFrom(req.body?.months);
+  const months = checkoutMonths(pid, req.body?.months);
   const charge = chargeFor(pid, months);
   if (!id) return res.status(400).json({ ok: false, error: "missing_payment_intent" });
   if (!charge) return res.status(400).json({ ok: false, error: "unknown_product" });
@@ -775,7 +774,7 @@ async function kurvStart(req, res) {
 
   // Priced here, never from the request, exactly as the card path does.
   if (isFollowOnRung(pid)) return res.status(403).json({ ok: false, error: "plan_only" });
-  const charge = chargeFor(pid, monthsFrom(req.body?.months));
+  const charge = chargeFor(pid, checkoutMonths(pid, req.body?.months));
   if (!charge) return res.status(400).json({ ok: false, error: "unknown_product" });
 
   /* Re-checked rather than trusting the quote the modal loaded: the cap may
@@ -892,7 +891,7 @@ export default async function handler(req, res) {
     // Vercel fills req.query; the local vite shim (vite.config.js) only passes
     // the raw URL, which left every local checkout reading "Total unavailable".
     const pid = queryParam(req, "pid");
-    const months = monthsFrom(queryParam(req, "months"));
+    const months = checkoutMonths(pid, queryParam(req, "months"));
 
     /* A renewal's money is reserved before the questionnaire, so this visit is
        already paid for and the checkout must not price it again. */
@@ -996,7 +995,7 @@ export default async function handler(req, res) {
     );
     return res.status(409).json({ ok: false, error: "already_reserved" });
   }
-  const charge = chargeFor(pid, monthsFrom(req.body?.months));
+  const charge = chargeFor(pid, checkoutMonths(pid, req.body?.months));
   if (!charge) {
     console.error(`Refused payment for unpriced product id "${pid}"`);
     return res.status(400).json({ ok: false, error: "unknown_product" });

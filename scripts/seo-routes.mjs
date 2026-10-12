@@ -47,6 +47,14 @@ export function extractProducts({ includeHidden = false } = {}) {
          decided server side. */
       questionnaireId: field(block, "questionnaireId"),
       nextRung: number(block, "nextRung"),
+      /* Per-product plan pricing (client's table, 2026-10-10), mirrored the same
+         way: a fixed 3 month total, and products sold one month at a time. */
+      price3: field(block, "price3"),
+      singleMonth: flag(block, "singleMonth"),
+      /* The card's own tag, and the one thing in the catalogue that already
+         says which products are sold as a plan. generate-prices turns it into
+         the server's rule for who may be offered a 3 month term. */
+      audience: field(block, "audience"),
     };
   });
 

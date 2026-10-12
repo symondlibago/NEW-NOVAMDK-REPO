@@ -462,7 +462,7 @@ export default function StripeCheckout({
   if (status === "dead") {
     return (
       <div className={STATE}>
-        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start" />
+        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start md:h-11" />
         <div className={`m-auto mt-8 w-full text-center ${CARD}`}>
           <p className="text-base font-semibold text-co-error">
             We couldn&rsquo;t load the secure card form.
@@ -479,7 +479,7 @@ export default function StripeCheckout({
   if (status === "done") {
     return (
       <div className={STATE}>
-        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start" />
+        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start md:h-11" />
         {/* Not "Payment received": the card is held here and only charged once
             a provider approves, so that heading contradicted the line the
             patient agreed to on the screen before.
@@ -529,29 +529,28 @@ export default function StripeCheckout({
      were given rather than dividing it here: no money arithmetic in the
      browser, same rule the chooser follows. */
   const quoted = (quote?.terms || []).find((t) => t.months === planMonths) || null;
-  /* How the renewal reads in the authorisation: a one month plan renews at its
-     own price every month, a longer one renews as a whole on its own cycle. */
-  const renewalText =
-    planMonths === 1 ? `${usd(total)} per month` : `${usd(total)} every ${planMonths} months`;
+  /* The term's saving, and the plan price before it, so the summary can show
+     the discount as a line that adds up: plan price, less the discount, is what
+     the card is charged. Both come from the quote for this term, and the one
+     sum here is display only: the charge is priced on the server. */
+  const saving = quoted?.saving > 0 ? quoted.saving : 0;
+  const listPrice = saving
+    ? Math.round((quoted.amount + saving) * 100) / 100
+    : quote?.amount ?? total;
+  /* How the renewal reads in the authorisation: a one month plan renews every
+     month, a longer one renews as a whole on its own cycle, at the same price. */
+  const renewalText = planMonths === 1 ? "monthly" : `every ${planMonths} months`;
   const consent = renewalConsent({ charge: usd(total), renewal: renewalText });
   const payable = status === "ready" && !repricing && agreed;
 
-  /* The product page's own highlights, not copy written for the checkout. They
-     are already cleared for public use and already what the patient read on the
-     way here, so the last screen cannot end up claiming something different. */
-  const highlights = (product?.highlights || [])
-    .map((h) => h?.text)
-    .filter(Boolean)
-    .slice(0, 3);
-
   return (
     <form onSubmit={pay} className={`flex-1 font-checkout text-co-ink ${SHELL}`}>
-      {/* One column until there is genuinely room for two. The intake sheet
-          widens to match at the payment step; below lg, and inside any narrower
-          host, this stacks in the same order it always did. */}
+      {/* One column on phones, two from tablet width up: the treatment and plan
+          on the left, the price and card on the right. Even halves until lg,
+          where the plan side takes the wider share. */}
       <div className="mx-auto w-full max-w-6xl">
         <div className="flex items-center justify-between gap-4">
-          <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto" />
+          <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto md:h-11" />
           <span className="flex items-center gap-1.5 text-sm text-co-muted">
             <Lock size={14} />
             Secure checkout
@@ -560,15 +559,18 @@ export default function StripeCheckout({
 
         {/* items-start, or the panel cannot stick: a stretched grid item is as
             tall as the row, which leaves the sticky box nowhere to travel. */}
-        <div className="mt-7 grid items-start gap-8 lg:grid-cols-5 lg:gap-12">
+        <div className="mt-7 grid items-start gap-8 md:grid-cols-2 lg:grid-cols-5 lg:gap-12">
           {/* ---------- What they are buying ---------- */}
           <section className="min-w-0 lg:col-span-3">
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Review your treatment request
             </h1>
             <p className="mt-3 max-w-xl text-base leading-relaxed text-co-ink-2">
-              Choose your plan and add your payment details. A licensed provider will review your
-              information to determine whether treatment is appropriate.
+              {/* A product over the plan cap has one term and no chooser, so
+                  there is no plan to choose. */}
+              {quote?.terms?.length > 1 ? "Choose your plan and add" : "Add"} your payment details. A
+              licensed provider will review your information to determine whether treatment is
+              appropriate.
             </p>
 
             {/* The order, as a line in a basket rather than a hero. The product's
@@ -582,8 +584,11 @@ export default function StripeCheckout({
                 started renewing on their own. What it says now is the thing the
                 patient cannot infer from the price. */}
             <div className="mt-8 flex items-center gap-4 rounded-2xl border border-co-line bg-white p-4">
+              {/* A block box, not a grid cell: the grid's auto row grew to the
+                  photo's own height, so h-full never applied and tall bottles
+                  were cropped at the top and bottom. */}
               {image ? (
-                <span className="grid h-14 w-14 flex-none place-items-center overflow-hidden rounded-xl bg-co-tint sm:h-18 sm:w-18">
+                <span className="block h-16 w-16 flex-none overflow-hidden rounded-xl bg-co-tint sm:h-20 sm:w-20">
                   <img
                     src={image}
                     alt=""
@@ -609,19 +614,6 @@ export default function StripeCheckout({
               </div>
             </div>
 
-            {highlights.length > 0 && (
-              <ul className="mt-3 flex flex-wrap gap-1.5">
-                {highlights.map((text) => (
-                  <li
-                    key={text}
-                    className="rounded-full bg-co-tint px-2.5 py-0.5 text-xs font-medium text-co-ink-2"
-                  >
-                    {text}
-                  </li>
-                ))}
-              </ul>
-            )}
-
             <PlanTerms
               terms={quote?.terms}
               months={months}
@@ -635,7 +627,7 @@ export default function StripeCheckout({
             {/* Moved out of the payment panel and into the space beside it. Same
                 four lines, read before the card rather than under the button,
                 and they stop the left column running out halfway down. */}
-            <ul className="mt-7 grid gap-x-5 gap-y-2.5 sm:grid-cols-2">
+            <ul className="mt-7 grid gap-x-5 gap-y-2.5 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
               {ASSURANCES.map((text) => (
                 <li key={text} className="flex items-start gap-2">
                   <Check size={15} className="mt-0.5 flex-none text-co-gold" />
@@ -646,7 +638,7 @@ export default function StripeCheckout({
           </section>
 
           {/* ---------- What it costs, and the card ---------- */}
-          <aside className={`min-w-0 lg:sticky lg:top-6 lg:col-span-2 ${CARD}`}>
+          <aside className={`min-w-0 md:sticky md:top-6 lg:col-span-2 ${CARD}`}>
             <h2 className="text-lg font-semibold tracking-tight">Order summary</h2>
 
             {/* The headline figure is the per-month price when the quote gives
@@ -669,11 +661,10 @@ export default function StripeCheckout({
                 to show: a total with nothing above it reads like a number we
                 picked.
 
-                No saving row. The quote's amount is already the discounted
-                one, so a line subtracting the saving from it would take the
-                discount off twice and under-state what the card is charged.
-                The saving is on the plan row instead, where it is a reason to
-                pick that term rather than a step in a sum.
+                The discount sits under the plan (client, 2026-10-10), so on a
+                discounted term the plan price is the undiscounted one: the rows
+                then add up to the amount charged instead of taking the discount
+                off twice. A single month has no discount row, just its price.
 
                 No shipping row. The quote's second amount is a telehealth
                 consultation fee, not postage, so nothing here knows what
@@ -687,8 +678,14 @@ export default function StripeCheckout({
               </div>
               <div className="flex justify-between gap-3 py-1.5">
                 <dt className="min-w-0 truncate">Plan price</dt>
-                <dd className="shrink-0">{usd(quote?.amount ?? total)}</dd>
+                <dd className="shrink-0">{usd(listPrice)}</dd>
               </div>
+              {saving > 0 && (
+                <div className="flex justify-between gap-3 py-1.5 font-medium text-co-gold">
+                  <dt className="min-w-0 truncate">{planMonths}-month discount</dt>
+                  <dd className="shrink-0">&minus;{usd(saving)}</dd>
+                </div>
+              )}
               {hasFee && (
                 <div className="flex justify-between gap-3 py-1.5">
                   <dt>Telehealth consultation fee</dt>
@@ -707,7 +704,9 @@ export default function StripeCheckout({
                 take. The zero under it is the honest version of the same row. */}
             <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-co-line pt-4">
               <span className="flex min-w-0 items-center gap-1.5 font-medium">
-                <span className="min-w-0 truncate">Charged after approval</span>
+                {/* Wraps rather than truncating: on a phone the amount beside
+                    it left room for "Charged after a…" and nothing more. */}
+                <span className="min-w-0">Charged after approval</span>
                 {/* type=button, or it submits the form it sits in and tries to pay. */}
                 <button
                   type="button"
@@ -718,7 +717,7 @@ export default function StripeCheckout({
                   <HelpCircle size={15} />
                 </button>
               </span>
-              <strong className="flex-none text-2xl font-semibold tracking-tight">
+              <strong className="flex-none text-xl font-semibold tracking-tight lg:text-2xl">
                 {usd(total)}
               </strong>
             </div>
@@ -819,22 +818,12 @@ export default function StripeCheckout({
               ) : (
                 <>
                   <Lock size={16} />
-                  Submit treatment request
+                  Submit for Provider Review
                 </>
               )}
             </button>
 
-            <p className="mt-3 text-center text-xs text-co-muted">
-              Submitting a request does not guarantee a prescription.
-            </p>
-
-            <p className="mt-5 flex items-start justify-center gap-1.5 text-center text-xs leading-relaxed text-co-muted">
-              <Lock size={13} className="mt-0.5 flex-none" />
-              <span>
-                Payments are processed by Stripe. Your card details are encrypted and never reach
-                NovaMDK. A receipt goes to the email address you gave us.
-              </span>
-            </p>
+            <p className="mt-3 text-center text-sm text-co-muted">Cancel anytime</p>
           </aside>
         </div>
 
@@ -844,8 +833,9 @@ export default function StripeCheckout({
 
             The policies open in a new tab on purpose: this usually sits inside
             the intake sheet, and navigating away mid visit throws away answers
-            the patient has already given. */}
-        <div className="mt-10 flex flex-wrap justify-between gap-x-6 gap-y-3 border-t border-co-line pt-5 text-sm text-co-muted">
+            the patient has already given. Centred while it stacks on a phone,
+            spread across the row once both halves fit side by side. */}
+        <div className="mt-10 flex flex-col items-center gap-y-3 border-t border-co-line pt-5 text-center text-sm text-co-muted md:flex-row md:justify-between md:gap-x-6 md:text-left">
           <span>
             Questions before you pay?{" "}
             <a

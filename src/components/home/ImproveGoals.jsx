@@ -134,12 +134,14 @@ export default function ImproveGoals() {
   }, []);
 
   return (
-    /* From md the band is at least one screen tall under the sticky header
+    /* Desktop and tablet only since 2026-10-12: a phone gets the goal tile grid
+       instead (see Home.jsx).
+       From md the band is at least one screen tall under the sticky header
        (68px bar plus its 1px rule). At least, not exactly: pinning it to the
        screen height shrank the figure on shorter windows, and the client
        wants the original size kept (2026-09-15). */
     <section
-      className="relative w-full overflow-hidden md:flex md:min-h-[calc(100svh-69px)] md:flex-col"
+      className="relative hidden w-full overflow-hidden md:flex md:min-h-[calc(100svh-69px)] md:flex-col"
       style={{ background: GROUND }}
     >
       <div className="mx-auto w-full max-w-335 px-5 pt-[clamp(1.75rem,3.5vw,2.75rem)] md:flex md:min-h-0 md:flex-1 md:flex-col md:px-10">
@@ -195,31 +197,6 @@ export default function ImproveGoals() {
           <div className="absolute bottom-3 right-0 z-10">
             <ViewAll />
           </div>
-        </div>
-
-        {/* ---- the phone stack. No orbit to run: the figure gets the width and
-                the five goals sit under it as a plain list. ---- */}
-        <div className="mt-4 md:hidden">
-          <img
-            src="/site/improve-hero.avif"
-            alt=""
-            aria-hidden="true"
-            className="mx-auto block h-64 w-auto object-contain"
-          />
-          {/* The cut-out carries transparent canvas under the figure, so the
-              list starts tight against the image and the space beneath him
-              still reads as a gap (2026-09-19). */}
-          <div className="flex flex-col gap-2.5">
-            {GOALS.map((goal) => (
-              <GoalPill key={goal.label} goal={goal} />
-            ))}
-          </div>
-        </div>
-
-        {/* Phone only — from md this link lives inside the stage, bottom right.
-            Centred here, under the list. */}
-        <div className="flex justify-center pb-6 pt-4 md:hidden">
-          <ViewAll />
         </div>
       </div>
     </section>

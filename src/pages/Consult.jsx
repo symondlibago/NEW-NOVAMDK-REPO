@@ -1,290 +1,320 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, Navigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, ArrowLeft, X, Check, Lock, ShieldCheck } from "lucide-react";
-import { CONSULTS, CONSULT_ORDER } from "../components/data/consultations";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, ShieldCheck, X } from "lucide-react";
+import { productsData, isCompounded, priceLabel } from "../components/data/products";
+import { ComplianceBadges, CompoundedDisclaimer } from "../components/Compliance";
+import { SCREENS, PICKS, GOAL_FOR_SLUG, CATEGORY_OF, firstScreenFor, match, pathOf } from "../components/quiz/quizData";
+import { productSlug, productPath } from "../lib/slug";
 import { getLenis } from "../lib/smoothScroll";
 import { track, EVENTS } from "../lib/analytics";
-import useKioskMode from "../lib/useKioskMode";
 import Seo from "../components/Seo";
 
-// On the kiosk, keep each step vertically centered — but biased a little upward
-// (pb-40) because the physical kiosk is mounted low, so dead-center sits too far
-// down for a comfortable reach. Touch targets land in the upper-middle band.
-const CENTER_KIOSK = "flex min-h-[calc(100vh-65px)] flex-col justify-center pb-64";
+/* The quick assessment at /start: a goal, a few questions, then one treatment
+   option to explore and a second one beside it. Copy and rules live in
+   quizData.js. /start/<slug> (the menu's and category pages' links) starts
+   past the goal question with that goal already chosen. */
 
-const EASE = [0.4, 0, 0.2, 1];
+const STEPS = ["Your goal", "A few questions", "Options to explore"];
 
-function PrimaryButton({ children, onClick, disabled }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="group/btn mt-7 flex w-full items-center justify-center gap-2 rounded-[calc(13px*var(--nv-r-scale,1))] bg-primary px-5 py-[17px] text-[15.5px] font-bold tracking-tight text-on-primary nv-shadow transition-all duration-300 hover:-translate-y-0.5 hover:bg-primary-deep disabled:pointer-events-none disabled:opacity-40"
-    >
-      {children}
-      <ArrowRight size={17} className="transition-transform duration-300 group-hover/btn:translate-x-1" />
-    </button>
-  );
+const BUTTON =
+  "flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-primary px-8 text-base font-bold text-on-primary transition-colors hover:bg-primary-deep disabled:pointer-events-none disabled:opacity-40 lg:w-auto lg:min-w-60";
+
+/* The catalog record behind a pick, for its live price, photo and link. */
+const productFor = (key) => productsData.find((p) => productSlug(p) === PICKS[key].slug);
+
+function scrollTop() {
+  const l = getLenis();
+  if (l) l.scrollTo(0, { immediate: true });
+  else window.scrollTo(0, 0);
 }
 
-/* ------------------------------- screens ------------------------------- */
-/* Category picker — shown first when no goal is chosen yet ("/start"). Picking
-   one routes to that category's questionnaire ("/start/:slug"). */
-function Picker({ onPick }) {
-  return (
-    <section className="mx-auto max-w-[560px] px-6 pb-14 pt-8">
-      <div className="font-mono text-[12px] uppercase tracking-[0.06em] text-accent">Free 2-minute assessment</div>
-      <h2 className="mt-4 font-display text-[clamp(1.8rem,5vw,2.1rem)] font-medium leading-[1.12] tracking-tight text-ink">
-        What would you like help with?
-      </h2>
-      <p className="mt-4 text-[1.02rem] leading-relaxed text-muted">
-        Pick a focus and we'll ask a few quick questions, then match you with the right care.
-      </p>
+/* Answer chips for the sidebar, in the order they were given. */
+function chipsFor(trail, answers) {
+  const chips = [];
+  trail.forEach((key) => {
+    const s = SCREENS[key];
+    if (!s?.opts || answers[key] == null) return;
+    [].concat(answers[key]).forEach((v) => {
+      const o = s.opts.find((x) => x.v === v);
+      if (o) chips.push(s.chip ? s.chip(v, o) : o.t);
+    });
+  });
+  return chips;
+}
 
-      <div className="mt-7 flex flex-col gap-2.5">
-        {CONSULT_ORDER.map((key) => {
-          const c = CONSULTS[key];
-          const Icon = c.Icon;
-          return (
-            <button
-              key={key}
-              onClick={() => onPick(key)}
-              className="group flex w-full items-center gap-4 rounded-[calc(14px*var(--nv-r-scale,1))] border-[1.5px] border-line bg-surface px-[18px] py-[15px] text-left transition-colors duration-200 hover:border-primary active:scale-[0.99]"
+function Sidebar({ step, chips }) {
+  return (
+    <aside className="hidden flex-col bg-surface-2 px-12 py-14 lg:col-span-5 lg:flex" aria-label="Progress">
+      <p className="text-sm font-semibold text-primary">Find a starting point</p>
+      <ol className="mt-3">
+        {STEPS.map((label, i) => (
+          <li key={label} className={`flex items-center gap-3.5 py-3 ${i === step ? "font-semibold text-ink" : "font-medium text-muted"}`}>
+            <span
+              className={`grid size-7 flex-none place-items-center rounded-full border text-sm ${
+                i < step ? "border-primary bg-primary text-on-primary" : i === step ? "border-primary text-primary" : "border-line-strong"
+              }`}
             >
-              <span className="grid h-11 w-11 flex-none place-items-center rounded-full bg-surface-2 text-primary transition-colors group-hover:bg-primary group-hover:text-on-primary">
-                <Icon size={20} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[15.5px] font-bold tracking-tight text-ink">{c.short}</span>
-                <span className="mt-0.5 block truncate text-[13px] text-muted">{c.blurb}</span>
-              </span>
-              <ArrowRight size={18} className="flex-none text-muted transition-all group-hover:translate-x-0.5 group-hover:text-primary" />
-            </button>
-          );
-        })}
+              {i < step ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}
+            </span>
+            {label}
+          </li>
+        ))}
+      </ol>
+      <h3 className="mb-3 mt-10 text-sm font-semibold text-muted">What you&rsquo;ve told us</h3>
+      <div className="flex flex-wrap gap-2">
+        {chips.length ? (
+          chips.map((c, i) => (
+            <span key={`${i}-${c}`} className="rounded-full border border-line bg-surface px-3 py-1.5 text-sm">{c}</span>
+          ))
+        ) : (
+          <span className="text-sm text-muted">Your answers will show up here.</span>
+        )}
       </div>
-
-      <div className="mt-6 flex items-center justify-center gap-2 text-[13px] text-muted">
-        <Lock size={14} /> <span>Private &amp; secure</span>
-      </div>
-    </section>
+      <p className="mt-auto flex max-w-xs items-start gap-2.5 pt-10 text-sm text-muted">
+        <ShieldCheck className="mt-0.5 size-4.5 flex-none" />
+        Your answers stay in your browser and aren&rsquo;t sent anywhere. Prescription treatments require evaluation by a licensed provider.
+      </p>
+    </aside>
   );
 }
 
-function Intro({ step, onNext }) {
+function Question({ screen, value, onPick }) {
+  const multi = screen.type === "multi";
   return (
-    <section className="mx-auto max-w-[480px] px-6 pb-12 pt-8">
-      <div className="font-mono text-[12px] uppercase tracking-[0.06em] text-accent">{step.eyebrow}</div>
-      <h2 className="mt-4 font-display text-[clamp(1.8rem,5vw,2.1rem)] font-medium leading-[1.12] tracking-tight text-ink">{step.title}</h2>
-      <p className="mt-4 text-[1.02rem] leading-relaxed text-muted">{step.body}</p>
-      <PrimaryButton onClick={onNext}>{step.cta}</PrimaryButton>
-      <div className="mt-4 flex items-center justify-center gap-2 text-[13px] text-muted">
-        <Lock size={14} /> <span>Private &amp; secure</span>
-      </div>
-    </section>
-  );
-}
-
-function Question({ step, value, onPick, onNext }) {
-  const multi = !!step.multi;
-  const picked = value ?? (multi ? [] : null);
-  const isOn = (idx) => (multi ? picked.includes(idx) : picked === idx);
-
-  return (
-    <section className="mx-auto max-w-[480px] px-6 pb-12 pt-8">
-      <div className="font-mono text-[12px] uppercase tracking-[0.06em] text-accent">{multi ? "Choose any" : "Choose one"}</div>
-      <h2 className="mt-4 text-[clamp(1.5rem,4.4vw,1.65rem)] font-bold leading-[1.2] tracking-tight text-ink">{step.q}</h2>
-      {step.help && <p className="mt-2.5 text-[0.95rem] text-muted">{step.help}</p>}
-
-      <div className="mt-7 flex flex-col gap-2.5">
-        {step.opts.map((o, idx) => {
-          const on = isOn(idx);
+    <>
+      {screen.eyebrow && <p className="mb-2.5 text-sm font-semibold text-primary">{screen.eyebrow}</p>}
+      <h1 className="text-3xl font-medium leading-tight tracking-tight lg:text-4xl">{screen.h}</h1>
+      {screen.sub && <p className="mt-2.5 text-base text-muted">{screen.sub}</p>}
+      <div className="mt-6 flex flex-col gap-2.5" role="group" aria-label={screen.h}>
+        {screen.opts.map((o) => {
+          const on = multi ? (value || []).includes(o.v) : value === o.v;
           return (
             <button
-              key={idx}
-              onClick={() => onPick(idx)}
-              className={`flex w-full items-center gap-3.5 rounded-[calc(14px*var(--nv-r-scale,1))] border-[1.5px] px-[18px] py-[17px] text-left text-[15.5px] font-semibold transition-colors duration-200 active:scale-[0.99] ${
-                on ? "border-primary bg-surface-2" : "border-line bg-surface hover:border-line-strong"
+              key={o.v}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onPick(o)}
+              className={`flex min-h-14 w-full items-center gap-3.5 rounded-2xl border-2 px-4.5 py-3.5 text-left text-base transition-colors ${
+                on ? "border-primary bg-surface-2/50 font-semibold" : "border-line bg-surface font-medium hover:border-line-strong"
               }`}
             >
               <span
-                className={`grid h-[22px] w-[22px] flex-none place-items-center border-2 transition-colors duration-200 ${multi ? "rounded-[calc(7px*var(--nv-r-scale,1))]" : "rounded-full"} ${
-                  on ? "border-primary bg-primary" : "border-line"
+                className={`grid size-5.5 flex-none place-items-center border-2 ${multi ? "rounded-md" : "rounded-full"} ${
+                  on ? "border-primary bg-primary" : "border-line-strong"
                 }`}
               >
-                <Check
-                  size={13}
-                  strokeWidth={3}
-                  className={`text-on-primary transition-all duration-200 ${on ? "scale-100 opacity-100" : "scale-50 opacity-0"}`}
-                />
+                <Check className={`size-3 text-ink ${on ? "opacity-100" : "opacity-0"}`} strokeWidth={3} />
               </span>
-              <span>{o}</span>
+              <span className="flex-1">
+                {o.t}
+                {o.hint && <span className="mt-0.5 block text-sm font-normal text-muted">{o.hint}</span>}
+              </span>
             </button>
           );
         })}
       </div>
-
-      {multi && <PrimaryButton onClick={onNext} disabled={picked.length === 0}>Continue</PrimaryButton>}
-    </section>
+    </>
   );
 }
 
-function Fact({ step, onNext }) {
+function Note({ screen }) {
   return (
-    <section className="flex min-h-[calc(100vh-65px)] flex-col justify-center bg-surface-2">
-      <div className="mx-auto w-full max-w-[520px] px-7 py-12">
-        <div className="mb-7 h-[3px] w-10 rounded-full bg-primary" />
-        <p className="font-display text-[clamp(1.55rem,4.6vw,2rem)] font-normal leading-[1.24] tracking-tight text-ink">{step.lead}</p>
-        <p className="mt-5 max-w-[430px] text-[1.02rem] leading-relaxed text-ink/70">{step.body}</p>
-        <div className="max-w-[430px]"><PrimaryButton onClick={onNext}>Continue</PrimaryButton></div>
+    <div className="rounded-3xl bg-surface-2/50 px-7 py-8">
+      <p className="mb-2.5 text-sm font-semibold text-primary">{screen.eyebrow}</p>
+      <h1 className="text-3xl font-medium leading-tight tracking-tight lg:text-4xl">{screen.h}</h1>
+      <div className="mt-2 border-l-2 border-primary py-2 pl-5">
+        <p className="max-w-prose text-lg leading-relaxed">{screen.p}</p>
+        {screen.fine && <p className="mt-4 text-sm text-muted">{screen.fine}</p>}
       </div>
-    </section>
+    </div>
   );
 }
 
-function End({ step, onFinish, onHome }) {
+function Result({ answers }) {
+  const { lead, alt, why } = match(answers);
+  const pick = PICKS[lead];
+  const p = productFor(lead);
+  const other = productFor(alt);
+  /* A catalog rename would leave the pick without a page: send them to the
+     shelf rather than show a broken card. */
+  if (!p) {
+    return (
+      <Link to="/treatments" className={BUTTON}>
+        See all treatments <ArrowRight className="size-4" />
+      </Link>
+    );
+  }
   return (
-    <section className="mx-auto flex max-w-[480px] flex-col items-center px-6 py-16 text-center">
-      <div
-        className="mb-7 grid h-[62px] w-[62px] place-items-center rounded-full bg-surface-2 text-primary"
-        style={{ boxShadow: "0 0 0 8px color-mix(in oklab, var(--nv-primary) 8%, transparent)" }}
-      >
-        <Check size={30} strokeWidth={2.4} />
+    <>
+      <p className="mb-2.5 text-sm font-semibold text-primary">Based on your answers</p>
+      <h1 className="text-3xl font-medium leading-tight tracking-tight lg:text-4xl">A treatment option to explore</h1>
+      <div className="mt-4 overflow-hidden rounded-3xl border-2 border-primary bg-surface lg:grid lg:grid-cols-11">
+        <div className="hidden place-items-center bg-surface-2/50 lg:col-span-5 lg:grid">
+          <img src={p.img} alt={pick.name} className="h-4/5 max-h-72 w-auto object-contain" />
+        </div>
+        <div className="p-5.5 lg:col-span-6">
+          <div className="mb-3.5 flex items-center gap-3.5">
+            <span className="grid size-22 flex-none place-items-center rounded-2xl bg-surface-2/50 lg:hidden">
+              <img src={p.img} alt="" className="h-19 w-auto object-contain" />
+            </span>
+            <div>
+              <span className="mb-1.5 inline-block rounded-full bg-surface-2/50 px-2.5 py-1 text-xs font-semibold text-muted">{p.categoryName}</span>
+              <h2 className="text-xl font-semibold leading-tight tracking-tight lg:text-2xl">{pick.name}</h2>
+              <p className="text-sm text-muted">{pick.form}</p>
+            </div>
+          </div>
+          <ComplianceBadges compounded={isCompounded(p)} rx={!p.otc} className="mb-3.5" />
+          <ul className="mb-4 space-y-1">
+            {why.map((line) => (
+              <li key={line} className="flex gap-2.5 text-sm">
+                <Check className="mt-0.5 size-4 flex-none text-primary" strokeWidth={2.4} />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-baseline justify-between border-t border-line pt-3.5 text-sm text-muted">
+            <span>{p.exactPrice ? "Price" : "Starting at"}</span>
+            <b className="text-2xl font-semibold tracking-tight text-ink">{priceLabel(p)}</b>
+          </div>
+        </div>
       </div>
-      <h2 className="font-display text-[clamp(1.7rem,4.6vw,1.95rem)] font-medium leading-[1.14] tracking-tight text-ink">{step.title}</h2>
-      <p className="mt-3.5 max-w-[380px] text-[1.02rem] text-muted">{step.body}</p>
-      <div className="w-full max-w-[340px]"><PrimaryButton onClick={onFinish}>{step.cta}</PrimaryButton></div>
-      <div className="mt-[18px] flex items-center gap-2 text-[13px] text-muted">
-        <ShieldCheck size={14} /> <span>{step.note}</span>
+
+      <div className="mt-4.5 flex flex-col">
+        <Link to={productPath(p)} className={BUTTON}>
+          See treatment details <ArrowRight className="size-4" />
+        </Link>
+        <p className="mt-2.5 text-center text-sm text-muted lg:text-left">
+          This quiz is general information, not medical advice. A licensed provider reviews your intake and decides whether any treatment is appropriate.
+        </p>
       </div>
-      <button onClick={onHome} className="mt-3 px-2 py-1.5 text-[14px] font-semibold text-muted transition-colors hover:text-ink">
-        ← Back to all care
-      </button>
-    </section>
+
+      {other && (
+        <Link to={productPath(other)} className="mt-3.5 flex items-center gap-3.5 rounded-2xl border border-line px-3.5 py-3 hover:border-line-strong">
+          <img src={other.img} alt="" className="size-13 rounded-xl bg-surface-2/50 object-contain p-1" />
+          <span className="flex-1">
+            <small className="block text-xs text-muted">Another option to explore</small>
+            <b className="text-base font-semibold">{PICKS[alt].name}</b>
+          </span>
+          <ChevronRight className="size-4" />
+        </Link>
+      )}
+
+      {isCompounded(p) && <CompoundedDisclaimer className="mt-6" />}
+    </>
   );
 }
 
-/* ------------------------------- engine -------------------------------- */
 export default function Consult() {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const consult = CONSULTS[slug];
-  const isKiosk = useKioskMode();
+  const preset = GOAL_FOR_SLUG[slug];
 
-  const [i, setI] = useState(0);
-  const [answers, setAnswers] = useState({});
+  /* trail is every screen before this one, so Back can retrace any path. */
+  const [answers, setAnswers] = useState(() => (preset ? { goal: preset } : {}));
+  const [trail, setTrail] = useState(() => (preset ? ["goal"] : []));
+  const [cur, setCur] = useState(() => (preset ? firstScreenFor(preset) : "goal"));
+  const [moving, setMoving] = useState(false);
 
-  // Reset when switching funnels (defensive — route normally remounts).
   useEffect(() => {
-    setI(0);
-    setAnswers({});
-    if (CONSULTS[slug]) track(EVENTS.QUIZ_STARTED, { slug });
+    track(EVENTS.QUIZ_STARTED, { slug: slug || "start" });
   }, [slug]);
 
-  // Scroll to top on every step.
   useEffect(() => {
-    const l = getLenis();
-    if (l) l.scrollTo(0, { immediate: true });
-    else window.scrollTo(0, 0);
-  }, [i]);
-
-  // No category chosen yet ("/start") → show the picker first.
-  if (!slug) {
-    return (
-      <main className="min-h-screen w-full bg-bg text-ink">
-        <Seo title="Start Your Consultation" noindex />
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-bg/85 px-4 py-3 backdrop-blur-md md:px-5">
-          <button onClick={() => navigate("/treatments")} aria-label="Back" className="grid h-[38px] w-[38px] place-items-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink">
-            <ArrowLeft size={18} />
-          </button>
-          <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">Step 1 of 2</span>
-          <button onClick={() => navigate("/")} aria-label="Close" className="grid h-[38px] w-[38px] place-items-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink">
-            <X size={18} />
-          </button>
-        </header>
-        <div className={isKiosk ? CENTER_KIOSK : undefined}>
-          <Picker onPick={(key) => navigate(`/start/${key}`)} />
-        </div>
-      </main>
-    );
-  }
-
-  if (!consult) return <Navigate to="/" replace />;
-
-  const steps = consult.steps;
-  const step = steps[i];
-  const lastIndex = steps.length - 1;
-
-  const advance = () => setI((p) => Math.min(p + 1, lastIndex));
-  const goHome = () => navigate("/");
-  const back = () => (i === 0 ? goHome() : setI((p) => p - 1));
-  const finish = () => {
-    track(EVENTS.QUIZ_COMPLETED, { slug, goal: consult.goalSlug });
-    navigate(`/treatments/${consult.goalSlug}`);
-  };
-
-  // progress + counter
-  const progress = lastIndex > 0 ? i / lastIndex : 0;
-  const questions = steps.filter((s) => s.t === "q");
-  let counter = "";
-  if (step.t === "q") {
-    const n = questions.indexOf(step) + 1;
-    counter = `${String(n).padStart(2, "0")} / ${String(questions.length).padStart(2, "0")}`;
-  }
-
-  const pick = (idx) => {
-    if (step.multi) {
-      setAnswers((a) => {
-        const arr = a[i] ? [...a[i]] : [];
-        const at = arr.indexOf(idx);
-        if (at > -1) arr.splice(at, 1);
-        else arr.push(idx);
-        return { ...a, [i]: arr };
-      });
-    } else {
-      setAnswers((a) => ({ ...a, [i]: idx }));
-      setTimeout(advance, 220);
+    scrollTop();
+    if (cur === "result") {
+      // The category only: no answers and no product leave the page.
+      track(EVENTS.QUIZ_COMPLETED, { slug: slug || "start", goal: CATEGORY_OF[pathOf(answers)] });
     }
+    // Fires on arrival at a screen, not on every answer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cur]);
+
+  const screen = SCREENS[cur];
+  const go = (next) => {
+    setTrail((t) => [...t, cur]);
+    setCur(next);
   };
+  const back = () => {
+    if (!trail.length) return navigate("/treatments");
+    setCur(trail[trail.length - 1]);
+    setTrail((t) => t.slice(0, -1));
+  };
+  const exit = () => navigate("/");
+
+  const pick = (o) => {
+    if (screen.type === "multi") {
+      const prev = answers[cur] || [];
+      let nextVals;
+      if (prev.includes(o.v)) nextVals = prev.filter((v) => v !== o.v);
+      else if (o.only) nextVals = [o.v];
+      else nextVals = prev.filter((v) => !screen.opts.find((x) => x.v === v && x.only)).concat(o.v);
+      setAnswers((a) => ({ ...a, [cur]: nextVals }));
+      return;
+    }
+    /* One choice moves straight on, after a beat so the tick is seen. */
+    if (moving) return;
+    setMoving(true);
+    const nextAnswers = { ...answers, [cur]: o.v };
+    setAnswers(nextAnswers);
+    setTimeout(() => {
+      setMoving(false);
+      go(screen.next(nextAnswers));
+    }, 240);
+  };
+
+  const answered = screen.type === "multi" ? (answers[cur] || []).length > 0 : answers[cur] != null;
+  const showContinue = screen.type === "note" || screen.type === "multi" || (screen.type === "single" && answered && !moving);
+  const progress = cur === "result" ? 100 : cur === "goal" ? 8 : cur === "vibe" ? 14 : screen.type === "note" ? 80 : 30 + trail.filter((k) => SCREENS[k].step === 1).length * 14;
 
   return (
-    <main className="min-h-screen w-full bg-bg text-ink">
-      <Seo title={consult.name} noindex />
-      {/* progress bar */}
-      <header className="sticky top-0 z-20 flex items-center gap-3.5 border-b border-line bg-bg/85 px-4 py-3 backdrop-blur-md md:px-5">
-        <button onClick={back} aria-label="Back" className="grid h-[38px] w-[38px] flex-none place-items-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink">
-          <ArrowLeft size={18} />
-        </button>
-        <div className="h-[5px] flex-1 overflow-hidden rounded-full bg-line">
-          <motion.div
-            className="h-full rounded-full bg-primary"
-            initial={false}
-            animate={{ width: `${progress * 100}%` }}
-            transition={{ duration: 0.5, ease: EASE }}
-          />
+    /* A column, so the two panes below the header fill exactly what is left
+       of the screen and the sidebar's footnote stays in view. */
+    <main className="flex min-h-screen w-full flex-col bg-bg text-ink">
+      <Seo title="Find a Starting Point" noindex />
+      <header className="sticky top-0 z-20 flex-none border-b border-line bg-bg">
+        <div className="mx-auto grid h-16 max-w-7xl grid-cols-3 items-center px-3 lg:px-8">
+          <div className="flex items-center gap-4">
+            <img src="/logo-2026.png" alt="Nova MDK" className="hidden h-8 w-auto lg:block" />
+            <button
+              type="button"
+              onClick={back}
+              aria-label="Back"
+              className={`grid size-11 place-items-center rounded-full hover:bg-surface-2/50 ${trail.length || cur !== "goal" ? "" : "invisible"}`}
+            >
+              <ChevronLeft className="size-5" />
+            </button>
+          </div>
+          <img src="/logo-2026.png" alt="Nova MDK" className="h-8 w-auto justify-self-center lg:hidden" />
+          <button type="button" onClick={exit} aria-label="Exit quiz" className="col-start-3 grid size-11 place-items-center justify-self-end rounded-full hover:bg-surface-2/50">
+            <X className="size-4.5" />
+          </button>
         </div>
-        <div className="min-w-[48px] flex-none text-right font-mono text-[12px] tracking-[0.04em] text-muted">{counter}</div>
-        <button onClick={goHome} aria-label="Close" className="grid h-[38px] w-[38px] flex-none place-items-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink">
-          <X size={18} />
-        </button>
+        <div className="h-0.5 bg-line">
+          <div className="h-full bg-primary transition-all duration-500" style={{ width: `${Math.min(progress, 100)}%` }} />
+        </div>
       </header>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={i}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.32, ease: EASE }}
-          className={isKiosk ? CENTER_KIOSK : undefined}
-        >
-          {step.t === "intro" && <Intro step={step} onNext={advance} />}
-          {step.t === "q" && <Question step={step} value={answers[i]} onPick={pick} onNext={advance} />}
-          {step.t === "fact" && <Fact step={step} onNext={advance} />}
-          {step.t === "end" && <End step={step} onFinish={finish} onHome={goHome} />}
-        </motion.div>
-      </AnimatePresence>
+      <div className="flex-1 lg:grid lg:grid-cols-12">
+        <Sidebar step={screen.step} chips={chipsFor([...trail, cur], answers)} />
+        <section className={`mx-auto max-w-xl px-5 pt-7 lg:col-span-7 lg:mx-0 lg:max-w-2xl lg:px-12 lg:py-18 ${showContinue ? "pb-36" : "pb-12"}`}>
+          <div key={cur} aria-live="polite">
+            {(screen.type === "single" || screen.type === "multi") && <Question screen={screen} value={answers[cur]} onPick={pick} />}
+            {screen.type === "note" && <Note screen={screen} />}
+            {screen.type === "result" && <Result answers={answers} />}
+          </div>
+
+          {showContinue && (
+            /* Pinned to the foot of a phone screen; in the flow on desktop. */
+            <div className="fixed inset-x-0 bottom-0 z-10 bg-linear-to-t from-bg from-70% to-transparent px-5 pb-6 pt-4 lg:static lg:bg-none lg:px-0 lg:pb-0 lg:pt-7">
+              <div className="mx-auto max-w-lg lg:mx-0 lg:max-w-none">
+                <button type="button" className={BUTTON} disabled={!answered && screen.type !== "note"} onClick={() => go(screen.next(answers))}>
+                  Continue
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
     </main>
   );
 }

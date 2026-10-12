@@ -41,16 +41,19 @@ export const HOLD_NOTICE =
  * on this site: the wording is ours, the sign-off is John's lawyer's. It is
  * here rather than inline in the component so there is one place to change.
  *
- * Returned in pieces so the component can set the two amounts in bold without
- * either of them drifting away from the sentence they belong to. Both are
- * passed in already formatted by the caller, from the server's quote.
+ * Shortened at the client's request (2026-10-10), but it still names the
+ * amount and how often it renews, which is the part that has to be agreed.
+ *
+ * Returned in pieces so the component can set the amount and the interval in
+ * bold without either drifting away from the sentence they belong to. Both are
+ * passed in already formatted by the caller, the amount from the server's quote.
  */
 export const renewalConsent = ({ charge, renewal }) => ({
-  lead: "I authorize NovaMDK to charge",
+  lead: "I authorize a charge of",
   charge,
-  mid: "after approval and automatically renew my plan at",
+  mid: "after approval, renewing",
   renewal,
-  tail: "until I cancel. I can cancel future renewals through my patient portal.",
+  tail: "until I cancel.",
 });
 
 /* The long version, behind the question mark on the total.

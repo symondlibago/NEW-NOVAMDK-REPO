@@ -71,7 +71,7 @@ function PostTile({ post, sizes, big = false }) {
         </span>
 
         <h3
-          className={`mt-2.5 line-clamp-3 font-display font-extrabold leading-[1.18] text-white ${
+          className={`mt-2.5 font-display font-extrabold leading-[1.18] text-white ${big ? "line-clamp-3" : "line-clamp-4 sm:line-clamp-3"} ${
             big
               ? "text-[clamp(1.15rem,2.4vw,1.95rem)]"
               : "text-[clamp(0.95rem,1.4vw,1.15rem)]"
@@ -105,7 +105,7 @@ export default function Articles() {
             {/* The feature keeps its aspect at every width: it is what gives the
                 mosaic row its height, and the pair beside it stretches to
                 match. Drop it at lg and both columns collapse. */}
-            <div className="aspect-4/3 sm:aspect-3/2">
+            <div className="aspect-3/2">
               <PostTile
                 post={feature}
                 big
@@ -115,14 +115,15 @@ export default function Articles() {
 
             {/* Two equal rows so the pair stands exactly as tall as the feature
                 beside it. Below lg they are their own cards and carry their own
-                aspect instead. */}
+                aspect instead: side by side and portrait on a phone, as the
+                client's comp has it (2026-10-12). */}
             {side.length > 0 && (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:grid-rows-2">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-1 lg:grid-rows-2">
                 {side.map((post) => (
-                  <div key={post.slug} className="aspect-16/9 lg:aspect-auto">
+                  <div key={post.slug} className="aspect-3/4 sm:aspect-16/9 lg:aspect-auto">
                     <PostTile
                       post={post}
-                      sizes="(min-width: 1024px) 34vw, (min-width: 640px) 47vw, 92vw"
+                      sizes="(min-width: 1024px) 34vw, 47vw"
                     />
                   </div>
                 ))}
@@ -131,9 +132,10 @@ export default function Articles() {
           </div>
         </Reveal>
 
-        {/* ---- what's new ---- */}
+        {/* ---- what's new: not on a phone, which shows three posts in all
+                (client, 2026-10-12) ---- */}
         {fresh.length > 0 && (
-          <Reveal>
+          <Reveal className="hidden sm:block">
             <h2
               className="nv-weight-keep mt-[clamp(2.25rem,4.5vw,3.5rem)] font-display text-[clamp(1.6rem,3.4vw,2.9rem)] font-extrabold leading-[1.05] tracking-[0.01em]"
               style={{ color: HEADING }}

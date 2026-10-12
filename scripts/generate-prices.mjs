@@ -24,10 +24,22 @@ for (const p of extractProducts({ includeHidden: true })) {
     skipped.push(p.id);
     continue;
   }
+  const amount3 = p.price3 ? Number(String(p.price3).replace(/[^0-9.]/g, "")) : null;
+  /* A 3 month price that doesn't parse, or that isn't a saving on three single
+     months, is a typo in the catalogue, and charging it would be worse than
+     failing the build. */
+  if (amount3 !== null && !(Number.isFinite(amount3) && amount3 > 0 && amount3 <= amount * 3)) {
+    throw new Error(`generate-prices: product ${p.id} has an unusable price3 "${p.price3}"`);
+  }
   // Rounded to cents here so the endpoint never has to think about floats.
   priced.push({
     id: p.id,
     amount: Math.round(amount * 100) / 100,
+    amount3: amount3 === null ? null : Math.round(amount3 * 100) / 100,
+    singleMonth: p.singleMonth,
+    /* Set below, once every rung is known: a plan's later rungs have to carry
+       it too, or a renewal of a 3 month plan would be clamped to one month. */
+    subscription: p.audience === "Subscription",
     name: p.name,
     /* So the server can name a card the same way the browser does, which is
        "{category} - {product}". A later month of a plan opens its visit from
@@ -59,6 +71,27 @@ for (const p of priced) {
   }
 }
 
+/* The subscription flag down every ladder.
+ *
+ * Only the first rung of a plan carries `audience: "Subscription"`, because
+ * that field is the card's tag and the later rungs have no card. The 3 month
+ * rule is decided from this flag, and `checkoutMonths` clamps a request to the
+ * terms the product offers, so without this a renewal landing on month two of
+ * a 3 month plan would be clamped to one month and held for a third of the
+ * money while the plan still said three. Walked rather than hand listed, so
+ * adding a rung cannot forget it. */
+for (const p of priced.filter((x) => x.subscription)) {
+  let at = p;
+  const seen = new Set([at.id]);
+  while (at.nextRung) {
+    const next = byId.get(at.nextRung);
+    if (!next || seen.has(next.id)) break;
+    next.subscription = true;
+    seen.add(next.id);
+    at = next;
+  }
+}
+
 const body = priced
   .sort((a, b) => a.id - b.id)
   .map(
@@ -67,6 +100,9 @@ const body = priced
       `, categoryName: ${JSON.stringify(p.categoryName)}` +
       `, questionnaireId: ${JSON.stringify(p.questionnaireId)}` +
       (p.nextRung ? `, nextRung: ${p.nextRung}` : "") +
+      (p.amount3 ? `, amount3: ${p.amount3.toFixed(2)}` : "") +
+      (p.singleMonth ? `, singleMonth: true` : "") +
+      (p.subscription ? `, subscription: true` : "") +
       ` },`
   )
   .join("\n");
