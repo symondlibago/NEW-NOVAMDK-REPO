@@ -538,7 +538,7 @@ export default function ProductPage() {
           Started uses rather than a second entry point. */}
       {isGlutathione && <GlutathioneSections startTo={`${productPath(product)}?start=1`} />}
       {isScreamCream && <ScreamCreamSections startTo={`${productPath(product)}?start=1`} />}
-      {isSermorelin && <SermorelinSections startTo={`${productPath(product)}?start=1`} />}
+      {isSermorelin && <SermorelinSections product={active} startTo={`${productPath(product)}?start=1`} />}
       {isLdn && <LdnSections startTo={`${productPath(product)}?start=1`} />}
       {isLuminance && <LuminanceSections startTo={`${productPath(product)}?start=1`} />}
       {isOlympusPeak && <OlympusSections startTo={`${productPath(product)}?start=1`} />}

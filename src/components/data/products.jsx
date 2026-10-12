@@ -1966,6 +1966,9 @@ const FAQ_SETS = [
   ]],
   [/^sermorelin nasal spray$/i, [
     { q: "What is Sermorelin Nasal Spray?", a: "Sermorelin is a compounded prescription nasal spray that acts on the growth hormone pathway." },
+    { q: "Is Sermorelin a steroid?", a: "No. Sermorelin is a peptide, a short chain of amino acids that resembles growth hormone releasing hormone (GHRH). It is not an anabolic steroid, and it is not growth hormone itself." },
+    { q: "How is it different from growth hormone (HGH)?", a: "Growth hormone therapy supplies the hormone directly. Sermorelin acts on the pituitary gland, which then releases the body's own growth hormone." },
+    { q: "Who is it for?", a: "Adults who complete an online intake and are evaluated by a licensed provider. Your provider reviews your health history, medications, and goals to decide whether it may be appropriate for you." },
     { q: "How do I use it?", a: "Use it exactly as prescribed, including the number of sprays and timing set by your healthcare provider." },
     { q: "How is my treatment plan decided?", a: "Your provider will review your health history, goals, and response to treatment before deciding what schedule is appropriate for you." },
     { q: "What should I do if I have side effects?", a: "If you experience nasal irritation or another unexpected reaction, contact your provider for guidance." },
