@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 
 const MONTHS = [
@@ -15,6 +16,9 @@ const PANEL_HEIGHT = 360;
    the point where a scrollable year list is still usable. */
 const GUTTER = 8;
 const PANEL_MIN = 190;
+/* The widest the panel gets (sm:w-80). Used only to keep it on screen
+   horizontally; the element still sizes itself from its classes. */
+const PANEL_WIDTH = 320;
 const pad = (n) => String(n).padStart(2, "0");
 const toISO = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
 
@@ -73,18 +77,29 @@ export default function DatePicker({
   id,
 }) {
   const [open, setOpen] = useState(false);
-  const [place, setPlace] = useState({ above: false, maxHeight: PANEL_HEIGHT });
+  const [place, setPlace] = useState({ above: false, maxHeight: PANEL_HEIGHT, left: 0, top: 0 });
   const selected = parseISO(value);
   const [view, setView] = useState(selected ? "days" : "years");
   const [cursor, setCursor] = useState(() => selected || { y: maxDate.y - 30, m: 0, d: 1 });
 
   const ref = useRef(null);
   const triggerRef = useRef(null);
+  const panelRef = useRef(null);
   const selectedYearRef = useRef(null);
   const yearListRef = useRef(null);
 
   useEffect(() => {
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    /* Both the field and the panel count as inside.
+     *
+     * The panel is portalled to document.body, so it is no longer a DOM
+     * descendant of `ref`. Checking `ref` alone meant the first tap on a year
+     * closed the picker instead of selecting, which is the bug this looked
+     * like on a phone: the calendar opened and nothing in it could be used. */
+    const onDoc = (e) => {
+      const inField = ref.current?.contains(e.target);
+      const inPanel = panelRef.current?.contains(e.target);
+      if (!inField && !inPanel) setOpen(false);
+    };
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", onDoc);
     /* Touch as well as mouse: a tap outside on a phone arrives as touchstart,
@@ -124,7 +139,33 @@ export default function DatePicker({
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
     const vv = window.visualViewport;
-    setPlace(placeFor(rect, vv?.offsetTop ?? 0, vv?.height ?? window.innerHeight));
+    const vTop = vv?.offsetTop ?? 0;
+    const vHeight = vv?.height ?? window.innerHeight;
+    const vWidth = vv?.width ?? window.innerWidth;
+    const fit = placeFor(rect, vTop, vHeight);
+
+    /* Coordinates for a fixed panel, in the same space the rect was measured
+       in. The panel used to be absolute inside the intake modal, which is
+       `fixed inset-0 overflow-y-auto`: the scroll box clipped it, and the
+       placement (top-full / bottom-full, i.e. the modal's scrolled content)
+       disagreed with the measurement (the viewport) by however far the modal
+       had been scrolled. On a desktop the modal barely scrolls so it looked
+       right; on a phone the field sits low, the modal is scrolled, and the
+       calendar landed half off screen and unusable. Fixed to the viewport, in
+       a portal, so neither can happen on any device.
+
+       Clamped on both axes: a field near the right edge would otherwise push
+       the panel off it, and flipping upward near the top would put it above
+       the screen. */
+    const left = Math.max(
+      GUTTER,
+      Math.min(rect.left, vWidth - PANEL_WIDTH - GUTTER)
+    );
+    const top = fit.above
+      ? Math.max(vTop + GUTTER, rect.top - fit.maxHeight - 6)
+      : Math.min(rect.bottom + 6, vTop + vHeight - fit.maxHeight - GUTTER);
+
+    setPlace({ ...fit, left, top });
   }, []);
 
   useEffect(() => {
@@ -214,19 +255,24 @@ export default function DatePicker({
         <CalendarDays size={16} className="shrink-0 text-muted" />
       </button>
 
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         /* Fixed width, never max-w-full: the field sits in a half-width grid
-           cell, so clamping to the parent squeezes the calendar to nothing. */
+           cell, so clamping to the parent squeezes the calendar to nothing.
+
+           Portalled to body and positioned fixed. Inside the intake modal the
+           panel's old absolute placement was clipped by that modal's own
+           overflow, which is why this worked on a desktop and not on a phone.
+           z-130, because the modal it opens over is z-120 and a calendar behind
+           its own field cannot be used. */
         <div
+          ref={panelRef}
           role="dialog"
           aria-label="Choose a date"
           /* Lenis swallows touchmove site-wide; without this the year list
              simply won't scroll on a phone. Same flag the nav drawer uses. */
           data-lenis-prevent
-          style={{ maxHeight: place.maxHeight }}
-          className={`absolute left-0 z-50 flex w-72 flex-col overflow-hidden rounded-2xl border border-line bg-surface p-3 nv-shadow-lg sm:w-80 ${
-            place.above ? "bottom-full mb-1.5" : "top-full mt-1.5"
-          }`}
+          style={{ maxHeight: place.maxHeight, left: place.left, top: place.top }}
+          className="fixed z-130 flex w-72 flex-col overflow-hidden rounded-2xl border border-line bg-surface p-3 nv-shadow-lg sm:w-80"
         >
           {/* ---------------- header ---------------- */}
           {view === "days" ? (
@@ -342,7 +388,8 @@ export default function DatePicker({
               })}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
