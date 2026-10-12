@@ -49,6 +49,7 @@ import OlympusSections from "../components/product/OlympusSections";
 import BremelanotideSections from "../components/product/BremelanotideSections";
 import BremelanotideNasalSections from "../components/product/BremelanotideNasalSections";
 import LipoCSections from "../components/product/LipoCSections";
+import TirzepatideSections from "../components/product/TirzepatideSections";
 
 const HERO_ASSURANCES = [
   { icon: Stethoscope, l1: "US licensed", l2: "providers" },
@@ -187,6 +188,8 @@ export default function ProductPage() {
   const isBremelanotideInjection = product.name === "Bremelanotide Injection";
   const isBremelanotideNasal = product.name === "Bremelanotide Nasal Spray";
   const isLipoC = /lipo-c/i.test(product.name);
+  // The compounded rungs only, not Zepbound or Mounjaro, whose names end in "(Tirzepatide)".
+  const isTirzepatide = /^tirzepatide\//i.test(product.name);
   const backLink = otc ? "/treatments" : `/treatments/${product.categorySlug}`;
   const seenTitle = new Set();
   const related = visibleProducts
@@ -549,6 +552,7 @@ export default function ProductPage() {
         <BremelanotideNasalSections startTo={`${productPath(product)}?start=1`} />
       )}
       {isLipoC && <LipoCSections startTo={`${productPath(product)}?start=1`} />}
+      {isTirzepatide && <TirzepatideSections product={active} startTo={`${productPath(product)}?start=1`} />}
 
       {product.howItWorks && (
         <section className="bg-surface-2 py-[clamp(2.5rem,5vw,5.5rem)]">

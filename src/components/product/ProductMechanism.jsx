@@ -226,6 +226,9 @@ export default function ProductMechanism({ product }) {
   if (!m) return null;
 
   const callouts = m.layout === "callouts";
+  /* The rail goes with the diagram unless a record asks for the bars, which
+     tirzepatide keeps under its diagram (client, 2026-10-12). */
+  const rail = callouts && m.timelineLayout !== "bars";
 
   return (
     <section
@@ -282,9 +285,9 @@ export default function ProductMechanism({ product }) {
         </div>
         )}
 
-        {m.timeline?.length > 0 && callouts && <TimelineRail m={m} />}
+        {m.timeline?.length > 0 && rail && <TimelineRail m={m} />}
 
-        {m.timeline?.length > 0 && !callouts && (
+        {m.timeline?.length > 0 && !rail && (
           <div className="mt-[clamp(2.5rem,5vw,4rem)]">
             <Reveal as="div">
               <h2 className="max-w-[15ch] font-display text-[clamp(1.6rem,3.2vw,2.3rem)] font-extrabold leading-[1.1] text-[#ffe8b1]">

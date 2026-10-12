@@ -174,10 +174,11 @@ export default function BmiCalculator({ className = "" }) {
     return { bmi: Math.round(bmi * 10) / 10, band: bandFor(bmi), mayQualify: bmi >= 27 };
   }, [cm, kg]);
 
-  // One event per click through, carrying the band only. The height and weight a
-  // patient dragged to never leaves the browser.
+  // One event per click through, and nothing about the result: the band is
+  // health information, as on the calculator page (2026-10-12). Height and
+  // weight never leave the browser either.
   const onSeeOptions = () => {
-    track(EVENTS.CALCULATOR_USED, { band: result?.band?.label, tool: "weight-loss" });
+    track(EVENTS.CALCULATOR_USED, { tool: "weight-loss" });
   };
 
   const heightIn = Math.round(cm / IN_TO_CM);

@@ -6,8 +6,14 @@ import {
    Shared by the three tirzepatide rungs — one molecule at three doses, so the
    mechanism and pharmacokinetics are identical and must not drift apart across
    the ladder. Every string here is a clinical claim: change it only with the same
-   review the specs and safety copy get. */
+   review the specs and safety copy get.
+
+   The vial diagram Semaglutide has since 2026-10-12 (client: "that would
+   match"), its three labels taken from the description below. The stacked bars
+   stay under it, which the client asked to keep. */
 const TIRZEPATIDE_MECHANISM = {
+  layout: "callouts",
+  timelineLayout: "bars",
   title: "Two Pathways, One Approach",
   cardTitle: "Dual-Hormone Pathway",
   description:
@@ -16,6 +22,11 @@ const TIRZEPATIDE_MECHANISM = {
     { name: "GLP-1", text: "A receptor pathway involved in appetite and food intake" },
     { name: "GIP", text: "A second receptor pathway involved in appetite and food intake" },
     { name: "Tirzepatide", text: "Acts on both the GIP and GLP-1 receptor pathways" },
+  ],
+  callouts: [
+    { name: "GIP Receptor Pathway" },
+    { name: "Appetite & Food Intake" },
+    { name: "GLP-1 Receptor Pathway" },
   ],
   timelineTitle: "Tirzepatide at a Glance",
   timeline: [
