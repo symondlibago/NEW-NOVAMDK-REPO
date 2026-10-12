@@ -448,13 +448,14 @@ export const PALETTES = [
 
 export const TYPOGRAPHIES = [
   {
+    // Site font since 2026-10-12 (client). The id stays so saved choices still land here.
     id: "grotesk",
-    name: "Grotesk Modern",
+    name: "Plex Sans",
     sample: "Aa",
-    note: "Hanken Grotesk · IBM Plex Mono",
+    note: "IBM Plex Sans · IBM Plex Mono",
     vars: {
-      "--nv-font-display": "'Hanken Grotesk', system-ui, sans-serif",
-      "--nv-font-body": "'Hanken Grotesk', system-ui, sans-serif",
+      "--nv-font-display": "'IBM Plex Sans', system-ui, sans-serif",
+      "--nv-font-body": "'IBM Plex Sans', system-ui, sans-serif",
       "--nv-font-mono": "'IBM Plex Mono', ui-monospace, monospace",
       "--nv-display-tracking": "-0.032em",
     },
