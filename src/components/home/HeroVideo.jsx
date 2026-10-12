@@ -175,9 +175,8 @@ export default function HeroVideo() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, ease: EASE }}
             aria-hidden="true"
-            /* Light on a phone, the client's thinner "Better"; the bold cut
-               stays from sm up. */
-            className="block text-[clamp(3.5rem,8.2vw,9.5rem)] font-light tracking-[0.07em] sm:font-extrabold"
+            /* Light at every width, the client's thinner "Better" (2026-10-12). */
+            className="block text-[clamp(3.5rem,8.2vw,9.5rem)] font-light tracking-[0.07em]"
           >
             Better
           </Motion.span>
