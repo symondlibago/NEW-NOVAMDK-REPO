@@ -1983,6 +1983,7 @@ const FAQ_SETS = [
   ]],
   [/^nad\+ sublingual tablet/i, [
     { q: "What is NAD+ Sublingual Tablet?", a: "NAD+ Sublingual Tablet is a compounded prescription treatment designed to dissolve under the tongue." },
+    { q: "How is it different from NAD+ Injection?", a: "Both contain NAD+. The tablet dissolves under the tongue, so there is no needle, while the injection is given at home with a small needle. Your provider can help you decide which format may suit you." },
     { q: "How do I take it?", a: "Use it exactly as prescribed, including the amount and frequency recommended by your provider." },
     { q: "How is my dose decided?", a: "Your provider will base your treatment plan on your health history, medications, goals, and response over time." },
     { q: "What should I know before starting?", a: "Side effects or medication-related concerns can occur. Your provider will review what to watch for and when to contact your care team." },

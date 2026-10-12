@@ -1,36 +1,14 @@
 import React from "react";
-import Reveal from "../ui/Reveal";
 import useRunOnceInView from "../../lib/useRunOnceInView";
 
-const INK = "#3f3a33";
-const MUTED = "#6b5e4b";
-
-/* Updated text colors from new reference */
-const TITLE_LIGHT = "#a18858";
-const TITLE_DARK = "#705529";
-const BODY_GOLD = "#a17f50";
-const QUOTE_GOLD = "#a27d4e";
-const QUOTE_LINE = "#d7c9af";
-
-const GOLD_DOT = "#c69b42";
-
-const LINE = "#e1d2b3";
-const CARD = "#fdfbf7";
-
-const CARD_R = "rounded-[calc(20px*var(--nv-r-scale,1))]";
+/* The NAD+ decline-with-age figure. It ran in cream on the gold band until
+   2026-10-12, when the client moved it onto white on both NAD+ pages (see
+   NadSections), so it is drawn in gold now. */
 
 /* The plot, in viewBox units. The axes are drawn on these bounds and every
    point below is placed inside them, so the curve, its dots and the age labels
    can never drift apart the way they did while the labels lived in a separate
    grid under the SVG. */
-/* The band, straight off the Canva artboard: a circular gradient c1a27a to
-   9a7843, with the whole figure drawn in cream on top of it. */
-const BAND = "radial-gradient(circle at 50% 50%, #c1a27a 0%, #9a7843 100%)";
-const CREAM = "#f7ebd2";
-const CREAM_SOFT = "rgba(247,235,210,0.86)";
-const AXIS_LINE = "rgba(247,235,210,0.45)";
-const DOT = "#f4e6c6";
-
 const PLOT = { left: 44, right: 502, top: 14, bottom: 186 };
 const LABEL_Y = 212;
 
@@ -70,47 +48,28 @@ const CURVE_AREA = `
 
 const HEAD = POINTS[0];
 
-/* The graph's colours. Brass is the band it was drawn for, cream on gold; light
-   is the same figure in gold on the page's white, which the NAD+ Injection page
-   uses (client, 2026-10-12). Ids carry the tone so the two can never collide. */
-const TONES = {
-  brass: {
-    line: ["#fdf6e6", "#f6e9cd", "#eeddb6"],
-    area: ["#fff3d4", "#ffeecb", "#ffeac2", "#ffe8bd"],
-    areaOpacity: [0.52, 0.34, 0.16, 0.04],
-    glow: ["#fff4d6", "#fff0cb", "#ffecc2", "#ffe9bb"],
-    axis: AXIS_LINE,
-    label: CREAM_SOFT,
-    shadow: "#fff0c9",
-    halo: "#fff4d8",
-    dot: DOT,
-    dotRim: "rgba(255,255,255,0.55)",
-    age: CREAM,
-  },
-  light: {
-    line: ["#cfae74", "#b39258", "#8f6f3a"],
-    area: ["#e2c896", "#e8d3aa", "#efe0c2", "#f6eedd"],
-    areaOpacity: [0.55, 0.38, 0.2, 0.05],
-    glow: ["#e7cb93", "#ecd5a8", "#f1e0bf", "#f6ebd6"],
-    axis: "rgba(114,88,38,0.28)",
-    label: "#8a7550",
-    shadow: "#b39258",
-    halo: "#cfae74",
-    dot: "#b39258",
-    dotRim: "#ffffff",
-    age: "#725826",
-  },
+/* Gold on white: the line darkens as it falls, and the shade under it pools
+   gold and fades out toward the axis. */
+const C = {
+  line: ["#cfae74", "#b39258", "#8f6f3a"],
+  area: ["#e2c896", "#e8d3aa", "#efe0c2", "#f6eedd"],
+  areaOpacity: [0.55, 0.38, 0.2, 0.05],
+  glow: ["#e7cb93", "#ecd5a8", "#f1e0bf", "#f6ebd6"],
+  axis: "rgba(114,88,38,0.28)",
+  label: "#8a7550",
+  shadow: "#b39258",
+  halo: "#cfae74",
+  dot: "#b39258",
+  dotRim: "#ffffff",
+  age: "#725826",
 };
 
-/* The animated decline curve on its own, so the NAD+ Injection page can set it
-   on white while the tablet keeps it on the band. */
-export function DeclineGraph({ tone = "brass", className = "" }) {
+export default function NadDeclineGraph({ className = "" }) {
   /* The shared hook rather than an observer of its own (2026-09-19): this one
      asked for 30% of the band to be on screen, and the band is now the graph
      itself, full bleed. On a phone it is taller than the viewport, so 30% of it
      can never be visible at once and the graph simply never drew. */
   const [graphRef, graphActive] = useRunOnceInView("-80px");
-  const c = TONES[tone];
 
   return (
     <div ref={graphRef} className={`${className} ${graphActive ? "nv-energy-active" : ""}`}>
@@ -390,27 +349,23 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
           className="block h-auto w-full overflow-visible"
         >
           <defs>
-            {/* THE LINE. Cream on the brass rather than gold on cream. */}
+            {/* THE LINE. */}
             <linearGradient
-              id={`nv-energy-line-${tone}`}
+              id="nv-energy-line"
               x1="64"
               y1="51"
               x2="482"
               y2="140"
               gradientUnits="userSpaceOnUse"
             >
-              <stop offset="0%" stopColor={c.line[0]} />
-              <stop offset="45%" stopColor={c.line[1]} />
-              <stop offset="100%" stopColor={c.line[2]} />
+              <stop offset="0%" stopColor={C.line[0]} />
+              <stop offset="45%" stopColor={C.line[1]} />
+              <stop offset="100%" stopColor={C.line[2]} />
             </linearGradient>
 
-            {/* THE YELLOW SHADE UNDER THE CURVE. Warm cream falling to
-                nothing at the axis, so the light pools right beneath the
-                line and the brass reads through it lower down. The old
-                stops were golds, mixed for a cream card, and vanished
-                against the band. */}
+            {/* THE SHADE UNDER THE CURVE, falling to nothing at the axis. */}
             <linearGradient
-              id={`nv-energy-area-${tone}`}
+              id="nv-energy-area"
               x1="0"
               y1="14"
               x2="0"
@@ -419,26 +374,26 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
             >
               <stop
                 offset="0%"
-                stopColor={c.area[0]}
-                stopOpacity={c.areaOpacity[0]}
+                stopColor={C.area[0]}
+                stopOpacity={C.areaOpacity[0]}
               />
 
               <stop
                 offset="35%"
-                stopColor={c.area[1]}
-                stopOpacity={c.areaOpacity[1]}
+                stopColor={C.area[1]}
+                stopOpacity={C.areaOpacity[1]}
               />
 
               <stop
                 offset="70%"
-                stopColor={c.area[2]}
-                stopOpacity={c.areaOpacity[2]}
+                stopColor={C.area[2]}
+                stopOpacity={C.areaOpacity[2]}
               />
 
               <stop
                 offset="100%"
-                stopColor={c.area[3]}
-                stopOpacity={c.areaOpacity[3]}
+                stopColor={C.area[3]}
+                stopOpacity={C.areaOpacity[3]}
               />
             </linearGradient>
 
@@ -446,13 +401,13 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
                 on the left: the comp squares it against the y-axis, and
                 the old fade only existed because the curve used to run
                 off the left edge of the card. */}
-            <clipPath id={`nv-energy-plot-${tone}`}>
+            <clipPath id="nv-energy-plot">
               <rect x="44" y="0" width="458" height="186" />
             </clipPath>
 
             {/* AREA BLUR */}
             <filter
-              id={`nv-energy-area-blur-${tone}`}
+              id="nv-energy-area-blur"
               x="-30%"
               y="-30%"
               width="170%"
@@ -463,39 +418,39 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
 
             {/* STARTING DOT GLOW */}
             <radialGradient
-              id={`nv-energy-head-glow-${tone}`}
+              id="nv-energy-head-glow"
               cx="50%"
               cy="50%"
               r="50%"
             >
               <stop
                 offset="0%"
-                stopColor={c.glow[0]}
+                stopColor={C.glow[0]}
                 stopOpacity="0.5"
               />
 
               <stop
                 offset="30%"
-                stopColor={c.glow[1]}
+                stopColor={C.glow[1]}
                 stopOpacity="0.3"
               />
 
               <stop
                 offset="62%"
-                stopColor={c.glow[2]}
+                stopColor={C.glow[2]}
                 stopOpacity="0.14"
               />
 
               <stop
                 offset="100%"
-                stopColor={c.glow[3]}
+                stopColor={C.glow[3]}
                 stopOpacity="0"
               />
             </radialGradient>
 
             {/* CURVE BLUR */}
             <filter
-              id={`nv-energy-curve-blur-${tone}`}
+              id="nv-energy-curve-blur"
               x="-30%"
               y="-50%"
               width="170%"
@@ -508,17 +463,17 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
           {/* GOLD SHADE */}
           <path
             d={CURVE_AREA}
-            fill={`url(#nv-energy-area-${tone})`}
-            clipPath={`url(#nv-energy-plot-${tone})`}
-            filter={`url(#nv-energy-area-blur-${tone})`}
+            fill="url(#nv-energy-area)"
+            clipPath="url(#nv-energy-plot)"
+            filter="url(#nv-energy-area-blur)"
             className="nv-energy-area-soft"
           />
 
           {/* SECOND GOLD LAYER */}
           <path
             d={CURVE_AREA}
-            fill={`url(#nv-energy-area-${tone})`}
-            clipPath={`url(#nv-energy-plot-${tone})`}
+            fill="url(#nv-energy-area)"
+            clipPath="url(#nv-energy-plot)"
             className="nv-energy-area-inner"
           />
 
@@ -528,7 +483,7 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
           <path
             d={`M ${PLOT.left} ${PLOT.top} L ${PLOT.left} ${PLOT.bottom} L ${PLOT.right} ${PLOT.bottom}`}
             fill="none"
-            stroke={c.axis}
+            stroke={C.axis}
             strokeWidth="1.4"
             strokeLinecap="square"
             strokeLinejoin="miter"
@@ -546,7 +501,7 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
               textAnchor="middle"
               dominantBaseline="middle"
               className="nv-energy-top-copy"
-              fill={c.label}
+              fill={C.label}
               fontSize="14"
               fontWeight="700"
             >
@@ -562,13 +517,13 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
             d={CURVE}
             pathLength="1"
             fill="none"
-            stroke={c.shadow}
+            stroke={C.shadow}
             strokeWidth="12"
             strokeLinecap="round"
             strokeLinejoin="round"
             opacity="0.17"
             transform="translate(0 3)"
-            filter={`url(#nv-energy-curve-blur-${tone})`}
+            filter="url(#nv-energy-curve-blur)"
             className="nv-energy-draw nv-energy-line-shadow"
           />
 
@@ -577,7 +532,7 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
             d={CURVE}
             pathLength="1"
             fill="none"
-            stroke={c.halo}
+            stroke={C.halo}
             strokeWidth="4.4"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -591,7 +546,7 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
             d={CURVE}
             pathLength="1"
             fill="none"
-            stroke={`url(#nv-energy-line-${tone})`}
+            stroke="url(#nv-energy-line)"
             strokeWidth="2.4"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -603,7 +558,7 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
             cx={HEAD.x}
             cy={HEAD.y}
             r="26"
-            fill={`url(#nv-energy-head-glow-${tone})`}
+            fill="url(#nv-energy-head-glow)"
             className="nv-energy-dot-glow"
           />
 
@@ -615,8 +570,8 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
               cx={p.x}
               cy={p.y}
               r="5.5"
-              fill={c.dot}
-              stroke={c.dotRim}
+              fill={C.dot}
+              stroke={C.dotRim}
               strokeWidth="1.2"
               className="nv-energy-start-dot"
               style={{ animationDelay: `${(0.2 + i * 0.54).toFixed(2)}s` }}
@@ -634,7 +589,7 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
               y={LABEL_Y}
               textAnchor="middle"
               className="nv-energy-age font-display"
-              fill={c.age}
+              fill={C.age}
               fontSize="14"
               fontWeight="800"
               style={{ animationDelay: `${(0.55 + i * 0.54).toFixed(2)}s` }}
@@ -645,62 +600,5 @@ export function DeclineGraph({ tone = "brass", className = "" }) {
         </svg>
       </div>
     </div>
-  );
-}
-
-export default function NadSupport() {
-  return (
-    <section
-      className="w-full"
-      style={{
-        background: BAND,
-      }}
-    >
-      {/* The section IS the graph now (2026-09-19): the comp gives the whole
-          band to it, headed by the eyebrow and one centred headline, with the
-          card, its split layout and the droplet all gone. */}
-      <div className="mx-auto max-w-[1320px] px-5 py-[clamp(2.5rem,6vw,4.5rem)] md:px-10">
-        <Reveal as="div" className="text-center">
-          <span
-            className="block text-[clamp(0.66rem,1.5vw,0.78rem)] font-bold uppercase tracking-[0.24em]"
-            style={{ color: CREAM_SOFT }}
-          >
-            Why NAD+
-          </span>
-
-          <h2
-            className="nv-weight-keep mt-4 font-display text-[clamp(1.6rem,4.4vw,3rem)] font-extrabold leading-[1.12]"
-            style={{ color: CREAM }}
-          >
-            NAD+ Levels Tend to Decline With Age
-          </h2>
-        </Reveal>
-
-        <Reveal as="div" delay={0.08}>
-          <div className="mt-[clamp(1.5rem,3.5vw,2.5rem)]">
-            <DeclineGraph />
-
-            {/* The age row that used to live here is inside the SVG now, under
-                its own dots. */}
-            {/* Both lines as the comp sets them, centred under the plot. The
-                qualifier stays in full: the curve is drawn to the shape of the
-                published trend, not digitised from the paper's figures. */}
-            <p
-              className="mt-4 text-center text-[clamp(0.68rem,1.4vw,0.8rem)] leading-snug"
-              style={{ color: CREAM_SOFT }}
-            >
-              Source: Massudi et al., PLOS ONE (2012)
-            </p>
-            <p
-              className="mx-auto mt-1.5 max-w-[72ch] text-center text-[clamp(0.64rem,1.3vw,0.74rem)] leading-snug"
-              style={{ color: "rgba(247,235,210,0.7)" }}
-            >
-              Educational illustration. Individual levels vary. This study did not evaluate NovaMDK
-              treatment or establish treatment outcomes.
-            </p>
-          </div>
-        </Reveal>
-      </div>
-    </section>
   );
 }

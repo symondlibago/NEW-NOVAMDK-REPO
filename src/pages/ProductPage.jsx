@@ -39,9 +39,7 @@ import ProductWhy from "../components/product/ProductWhy";
 import ProductRelated from "../components/product/ProductRelated";
 import { SafetySheet } from "../components/product/ProductSafety";
 import ProductStickyStart from "../components/product/ProductStickyStart";
-import NadSupport from "../components/product/NadSupport";
-import NadInjectionSections from "../components/product/NadInjectionSections";
-import NadSublingual from "../components/product/NadSublingual";
+import NadSections from "../components/product/NadSections";
 import GlutathioneSections from "../components/product/GlutathioneSections";
 import ScreamCreamSections from "../components/product/ScreamCreamSections";
 import SermorelinSections from "../components/product/SermorelinSections";
@@ -526,14 +524,15 @@ export default function ProductPage() {
           and tirzepatide records carry a band today. */}
       <ProductMechanism product={active} />
 
-      {/* NAD+ editorial, split by format and matched on the product name, so
-          the injection and its dose ladder share one set. The injection was
-          rebuilt on 2026-10-12 (gold "What is NAD+" first, the decline graph on
-          white); the tablet keeps the graph on the band and its own block. */}
-      {isNad && isSublingual && <NadSupport />}
-      {isNad && isSublingual && <NadSublingual />}
-      {isNad && !isSublingual && (
-        <NadInjectionSections product={active} startTo={`${productPath(product)}?start=1`} />
+      {/* NAD+ editorial, matched on the product name so the injection, its
+          dose ladder and the tablet all carry it. One layout for both formats
+          since 2026-10-12; the format picks the art, comparison and price card. */}
+      {isNad && (
+        <NadSections
+          product={active}
+          format={isSublingual ? "sublingual" : "injection"}
+          startTo={`${productPath(product)}?start=1`}
+        />
       )}
 
       {/* Glutathione's own editorial. Same contract as the NAD+ blocks: gated on

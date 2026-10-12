@@ -2,15 +2,16 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Check, Dna, Hourglass, SlidersHorizontal, Zap } from "lucide-react";
 import Reveal from "../ui/Reveal";
-import { priceLabel } from "../data/products";
-import { DeclineGraph } from "./NadSupport";
+import { priceLabel, productsData } from "../data/products";
+import NadDeclineGraph from "./NadDeclineGraph";
 
-/* Rebuilt 2026-10-12 with goodlifemeds.com's NAD+ page as the client's
-   reference, in the same format as Sermorelin: what it is on the gold band,
-   the decline with age on white, where NAD+ works in the cell, injection
-   against an IV drip, what is included and the sources. Their benefit claims,
-   reviews and promotions are left out. Replaces the "NAD+ Treatment at a
-   Glance" block (NadDirected); the tablet keeps NadSupport and NadSublingual. */
+/* Both NAD+ pages, rebuilt 2026-10-12 with goodlifemeds.com's NAD+ page as the
+   client's reference, in the same format as Sermorelin: what it is on the gold
+   band, the decline with age on white, where NAD+ works in the cell, a
+   comparison, what is included and the sources. Their benefit claims, reviews
+   and promotions are left out. The injection went first; the tablet followed
+   the same day on the same layout, losing its daily energy meter, which read as
+   a promised outcome. */
 
 const BAND = "radial-gradient(circle at 30% 40%, #c1a27a, #9a7843)";
 const DARK = "linear-gradient(160deg, #3a2f1f 0%, #2a2217 55%, #1f1a12 100%)";
@@ -19,6 +20,55 @@ const GROUND = "#fbfaf7";
 const TITLE = "font-display font-extrabold leading-[1.1]";
 const H2 = `${TITLE} text-[clamp(1.7rem,3.4vw,2.5rem)] text-[#725826]`;
 const CARD_R = "rounded-[calc(24px*var(--nv-r-scale,1))]";
+
+/* What differs between the two pages: the product art, the comparison and the
+   price card. Everything else is shared. */
+const FORMATS = {
+  injection: {
+    name: "NAD+ Injection",
+    blur: "/products/detail/nad-plus-2.avif",
+    art: "/products/nad-plus.avif",
+    artSize: "w-[min(80%,19rem)]",
+    compare: {
+      eyebrow: "Injection or IV",
+      title: "NAD+ at Home, Without the IV Chair",
+      text: "NAD+ is also given as an IV drip at clinics, which means booking a visit and sitting through it.",
+      cols: ["NAD+ Injection", "NAD+ IV drip"],
+      rows: (product) => [
+        { label: "Where", ours: "At home", theirs: "At a clinic or IV lounge" },
+        { label: "How it's given", ours: "A short injection, as your provider directs", theirs: "An IV drip into a vein" },
+        { label: "Time it takes", ours: "A few minutes", theirs: "Usually a longer, seated visit" },
+        { label: "Pricing", ours: `${priceLabel(product)}, one monthly price`, theirs: "Usually priced per visit" },
+      ],
+      img: "/site/nad/care-injectable.avif",
+      imgPos: "object-top",
+    },
+  },
+  sublingual: {
+    name: "NAD+ Sublingual Tablets",
+    blur: "/products/detail/nad-sublingual-2.avif",
+    art: "/products/nad-sublingual.avif",
+    artSize: "w-28 lg:w-40",
+    compare: {
+      eyebrow: "Tablet or injection",
+      title: "Needle-Free NAD+, Under the Tongue",
+      text: "NAD+ also comes as an injection. The tablet dissolves under the tongue instead, so there is no needle.",
+      cols: ["Sublingual tablet", "Injection"],
+      rows: (product) => [
+        { label: "How it's taken", ours: "Dissolves under the tongue", theirs: "A short injection" },
+        { label: "Needles", ours: "None", theirs: "A small needle" },
+        { label: "Ships as", ours: "A bottle of 30 tablets", theirs: "A vial" },
+        {
+          label: "Pricing",
+          ours: priceLabel(product),
+          theirs: priceLabel(productsData.find((p) => p.name === "NAD+ Injection")),
+        },
+      ],
+      img: "/site/nad/sublingual-taken.avif",
+      imgPos: "object-center",
+    },
+  },
+};
 
 /* Footnote marker: jumps to the numbered card in Sources. */
 function Ref({ n }) {
@@ -45,7 +95,7 @@ function StartLink({ to, light = false, className = "" }) {
   );
 }
 
-/* 1. WHAT IS NAD+: the gold band, first, as the client asked. The vial and its
+/* 1. WHAT IS NAD+: the gold band, first, as the client asked. The product and its
    two notes carry over from the old coenzyme panel. */
 
 const NOTES = [
@@ -67,11 +117,11 @@ function Note({ note, className = "" }) {
   );
 }
 
-function WhatIs({ startTo }) {
+function WhatIs({ f, startTo }) {
   return (
     <section className="relative overflow-hidden" style={{ background: BAND }}>
       <img
-        src="/products/detail/nad-plus-2.avif"
+        src={f.blur}
         alt=""
         aria-hidden="true"
         className="absolute inset-0 h-full w-full scale-110 object-cover opacity-30 mix-blend-soft-light blur-2xl"
@@ -100,12 +150,12 @@ function WhatIs({ startTo }) {
             </div>
 
             <div>
-              <div className="mx-auto w-[min(80%,19rem)]">
+              <div className={`mx-auto ${f.artSize}`}>
                 {/* The tilt has its own wrapper: the float animates the image's
                     transform and would wipe a rotate set on it. */}
                 <span className="block rotate-6">
                   <img
-                    src="/products/nad-plus.avif"
+                    src={f.art}
                     alt=""
                     aria-hidden="true"
                     loading="lazy"
@@ -150,7 +200,7 @@ function Decline() {
 
         <Reveal as="div" delay={0.08}>
           <div className={`border border-line bg-surface px-4 pb-6 pt-7 nv-shadow sm:px-8 sm:pt-9 ${CARD_R}`}>
-            <DeclineGraph tone="light" />
+            <NadDeclineGraph />
             <p className="mt-4 text-center text-[0.76rem] leading-snug text-muted">
               Source: Massudi et al., PLOS ONE (2012)
             </p>
@@ -246,32 +296,27 @@ function AtWork({ startTo }) {
   );
 }
 
-/* 4. INJECTION OR IV: the reference's comparison table, kept to where, how and
-   what it costs. Nothing here says one works better than the other. */
+/* 4. THE COMPARISON: the reference's injections against IV drips table, kept to
+   where, how and what it costs. The tablet compares itself with the injection
+   instead. Nothing here says one works better than the other. */
 
-function Compare({ product, startTo }) {
-  const rows = [
-    { label: "Where", ours: "At home", theirs: "At a clinic or IV lounge" },
-    { label: "How it's given", ours: "A short injection, as your provider directs", theirs: "An IV drip into a vein" },
-    { label: "Time it takes", ours: "A few minutes", theirs: "Usually a longer, seated visit" },
-    { label: "Pricing", ours: `${priceLabel(product)}, one monthly price`, theirs: "Usually priced per visit" },
-  ];
+function Compare({ f, product, startTo }) {
+  const c = f.compare;
+  const rows = c.rows(product);
 
   return (
     <section className="py-[clamp(2.75rem,6vw,5.5rem)]">
       <div className="mx-auto grid max-w-[1180px] gap-9 px-5 md:px-10 lg:grid-cols-2 lg:items-center lg:gap-14">
         <Reveal as="div">
-          <span className="nv-eyebrow">Injection or IV</span>
-          <h2 className={`${H2} mt-3 max-w-[18ch]`}>NAD+ at Home, Without the IV Chair</h2>
-          <p className="mt-4 max-w-[48ch] text-[1rem] leading-relaxed text-muted">
-            NAD+ is also given as an IV drip at clinics, which means booking a visit and sitting through it.
-          </p>
+          <span className="nv-eyebrow">{c.eyebrow}</span>
+          <h2 className={`${H2} mt-3 max-w-[18ch]`}>{c.title}</h2>
+          <p className="mt-4 max-w-[48ch] text-[1rem] leading-relaxed text-muted">{c.text}</p>
 
           <div className={`mt-7 overflow-hidden border border-line bg-surface ${CARD_R}`}>
             <div className="grid grid-cols-[0.8fr_1fr_1fr] gap-3 bg-surface-2 px-4 py-3 text-[0.78rem] font-bold text-ink sm:px-5">
               <span />
-              <span>NAD+ Injection</span>
-              <span className="text-muted">NAD+ IV drip</span>
+              <span>{c.cols[0]}</span>
+              <span className="text-muted">{c.cols[1]}</span>
             </div>
             {rows.map((r) => (
               <div key={r.label} className="grid grid-cols-[0.8fr_1fr_1fr] gap-3 border-t border-line px-4 py-3.5 text-[0.86rem] leading-snug sm:px-5">
@@ -286,11 +331,11 @@ function Compare({ product, startTo }) {
 
         <Reveal as="div" delay={0.08} className={`relative hidden overflow-hidden sm:block ${CARD_R}`}>
           <img
-            src="/site/nad/care-injectable.avif"
+            src={c.img}
             alt=""
             aria-hidden="true"
             loading="lazy"
-            className="aspect-4/3 w-full object-cover object-top lg:aspect-5/6"
+            className={`aspect-4/3 w-full object-cover lg:aspect-5/6 ${c.imgPos}`}
           />
         </Reveal>
       </div>
@@ -300,16 +345,16 @@ function Compare({ product, startTo }) {
 
 /* 5. WHAT'S INCLUDED: the dark price card, with the record's own price. */
 
-const INCLUDED = [
+const included = (f) => [
   "An online intake reviewed by a licensed provider",
-  "NAD+ Injection for use at home, if prescribed",
+  `${f.name}, if prescribed`,
   "Compounded by a licensed U.S. pharmacy",
   "Discreet home delivery",
   "Follow-up care and guidance throughout your plan",
   "Cancel anytime",
 ];
 
-function Included({ product, startTo }) {
+function Included({ f, product, startTo }) {
   return (
     <section className="mx-auto max-w-[1180px] px-5 md:px-10">
       <Reveal as="div">
@@ -326,7 +371,7 @@ function Included({ product, startTo }) {
               Provider-guided care
             </span>
             <h2 className={`${TITLE} relative z-10 mt-4 max-w-[20ch] text-[clamp(1.5rem,2.8vw,2.1rem)]`} style={{ color: CREAM }}>
-              NAD+ Injection, prescribed and followed by a licensed provider.
+              {f.name}, prescribed and followed by a licensed provider.
             </h2>
             <img
               src="/site/anti-aging/nad-supported.avif"
@@ -350,7 +395,7 @@ function Included({ product, startTo }) {
               </p>
               <h3 className="mt-7 text-[0.95rem] font-bold text-ink">What's included</h3>
               <ul className="mt-3 grid gap-3">
-                {INCLUDED.map((t) => (
+                {included(f).map((t) => (
                   <li key={t} className="flex items-start gap-3 text-[0.94rem] leading-snug text-ink">
                     <Check size={17} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#977e43]" />
                     {t}
@@ -418,15 +463,16 @@ function Sources() {
   );
 }
 
-export default function NadInjectionSections({ product, startTo = "/start" }) {
+export default function NadSections({ product, format = "injection", startTo = "/start" }) {
+  const f = FORMATS[format];
   return (
     <>
-      <WhatIs startTo={startTo} />
+      <WhatIs f={f} startTo={startTo} />
       <div style={{ background: GROUND }}>
         <Decline />
         <AtWork startTo={startTo} />
-        <Compare product={product} startTo={startTo} />
-        <Included product={product} startTo={startTo} />
+        <Compare f={f} product={product} startTo={startTo} />
+        <Included f={f} product={product} startTo={startTo} />
         <Sources />
       </div>
     </>
