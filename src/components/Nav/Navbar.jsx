@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
-import { ChevronDown, ArrowRight, Menu, X, ClipboardList, LogIn, LifeBuoy } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ArrowRight, Menu, X, ClipboardList, LogIn, LifeBuoy, Phone, User } from "lucide-react";
 import { getLenis } from "../../lib/smoothScroll";
 import Marquee from "../ui/Marquee";
 import useKioskMode from "../../lib/useKioskMode";
 import { visibleProducts, inCategory } from "../data/products";
 import { productPath } from "../../lib/slug";
-import { stageOf, displayTitle } from "../../lib/catalog";
+import { stageOf, displayTitle, baseName } from "../../lib/catalog";
 
 /* The five treatment categories, in the order the 2026-09-11 comp sets them.
    `consult` is the questionnaire slug, which is not always the category slug. */
@@ -243,6 +243,133 @@ function CategoryGroup({ cat, close, open, onToggle }) {
   );
 }
 
+/* ---------------------------- phone drawer ----------------------------
+   The client's layout 1 (2026-10-12): the Patient Portal card on top, with no
+   separate Log In since it is the same door, the five categories as rows, then
+   Get a Recommendation and Contact Us. Fits a normal phone without scrolling;
+   Contact used to sit below the fold. A category opens its own page in the
+   drawer with its treatments as cards, after the client's Longevity and Weight
+   Loss comps. */
+/* The product page's own heading: the first ingredient of a blend, so the
+   cards read Semaglutide and Tirzepatide as the comp draws them. */
+const shortTitle = (p) => p.heroTitle || baseName(p).split("/")[0].trim();
+
+function DrawerCard({ p, close }) {
+  const tight = useTightArt(p.img);
+  return (
+    <Link
+      to={productPath(p)}
+      onClick={close}
+      className="group flex h-full flex-col rounded-2xl border border-line bg-surface p-2 transition-colors hover:border-primary/40"
+    >
+      <span className="relative block aspect-square w-full overflow-hidden rounded-xl bg-linear-to-b from-surface-2/40 to-surface-2">
+        <img
+          src={p.img}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          className={`absolute inset-0 h-full w-full object-contain transition-transform duration-500 group-hover:scale-105 ${tight ? "p-[18%]" : "p-1"}`}
+        />
+      </span>
+      <span className="mt-2.5 px-1.5 text-[0.95rem] font-semibold leading-snug text-ink">{shortTitle(p)}</span>
+      <span className="mt-auto flex items-center gap-0.5 px-1.5 pb-1 pt-2 text-[0.82rem] font-semibold text-accent">
+        View treatment <ChevronRight size={15} />
+      </span>
+    </Link>
+  );
+}
+
+const DRAWER_ROW = "flex w-full items-center justify-between border-b border-line py-3.5 text-left text-[16px] font-medium text-ink";
+
+function DrawerHome({ close, openCat }) {
+  return (
+    <div className="flex grow flex-col px-4 pb-6 pt-4">
+      <Link
+        to="/portal"
+        onClick={close}
+        className="flex items-center gap-3.5 rounded-2xl border border-line bg-surface-2/70 p-3.5 transition-colors hover:border-primary/40"
+      >
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface text-primary">
+          <User size={20} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[16px] font-semibold text-ink">Patient Portal</span>
+          <span className="block text-[13px] text-muted">Sign in to your account</span>
+        </span>
+        <ArrowRight size={18} className="shrink-0 text-ink" />
+      </Link>
+
+      <div className="mt-3">
+        {CATEGORIES.map((cat) => (
+          <button key={cat.goal} type="button" onClick={() => openCat(cat.goal)} className={DRAWER_ROW}>
+            {cat.label}
+            <ArrowRight size={18} className="text-ink" />
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-6 flex flex-col gap-2.5">
+        <Link
+          to="/start"
+          onClick={close}
+          className="flex w-full items-center justify-center gap-2 rounded-full bg-primary py-3.5 text-[15px] font-semibold text-on-primary nv-shadow transition-colors hover:bg-primary-deep"
+        >
+          <ClipboardList size={17} /> Get a Recommendation
+        </Link>
+        <Link
+          to="/contact"
+          onClick={close}
+          className="flex w-full items-center justify-center gap-2 rounded-full border border-primary/50 bg-surface py-3.5 text-[15px] font-semibold text-primary transition-colors hover:bg-primary/5"
+        >
+          <Phone size={16} /> Contact Us
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function DrawerCategory({ cat, close }) {
+  const items = TREATMENTS[cat.goal] || [];
+  return (
+    <div className="flex grow flex-col px-4 pb-6 pt-4">
+      <h2 className="font-display text-[1.45rem] font-bold leading-tight text-ink">{cat.label}</h2>
+      <p className="mt-1 text-[14px] text-muted">Explore treatment options.</p>
+
+      <ul className="mt-4 grid grid-cols-2 gap-2.5">
+        {items.map((p) => (
+          <li key={p.id}>
+            <DrawerCard p={p} close={close} />
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-6 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Explore</p>
+      <div className="mt-1">
+        <Link to={`/treatments/${cat.goal}`} onClick={close} className={DRAWER_ROW}>
+          All {cat.label.toLowerCase()} treatments <ChevronRight size={18} className="text-muted" />
+        </Link>
+        <Link to="/#how" onClick={close} className={DRAWER_ROW}>
+          How it works <ChevronRight size={18} className="text-muted" />
+        </Link>
+        <Link to="/#faq" onClick={close} className={DRAWER_ROW}>
+          FAQs <ChevronRight size={18} className="text-muted" />
+        </Link>
+      </div>
+
+      <Link
+        to={`/start/${cat.consult}`}
+        onClick={close}
+        className="mt-6 flex w-full items-center justify-center gap-2 rounded-full border border-primary bg-surface py-3.5 text-[15px] font-semibold text-ink transition-colors hover:bg-primary hover:text-on-primary"
+      >
+        Get Started <ArrowRight size={16} />
+      </Link>
+      <p className="mt-3 text-center text-[12px] leading-relaxed text-muted">
+        Online consultation required. Prescription treatment is subject to provider evaluation.
+      </p>
+    </div>
+  );
+}
+
 /* ------------------------------- navbar ------------------------------- */
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -252,7 +379,16 @@ export default function Navbar() {
   /* Which category's panel is showing on the desktop bar. Kiosk is a touch
      screen with no hover, so there it toggles on tap instead. */
   const [openCat, setOpenCat] = useState(null);
+  // The category page showing in the phone drawer, null for its first page.
+  const [drawerCat, setDrawerCat] = useState(null);
   const isKiosk = useKioskMode();
+  const closeDrawer = () => setMobileOpen(false);
+  /* Back to the first page on every open, not on close, so the drawer does
+     not swap pages while it slides away. */
+  const openDrawer = () => {
+    setDrawerCat(null);
+    setMobileOpen(true);
+  };
   const closePanel = () => setOpenCat(null);
 
   // Horizontal scroll meter pinned to the bottom of the header.
@@ -342,7 +478,7 @@ export default function Navbar() {
             )}
 
             {/* kiosk keeps the burger at any width — it holds the meds menu */}
-            <button aria-label="Menu" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)} className={`grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-ink ${isKiosk ? "" : "lg:hidden"}`}>
+            <button aria-label="Menu" aria-expanded={mobileOpen} onClick={openDrawer} className={`grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-ink ${isKiosk ? "" : "lg:hidden"}`}>
               <Menu size={20} />
             </button>
           </div>
@@ -388,7 +524,7 @@ export default function Navbar() {
       <AnimatePresence>
         {mobileOpen && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMobileOpen(false)} className="fixed inset-0 z-[100] bg-ink/30 backdrop-blur-sm lg:hidden" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeDrawer} className="fixed inset-0 z-[100] bg-ink/30 backdrop-blur-sm lg:hidden" />
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
@@ -397,11 +533,28 @@ export default function Navbar() {
               data-lenis-prevent
               className="fixed right-0 top-0 z-[101] flex h-full w-[86%] max-w-sm flex-col overflow-y-auto bg-surface lg:hidden nv-scroll"
             >
-              <div className="flex items-center justify-between border-b border-line p-4">
-                <img src="/logo-2026.png" alt="Nova MDK" className="h-9 w-auto" />
-                <button aria-label="Close" onClick={() => setMobileOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-surface-2 text-muted hover:text-ink">
-                  <X size={20} />
-                </button>
+              <div className="flex items-center justify-between gap-3 border-b border-line p-4">
+                {!isKiosk && drawerCat ? (
+                  <button
+                    type="button"
+                    onClick={() => setDrawerCat(null)}
+                    className="flex h-10 items-center gap-1 rounded-full border border-line bg-surface pl-2.5 pr-4 text-[14px] font-semibold text-ink"
+                  >
+                    <ChevronLeft size={18} /> Back
+                  </button>
+                ) : (
+                  <img src="/logo-2026.png" alt="Nova MDK" className="h-9 w-auto" />
+                )}
+                <div className="flex items-center gap-2">
+                  {!isKiosk && drawerCat && (
+                    <Link to="/portal" onClick={closeDrawer} aria-label="Patient Portal" className="grid h-10 w-10 place-items-center rounded-full text-ink hover:bg-surface-2">
+                      <User size={20} />
+                    </Link>
+                  )}
+                  <button aria-label="Close" onClick={closeDrawer} className="grid h-10 w-10 place-items-center rounded-full bg-surface-2 text-muted hover:text-ink">
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
               {isKiosk ? (
                 /* Kiosk burger — category sections, then Portal / Support as buttons
@@ -436,52 +589,22 @@ export default function Navbar() {
                   </div>
                 </div>
               ) : (
-                <div className="flex grow flex-col p-4">
-                  {/* The same five categories the desktop bar carries, as
-                      accordions with the same thumbnails. First one opens by
-                      default so the drawer never reads as an empty list. */}
-                  {CATEGORIES.map((cat, i) => (
-                    <CategoryGroup
-                      key={cat.goal}
-                      cat={cat}
-                      open={openKioskGoal === null ? i === 0 : openKioskGoal === cat.goal}
-                      onToggle={() => setOpenKioskGoal((g) => (g === cat.goal ? "" : cat.goal))}
-                      close={() => setMobileOpen(false)}
-                    />
-                  ))}
-                  {/* Kiosk hidden at client request (2026-08-11) — route still live, just unlinked.
-                  <Link to="/kiosk" onClick={() => setMobileOpen(false)} className="flex items-center justify-between border-b border-line py-5 text-[17px] font-medium text-ink">
-                    Kiosk <ArrowRight size={16} className="text-muted" />
-                  </Link>
-                  */}
-
-                  {/* Get a Recommendation — starts the free 2-minute questionnaire */}
-                  <Link
-                    to="/start"
-                    onClick={() => setMobileOpen(false)}
-                    className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-primary py-3.5 text-[15px] font-semibold text-on-primary nv-shadow transition-all hover:-translate-y-0.5 hover:bg-primary-deep"
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={drawerCat || "home"}
+                    initial={{ opacity: 0, x: drawerCat ? 32 : -32 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2, ease: EASE }}
+                    className="flex grow flex-col"
                   >
-                    <ClipboardList size={17} /> Get a Recommendation
-                  </Link>
-
-                  {/* bottom actions — Contact lives here as a button under Get started */}
-                  <div className="mt-auto flex flex-col gap-2.5 pb-4 pt-8">
-                    {/* Same pill as Get started under it, so it belongs to this
-                        set of buttons rather than inventing a shape of its own.
-                        Only the border and tint are gold, which lifts it off the
-                        plain category rows without putting a second solid button
-                        next to Get a Recommendation. */}
-                    <Link to="/portal" onClick={() => setMobileOpen(false)} className="flex w-full items-center justify-center gap-2 rounded-full border border-primary/50 bg-primary/5 py-3.5 text-[15px] font-semibold text-ink transition-colors hover:bg-primary/10">
-                      <LogIn size={16} /> Patient Portal
-                    </Link>
-                    <Link to="/treatments" onClick={() => setMobileOpen(false)} className="flex w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-surface py-3.5 text-[15px] font-semibold text-ink transition-colors hover:bg-surface-2">
-                      Get started <ArrowRight size={16} />
-                    </Link>
-                    <Link to="/contact" onClick={() => setMobileOpen(false)} className="flex w-full items-center justify-center gap-2 rounded-full border border-line bg-surface py-3.5 text-[15px] font-semibold text-muted transition-colors hover:text-ink">
-                      Contact
-                    </Link>
-                  </div>
-                </div>
+                    {drawerCat ? (
+                      <DrawerCategory cat={CATEGORIES.find((c) => c.goal === drawerCat)} close={closeDrawer} />
+                    ) : (
+                      <DrawerHome close={closeDrawer} openCat={setDrawerCat} />
+                    )}
+                  </motion.div>
+                </AnimatePresence>
               )}
             </motion.div>
           </>
