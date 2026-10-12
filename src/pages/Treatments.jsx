@@ -1,46 +1,20 @@
 import React, { Suspense, lazy } from "react";
 import { Link, useParams, useSearchParams, Navigate } from "react-router-dom";
 import {
-  Truck, Lock, FlaskConical, ShieldCheck, ArrowRight,
+  Truck, Lock, FlaskConical, ShieldCheck,
 } from "lucide-react";
 import Seo from "../components/Seo";
 import Navbar from "../components/Nav/Navbar";
 import Footer from "../components/Nav/Footer";
-import CategoryGrid from "../components/shop/CategoryGrid";
+import GoalGrid from "../components/shop/GoalGrid";
 import TreatmentShop from "../components/shop/TreatmentShop";
 import Reveal from "../components/ui/Reveal";
-import { CONSULTS, CONSULT_ORDER } from "../components/data/consultations";
 import { visibleProducts, categoriesOf } from "../components/data/products";
 import { CATEGORY_META } from "../lib/categoryMeta";
-import { GOAL_ART } from "../lib/goalArt";
-import { track, EVENTS } from "../lib/analytics";
 
 const FAQ = lazy(() => import("../components/FAQ"));
 // Weight-loss only: the tool qualifies you for these treatments specifically.
 const BmiCalculator = lazy(() => import("../components/tools/BmiCalculator"));
-
-// Mirror the homepage funnels — each tile browses that goal's shoppable catalog.
-// The sixth cell closes the 2×3 grid and is the catch-all for anyone who doesn't
-// see their goal: it replaces the quiz / BMI links that used to sit in the header.
-const TREATMENT_CATS = [
-  ...CONSULT_ORDER.map((k) => ({
-    name: CONSULTS[k].name,
-    tag: CONSULTS[k].tag,
-    blurb: CONSULTS[k].blurb,
-    cta: "Browse treatments",
-    goal: CONSULTS[k].goalSlug,
-    link: `/treatments/${CONSULTS[k].goalSlug}`,
-    ...(GOAL_ART[CONSULTS[k].goalSlug] || {}),
-  })),
-  {
-    kind: "goal-cta",
-    name: "Not Sure Where To Start?",
-    cta: "Take Quick Assessment",
-    goal: "quick-assessment",
-    link: "/start",
-    bg: "bg-linear-to-br from-[#f4eddd] to-[#fceed2]",
-  },
-];
 
 // Valid product categories a quiz can land on (everything but pure supplements).
 // Driven by visibility: a category with nothing shoppable is commented out of the
@@ -174,34 +148,7 @@ export default function TreatmentsPage() {
                 links, so without it the page would have no heading at all for a
                 screen reader or for search. */}
             <h1 className="sr-only">Explore treatments for your goals</h1>
-            <div className="mb-6 flex sm:justify-end">
-              {/* Same destination as the sixth grid cell — /start is the existing
-                  consultation quiz, which opens on its category picker when no
-                  goal is chosen. */}
-              <Link
-                to="/start"
-                onClick={() => track(EVENTS.QUIZ_STARTED, { click_source: "treatments-header" })}
-                className="group shrink-0"
-              >
-                <span className="block text-[0.98rem] font-bold text-ink">Not sure where to start?</span>
-                <span className="mt-1.5 inline-flex items-center gap-2.5 text-[0.94rem] text-muted transition-colors duration-300 group-hover:text-primary">
-                  Take a quick assessment
-                  <ArrowRight
-                    size={16}
-                    strokeWidth={2}
-                    className="transition-transform duration-300 group-hover:translate-x-1"
-                  />
-                </span>
-              </Link>
-            </div>
-            {/* No `featured` here: the sixth cell squares the grid off at 2×3, and a
-                double-width first tile would break that back into three ragged rows. */}
-            <CategoryGrid
-              items={TREATMENT_CATS}
-              onItemClick={(it) =>
-                track(EVENTS.CATEGORY_SELECTED, { treatment_category: it.goal, click_source: "treatments" })
-              }
-            />
+            <GoalGrid source="treatments" />
           </section>  
         </>
       )}

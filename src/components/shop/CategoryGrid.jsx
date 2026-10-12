@@ -180,7 +180,10 @@ function GoalMotion({ motion }) {
   return null;
 }
 
-function CutoutCard({ it, onClick, hero = false }) {
+/* `compact` is the phone grid the client asked for (2026-10-12): two across and
+   all six on one screen, so below sm everything here runs smaller. From sm up
+   it is the same card as before. */
+function CutoutCard({ it, onClick, hero = false, compact = false }) {
   return (
     <Link
       to={it.link}
@@ -188,13 +191,23 @@ function CutoutCard({ it, onClick, hero = false }) {
       /* .nv-goal owns the layer stack, the tan rest background, the elevation
          and every hover transition — see index.css. */
       className={`nv-goal group flex h-full flex-col justify-between rounded-[calc(20px*var(--nv-r-scale,1))] ${it.bg || ""} ${
-        hero ? "min-h-[clamp(268px,35vw,356px)] p-6 sm:p-8" : "min-h-[clamp(240px,31vw,320px)] p-6"
+        hero
+          ? "min-h-[clamp(268px,35vw,356px)] p-6 sm:p-8"
+          : compact
+            ? "min-h-50 p-3 sm:min-h-[clamp(240px,31vw,320px)] sm:p-6"
+            : "min-h-[clamp(240px,31vw,320px)] p-6"
       }`}
     >
       <span className="nv-goal__layer nv-goal__fade nv-goal__cream" />
       <span className="nv-goal__layer nv-goal__fade nv-goal__bloom" />
 
       <GoalMotion motion={it.motion} />
+
+      {/* Phone grid only: the line and button sit on the photo at a small size,
+          so the lower half gets a soft shade to keep them readable. */}
+      {compact && (
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 z-5 h-3/5 bg-linear-to-t from-black/45 to-transparent sm:hidden" />
+      )}
 
       <img
         src={it.cutout}
@@ -205,13 +218,21 @@ function CutoutCard({ it, onClick, hero = false }) {
           it.figureMotion ? `nv-goal__figure--${it.figureMotion}` : ""
         } ${it.cutoutClass || (hero ? "-top-[6%] right-0 h-[112%]" : "-top-[7%] right-0 h-[114%]")}`}
       />
-      <div className="nv-goal__content max-w-[62%]">
-        <span className="font-mono text-[0.62rem] uppercase tracking-[0.16em] text-[#ffe8b1]/85 transition-colors duration-300 group-hover:text-ink/70">
+      <div className={`nv-goal__content ${compact ? "max-w-[78%] sm:max-w-[62%]" : "max-w-[62%]"}`}>
+        <span
+          className={`font-mono uppercase tracking-[0.16em] text-[#ffe8b1]/85 transition-colors duration-300 group-hover:text-ink/70 ${
+            compact ? "block text-[0.52rem] leading-snug sm:inline sm:text-[0.62rem] sm:leading-normal" : "text-[0.62rem]"
+          }`}
+        >
           {it.tag}
         </span>
         <h3
-          className={`mt-2 font-display font-bold leading-[1.12] tracking-tight text-[#ffe8b1] transition-colors duration-300 group-hover:text-ink ${
-            hero ? "text-[clamp(1.5rem,3.1vw,2rem)]" : "text-[clamp(1.15rem,2vw,1.4rem)]"
+          className={`font-display font-bold leading-[1.12] tracking-tight text-[#ffe8b1] transition-colors duration-300 group-hover:text-ink ${
+            hero
+              ? "mt-2 text-[clamp(1.5rem,3.1vw,2rem)]"
+              : compact
+                ? "mt-1 text-[1.05rem] sm:mt-2 sm:text-[clamp(1.15rem,2vw,1.4rem)]"
+                : "mt-2 text-[clamp(1.15rem,2vw,1.4rem)]"
           }`}
         >
           {it.name}
@@ -222,7 +243,11 @@ function CutoutCard({ it, onClick, hero = false }) {
         {it.blurb && (
           <p
             className={`font-semibold leading-snug text-[#ffe8b1]/90 transition-colors duration-300 group-hover:text-ink/75 ${
-              hero ? "max-w-[42ch] text-[0.9rem]" : "max-w-[34ch] text-[0.8rem]"
+              hero
+                ? "max-w-[42ch] text-[0.9rem]"
+                : compact
+                  ? "line-clamp-3 max-w-[34ch] text-[0.66rem] sm:line-clamp-none sm:text-[0.8rem]"
+                  : "max-w-[34ch] text-[0.8rem]"
             }`}
           >
             {it.blurb}
@@ -230,8 +255,12 @@ function CutoutCard({ it, onClick, hero = false }) {
         )}
         {/* Plain pill, no arrow disc — the comp's button is text only. */}
         <span
-          className={`mt-4 inline-flex items-center rounded-full bg-surface font-semibold text-ink transition-colors duration-300 group-hover:bg-primary group-hover:text-on-primary ${
-            hero ? "px-6 py-2.5 text-[0.86rem]" : "px-5 py-2 text-[0.8rem]"
+          className={`inline-flex items-center justify-center rounded-full bg-surface font-semibold text-ink transition-colors duration-300 group-hover:bg-primary group-hover:text-on-primary ${
+            hero
+              ? "mt-4 px-6 py-2.5 text-[0.86rem]"
+              : compact
+                ? "mt-2.5 w-full py-1.5 text-[0.74rem] sm:mt-4 sm:w-auto sm:px-5 sm:py-2 sm:text-[0.8rem]"
+                : "mt-4 px-5 py-2 text-[0.8rem]"
           }`}
         >
           {it.cta || "Browse treatments"}
@@ -243,12 +272,14 @@ function CutoutCard({ it, onClick, hero = false }) {
 
 /* Sixth cell of the goal grid: no product art, no eyebrow — the quiet exit for
    anyone who doesn't recognise their goal in the other five. */
-function GoalCtaCard({ it, onClick }) {
+function GoalCtaCard({ it, onClick, compact = false }) {
   return (
     <Link
       to={it.link}
       onClick={onClick}
-      className={`nv-goal group flex h-full flex-col justify-center rounded-[calc(20px*var(--nv-r-scale,1))] min-h-[clamp(240px,31vw,320px)] p-6 ${it.bg || ""}`}
+      className={`nv-goal group flex h-full flex-col justify-center rounded-[calc(20px*var(--nv-r-scale,1))] ${
+        compact ? "min-h-50 p-4 sm:min-h-[clamp(240px,31vw,320px)] sm:p-6" : "min-h-[clamp(240px,31vw,320px)] p-6"
+      } ${it.bg || ""}`}
     >
       <span className="nv-goal__layer nv-goal__fade nv-goal__cream" />
       <span className="nv-goal__layer nv-goal__fade nv-goal__bloom" />
@@ -308,16 +339,20 @@ function LightCard({ it, art, onClick, hero = false }) {
   );
 }
 
-export default function CategoryGrid({ items, art = "/site/pills-float.avif", dark = false, featured = false, onItemClick }) {
+export default function CategoryGrid({ items, art = "/site/pills-float.avif", dark = false, featured = false, compact = false, onItemClick }) {
   return (
-    <div className="grid grid-cols-1 items-stretch gap-[clamp(0.8rem,1.6vw,1.1rem)] sm:grid-cols-2 lg:grid-cols-3">
+    <div
+      className={`grid items-stretch sm:grid-cols-2 lg:grid-cols-3 ${
+        compact ? "grid-cols-2 gap-2.5 sm:gap-[clamp(0.8rem,1.6vw,1.1rem)]" : "grid-cols-1 gap-[clamp(0.8rem,1.6vw,1.1rem)]"
+      }`}
+    >
       {items.map((it, i) => {
         const onClick = onItemClick ? () => onItemClick(it) : undefined;
         const hero = featured && i === 0;
         const Card = it.kind === "goal-cta" ? GoalCtaCard : it.cutout ? CutoutCard : it.photo ? PhotoCard : dark ? DarkCard : LightCard;
         return (
           <Reveal as="div" key={it.name} delay={(i % 3) * 0.06} className={`h-full ${hero ? "sm:col-span-2" : ""}`}>
-            <Card it={it} art={art} onClick={onClick} hero={hero} />
+            <Card it={it} art={art} onClick={onClick} hero={hero} compact={compact} />
           </Reveal>
         );
       })}

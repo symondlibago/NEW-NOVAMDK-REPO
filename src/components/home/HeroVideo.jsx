@@ -88,9 +88,13 @@ export default function HeroVideo() {
       {/* The clip cuts between scenes that are bright bottom left as often as
           they are dark, so the copy gets its own shade rather than relying on
           the grade alone. */}
+      {/* From sm only. A phone centres the copy (2026-10-12), so a shade weighted
+          to the left would leave the right half of the line on bare footage;
+          it gets one even wash instead. */}
+      <div aria-hidden="true" className="absolute inset-0 sm:hidden" style={{ background: "rgba(20, 16, 12, 0.22)" }} />
       <div
         aria-hidden="true"
-        className="absolute inset-0"
+        className="absolute inset-0 hidden sm:block"
         style={{
           background: `
             linear-gradient(
@@ -115,14 +119,17 @@ export default function HeroVideo() {
           min-h-[calc(100svh-110px)]
           max-w-[1340px]
           flex-col
-          items-start
+          items-center
           justify-center
           px-5
           py-[clamp(4rem,16vw,7.5rem)]
-          text-left
+          text-center
+          sm:items-start
+          sm:text-left
           md:px-10
         "
       >
+        {/* Centred on a phone, left aligned from sm (client, 2026-10-12). */}
 
         {/* =======================================================
             HEADLINE
@@ -130,7 +137,6 @@ export default function HeroVideo() {
         <h1
           className="
             font-display
-            font-extrabold
             uppercase
             leading-[0.95]
             text-white
@@ -144,7 +150,7 @@ export default function HeroVideo() {
               never shifts as the word changes. */}
           <span
             aria-hidden="true"
-            className="block text-[clamp(1.9rem,4.5vw,5.2rem)] tracking-[-0.01em]"
+            className="block text-[clamp(1.9rem,4.5vw,5.2rem)] font-medium tracking-[-0.01em] sm:font-extrabold"
           >
             <AnimatePresence mode="wait" initial={false}>
               <Motion.span
@@ -169,7 +175,9 @@ export default function HeroVideo() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, ease: EASE }}
             aria-hidden="true"
-            className="block text-[clamp(3.5rem,8.2vw,9.5rem)] tracking-[0.07em]"
+            /* Light on a phone, the client's thinner "Better"; the bold cut
+               stays from sm up. */
+            className="block text-[clamp(3.5rem,8.2vw,9.5rem)] font-light tracking-[0.07em] sm:font-extrabold"
           >
             Better
           </Motion.span>
@@ -213,7 +221,7 @@ export default function HeroVideo() {
             mt-[clamp(1.6rem,3.2vw,2.4rem)]
             flex
             w-full
-            max-w-60
+            max-w-72
             flex-col
             gap-2.5
             sm:max-w-none
