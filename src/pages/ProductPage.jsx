@@ -527,6 +527,10 @@ export default function ProductPage() {
           and tirzepatide records carry a band today. */}
       <ProductMechanism product={active} />
 
+      {/* A product's own sections. On a phone their Start buttons are hidden
+          (nv-phone-nostart in index.css): the pinned Start bar is always there
+          (client, 2026-10-12). The kiosk has no bar, so it keeps them. */}
+      <div className={isKiosk ? undefined : "nv-phone-nostart"}>
       {/* NAD+ editorial, matched on the product name so the injection, its
           dose ladder and the tablet all carry it. One layout for both formats
           since 2026-10-12; the format picks the art, comparison and price card. */}
@@ -553,6 +557,7 @@ export default function ProductPage() {
       )}
       {isLipoC && <LipoCSections startTo={`${productPath(product)}?start=1`} />}
       {isTirzepatide && <TirzepatideSections product={active} startTo={`${productPath(product)}?start=1`} />}
+      </div>
 
       {product.howItWorks && (
         <section className="bg-surface-2 py-[clamp(2.5rem,5vw,5.5rem)]">
@@ -599,7 +604,9 @@ export default function ProductPage() {
           <ProductFaq product={active} otc={otc} />
         </Reveal>
       </section>
-      <section className="mx-auto max-w-[1180px] px-5 md:px-10">
+      {/* Not on a phone outside the kiosk: the pinned Start bar does this job
+          there (client, 2026-10-12). */}
+      <section className={`mx-auto max-w-[1180px] px-5 md:px-10 ${isKiosk ? "" : "hidden md:block"}`}>
         <Reveal>
           {/* A solid gold rule rather than the page's hairline (2026-09-25):
               this is the page's last call to action and the client wants it to

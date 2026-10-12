@@ -275,6 +275,13 @@
   }
   /* Idle vertical float for product card images — wrapper-only so hover transforms compose. */
   .nv-float { animation: nv-float 5.5s ease-in-out infinite; }
+  /* Product sections on a phone: their Start links all go to ?start=1, and
+     the pinned Start bar already offers it on every screen (client,
+     2026-10-12). md matches the bar's own md:hidden. Important, because
+     the links carry their own display utility, and utilities outrank this layer. */
+  @media (max-width: 767.98px) {
+    .nv-phone-nostart a[href*="?start=1"] { display: none !important; }
+  }
   @keyframes nv-float {
     0%, 100% { transform: translateY(0); }
     50%      { transform: translateY(-8px); }
