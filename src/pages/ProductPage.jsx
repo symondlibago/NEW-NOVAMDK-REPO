@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, Navigate, Link } from "react-router-dom";
 import { track, EVENTS } from "../lib/analytics";
 import {
-  ArrowRight, ArrowLeft, Check, ShieldCheck, Truck, Stethoscope, Lock, FlaskConical, Loader2,
-  QrCode, X, UserRound, ChevronDown, MapPin, Home,
+  ArrowRight, ArrowLeft, Check, ShieldCheck, Truck, Stethoscope, Lock, Loader2,
+  QrCode, X, UserRound, ChevronDown, MapPin, Home, Info,
 } from "lucide-react";
 import Seo from "../components/Seo";
 import Navbar from "../components/Nav/Navbar";
@@ -25,7 +25,7 @@ import {
 } from "../lib/kioskLocations";
 import { isBlockedState, availableInState } from "../lib/serviceArea";
 import KioskQr from "../components/kiosk/KioskQr";
-import { ComplianceBadges, CompoundedDisclaimer } from "../components/Compliance";
+import { ComplianceBadges } from "../components/Compliance";
 import useKioskMode from "../lib/useKioskMode";
 import useLockBodyScroll from "../lib/useLockBodyScroll";
 import Turnstile, { turnstileOn } from "../components/Turnstile";
@@ -36,6 +36,8 @@ import ProductMechanism from "../components/product/ProductMechanism";
 import ProductFaq from "../components/product/ProductFaq";
 import ProductJourney from "../components/product/ProductJourney";
 import ProductWhy from "../components/product/ProductWhy";
+import ProductRelated from "../components/product/ProductRelated";
+import { SafetySheet } from "../components/product/ProductSafety";
 import NadSupport from "../components/product/NadSupport";
 import NadDirected from "../components/product/NadDirected";
 import NadSublingual from "../components/product/NadSublingual";
@@ -113,6 +115,7 @@ export default function ProductPage() {
   const navigate = useNavigate();
   const [showQR, setShowQR] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [showSafety, setShowSafety] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   /* The server's proof that this visitor passed the human check on the email
@@ -195,9 +198,8 @@ export default function ProductPage() {
       seenTitle.add(t);
       return true;
     })
-    .slice(0, 3);
+    .slice(0, otc ? 3 : 4);
   const relatedHeading = `More in ${product.categoryName}`;
-  const hasCompounded = isCompounded(active);
   /* isSupplement / hasFda went with the FDA disclaimer card on 2026-09-09.
      Restoring the card means restoring both: supplements carried the
      name-matched wording, while an Rx product only qualified when its own
@@ -366,26 +368,29 @@ export default function ProductPage() {
       />
       <Navbar />
 
-      {/* breadcrumb */}
-      <div className="mx-auto max-w-[1180px] px-5 pt-6 md:px-10">
-        {/* Same pill treatment as the shared BackButton on every other page. These
-            stay plain Links rather than that component: back here means "up to the
-            category", not browser history. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            to={backLink}
-            className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-2 text-[0.88rem] font-medium text-muted transition-all hover:-translate-x-0.5 hover:border-line-strong hover:text-ink"
-          >
-            <ArrowLeft size={16} /> Back to {categoryLabel}
-          </Link>
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-2 text-[0.88rem] font-medium text-muted transition-all hover:border-line-strong hover:text-ink"
-          >
-            <Home size={16} /> Home
-          </Link>
+      {/* Back and Home are the kiosk's only (client, 2026-10-12): the website
+          has the navbar for that. */}
+      {isKiosk && (
+        <div className="mx-auto max-w-[1180px] px-5 pt-6 md:px-10">
+          {/* Same pill treatment as the shared BackButton on every other page. These
+              stay plain Links rather than that component: back here means "up to the
+              category", not browser history. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to={backLink}
+              className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-2 text-[0.88rem] font-medium text-muted transition-all hover:-translate-x-0.5 hover:border-line-strong hover:text-ink"
+            >
+              <ArrowLeft size={16} /> Back to {categoryLabel}
+            </Link>
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-2 text-[0.88rem] font-medium text-muted transition-all hover:border-line-strong hover:text-ink"
+            >
+              <Home size={16} /> Home
+            </Link>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ===== Hero ===== */}
       <section className="mx-auto max-w-[1180px] px-5 py-[clamp(1.5rem,4vw,3rem)] md:px-10">
@@ -469,6 +474,19 @@ export default function ProductPage() {
                 </button>
               )}
               {err && !isKiosk && <p className="mt-2 text-center text-[0.84rem] font-medium text-primary">{err}</p>}
+              {/* Straight under the button, as on hims.com (client, 2026-10-12).
+                  It is the page's only way into Important Safety Information:
+                  the compounded card and the foot-of-page block both moved into
+                  the panel it opens, and the vial size and shipping line that
+                  sat lower down was removed. */}
+              <button
+                type="button"
+                onClick={() => setShowSafety(true)}
+                className="group mx-auto mt-3.5 flex items-center gap-2 text-[1rem] font-semibold text-ink underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-ink"
+              >
+                <Info size={17} strokeWidth={1.9} className="shrink-0 text-accent" />
+                Important Safety Information
+              </button>
 
               {/* Assurance tiles — the promises that used to sit in the standalone
                   band below the hero, which the comp folds in here instead. */}
@@ -487,14 +505,6 @@ export default function ProductPage() {
                 ))}
               </div>
 
-              {/* Shipping and vial size lost their pills when the price row went to
-                  the comp's FROM / price pairing — kept here as a plain line so the
-                  facts don't disappear off the page. Size leads: the delivery
-                  sentence ends on a full stop and cannot take a trailing clause. */}
-              <p className="mt-4 text-[0.84rem] leading-relaxed text-muted">
-                {active.size ? `${active.size} · ` : ""}
-                {active.shipping}
-              </p>
               {/* The "requires evaluation" and "use only as directed" lines that
                   sat here were removed on 2026-09-09 at the client's request.
                   Both came from the 2026-09-08 compliance script (global items 5
@@ -504,24 +514,12 @@ export default function ProductPage() {
           </Reveal>
         </div>
 
-        {/* Compounded notice only. The FDA disclaimer card that sat beside it
-            was removed on 2026-09-09 at the client's request; the disclaimer
-            text itself still lives on the records in products.jsx, so it is a
-            card away from coming back. */}
-        {hasCompounded && (
-          <div className="mt-8 grid grid-cols-1 items-stretch gap-4">
-            <div className="flex gap-3.5 rounded-2xl border border-line bg-surface-2/60 p-5">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-                <FlaskConical size={16} />
-              </span>
-              <div>
-                <h4 className="font-mono text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-ink">Compounded drug notice</h4>
-                <CompoundedDisclaimer className="mt-1.5" />
-              </div>
-            </div>
-          </div>
-        )}
       </section>
+
+      {/* The brass band comes straight after the hero, and a product's own
+          sections follow it (client's order, 2026-10-12). Only the semaglutide
+          and tirzepatide records carry a band today. */}
+      <ProductMechanism product={active} />
 
       {/* NAD+ only — every line of copy names it. Matched on the product name so
           the injection, its dose ladder and the sublingual tablet all carry it. */}
@@ -550,7 +548,6 @@ export default function ProductPage() {
       )}
       {isLipoC && <LipoCSections startTo={`${productPath(product)}?start=1`} />}
 
-      <ProductMechanism product={active} />
       {product.howItWorks && (
         <section className="bg-surface-2 py-[clamp(2.5rem,5vw,5.5rem)]">
           <div className="mx-auto max-w-[1180px] px-5 md:px-10">
@@ -589,7 +586,9 @@ export default function ProductPage() {
 
       {/* ===== Why Nova MDK ===== */}
       {!otc && <ProductWhy />}
-      <section className="mx-auto max-w-[1440px] px-4 py-[clamp(2.5rem,5vw,4.5rem)] md:px-6">
+      {/* On the page's 1180 column with everything else (2026-10-12); at 1440
+          the heading sat out at the window's edge, alone. */}
+      <section className="mx-auto max-w-[1180px] px-5 py-[clamp(2.5rem,5vw,4.5rem)] md:px-10">
         <Reveal>
           <ProductFaq product={active} otc={otc} />
         </Reveal>
@@ -646,7 +645,8 @@ export default function ProductPage() {
 
       {/* Moved below the consultation CTA on 2026-09-09: the client wants the
           four-step path to close the page rather than interrupt it. */}
-      {!otc && <ProductJourney product={active} />}
+      {!otc && <ProductJourney />}
+      {!otc && <ProductRelated product={active} items={related} />}
       </div>
       {otc && related.length > 0 && (
         <section className="mx-auto mb-[clamp(3.5rem,7vw,6rem)] max-w-[1180px] px-5 md:px-10">
@@ -674,8 +674,9 @@ export default function ProductPage() {
         </section>
       )}
 
-      {/* ===== Closing disclaimer ===== */}
-      <ClosingDisclaimer product={active} />
+      {/* Important Safety Information lives in this panel only, opened from
+          the row under the price (client, 2026-10-12). */}
+      <SafetySheet product={active} open={showSafety} onClose={() => setShowSafety(false)} />
 
       {showQR && (
         <KioskQrModal product={product} onClose={() => setShowQR(false)} />
@@ -699,43 +700,6 @@ export default function ProductPage() {
 }
 
 const fmtCountdown = (s) => `${Math.floor(s / 60)}:${String(Math.max(0, s % 60)).padStart(2, "0")}`;
-
-/* The notice that closes every product page (client request, 2026-10-08, from
-   the Euphoria Cream O comp).
- *
- * The comp's own wording — "is a compounded prescription medication and is not
- * FDA-approved" — is true of the compounded line and false of the rest of the
- * catalogue: Zepbound and Wegovy are FDA-approved brand drugs and the supplement
- * line is not a prescription at all. Printing it under those would be a
- * compliance problem rather than a disclaimer, so the sentence is chosen from
- * the flags the catalogue already carries. The compounded case is verbatim from
- * the comp; the other two reuse wording already on the site.
- *
- * Legal to confirm the two it did not supply. */
-function ClosingDisclaimer({ product }) {
-  const name = product.name.split("—")[0].split("(")[0].split("/")[0].trim();
-  const body = isOtc(product)
-    ? `${name} is a dietary supplement, not a prescription medication. These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease. Individual outcomes may vary.`
-    : isCompounded(product)
-      ? `${name} is a compounded prescription medication and is not FDA-approved. It has not been reviewed by the FDA for safety, effectiveness, or quality. Eligibility and dosing are determined by a licensed healthcare provider. Individual outcomes may vary.`
-      : `${name} is a prescription medication. Eligibility and dosing are determined by a licensed healthcare provider. Individual outcomes may vary.`;
-
-  return (
-    <section className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.5rem,5vw,4rem)] md:px-10">
-      <h2 className="font-display text-[0.86rem] font-bold text-ink">Important safety information</h2>
-      {/* The product's own clinical wording leads, because it is the part that
-          is specific to what the patient is about to take. The regulatory
-          sentence closes. Typeset as running copy rather than a bordered
-          callout (2026-08-31): a tinted card with a rule and an alert icon
-          reads as a highlight, which is a box the eye files as promotional and
-          skips. */}
-      {product.safety && (
-        <p className="mt-2 max-w-[86ch] text-[0.78rem] leading-relaxed text-muted">{product.safety}</p>
-      )}
-      <p className="mt-2 max-w-[86ch] text-[0.78rem] leading-relaxed text-muted">{body}</p>
-    </section>
-  );
-}
 
 /* Kiosk hand-off — scan to finish on your own phone, which is now the only way
    to continue. The "continue here on the kiosk" option was removed at client

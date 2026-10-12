@@ -1,179 +1,112 @@
-import React from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
-import { track, EVENTS } from "../../lib/analytics";
-import { productPath } from "../../lib/slug";
-import { programsFor } from "../data/subscriptions";
-import { programItem } from "../../lib/programCard";
+import React, { useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Reveal from "../ui/Reveal";
-import TreatmentCard from "../shop/TreatmentCard";
 
-/* Four brass panels rather than the old carousel: the comp shows every step at
-   once, each with its cut-out standing on the panel floor and the caption over
-   the photo's lower edge. */
+/* The four steps as photo cards (client's reference, 2026-10-12): photo on
+   top, step number, title and its line under it. Four across on a desktop; a
+   swipe row with arrows on a phone and tablet. The photos are the client's,
+   graded to the site's cream so the four read as one set. */
 const STEPS = [
   {
     title: "Complete your medical intake",
-    text: "Tell us about your health history, medications, and treatment goals",
-    img: "/products/detail/journey-intake.avif",
-    /* Each cut-out is framed differently, so its height and horizontal seat are
-       set per card rather than shared. */
-    art: "h-[74%] left-[6%] w-[94%]",
+    text: "Tell us about your health history, medications, and treatment goals.",
+    img: "/products/journey/intake.avif",
   },
   {
     title: "Licensed provider review",
-    /* Set explicitly: at the shared 15ch measure this title broke to three
-       lines. The client wants two, with "review" up on the same line as
-       "provider". */
-    titleLines: ["Licensed", "provider review"],
-    text: "A licensed healthcare provider evaluates your information and determines whether treatment is medically appropriate",
-    img: "/products/detail/journey-provider.avif",
-    art: "h-[76%] left-[2%] w-[98%]",
+    text: "A licensed provider evaluates your information and determines whether treatment is medically appropriate.",
+    img: "/products/journey/provider.avif",
   },
   {
     title: "Prescription, if appropriate",
-    text: "If prescribed, your prescription is sent to a qualified pharmacy for fulfillment",
-    img: "/products/detail/journey-shipment.avif",
-    art: "h-[42%] left-[6%] w-[88%] bottom-[26%]",
+    text: "If prescribed, your prescription is sent to a qualified pharmacy for fulfillment.",
+    img: "/products/journey/prescription.avif",
   },
   {
     title: "Ongoing care",
-    text: "Follow-up care and treatment guidance are available throughout your treatment plan",
-    img: "/products/detail/journey-followup.avif",
-    art: "h-[76%] left-[4%] w-[92%]",
+    text: "Follow-up care and treatment guidance are available throughout your treatment plan.",
+    img: "/products/journey/followup.avif",
   },
 ];
 
-const PANEL = "linear-gradient(160deg, #a4854f 0%, #9a7843 55%, #8f6f3c 100%)";
+export default function ProductJourney() {
+  const row = useRef(null);
+  const [at, setAt] = useState(0);
 
-function StepPanel({ step, index }) {
-  return (
-    <Reveal as="div" delay={index * 0.09} y={16}>
-      <div
-        className="relative flex h-full min-h-76 flex-col overflow-hidden rounded-[calc(18px*var(--nv-r-scale,1))] px-5 pb-5 pt-6 sm:min-h-84 lg:min-h-96"
-        style={{ background: PANEL }}
-      >
-        <h3
-          className={`relative z-10 font-display text-[0.95rem] font-bold uppercase leading-[1.2] tracking-[0.02em] text-[#f8e8c5] sm:text-[1.02rem] ${
-            step.titleLines ? "" : "max-w-[15ch]"
-          }`}
-        >
-          {step.titleLines
-            ? step.titleLines.map((l, i) => (
-                <React.Fragment key={l}>
-                  {i > 0 && <br />}
-                  {l}
-                </React.Fragment>
-              ))
-            : step.title}
-        </h3>
-        {/* Seated on the panel floor and behind the caption, the way the comp
-            crops each figure at the bottom edge. */}
-        <img
-          src={step.img}
-          alt=""
-          aria-hidden="true"
-          loading="lazy"
-          className={`pointer-events-none absolute bottom-0 max-w-none object-contain object-bottom ${step.art}`}
-        />
-        {/* The supporting line under each title was dropped at the client's
-            request (2026-09-25); the cut-out now runs to the panel's floor with
-            only the step's name over it. */}
-      </div>
-    </Reveal>
-  );
-}
-
-export default function ProductJourney({ product }) {
-  const navigate = useNavigate();
-  const programs = programsFor(product.categorySlug).map(programItem);
+  const step = () => row.current?.firstElementChild?.getBoundingClientRect().width || 1;
+  const go = (n) => {
+    const el = row.current;
+    if (!el) return;
+    const to = Math.max(0, Math.min(STEPS.length - 1, n));
+    el.scrollTo({ left: to * (step() + 16), behavior: "smooth" });
+  };
+  const onScroll = () => {
+    const el = row.current;
+    if (el) setAt(Math.round(el.scrollLeft / (step() + 16)));
+  };
+  const last = row.current ? row.current.scrollLeft + row.current.clientWidth >= row.current.scrollWidth - 4 : false;
 
   return (
-    /* Every product page runs a full-bleed brass band straight into this
-       section, and the two met on a hard horizontal line. This carries the
-       band's foot into the page ground instead (2026-09-19): the veil sits
-       above this section, over the last 6rem of whatever precedes it, and
-       fades from nothing down to the page's own colour. */
-    <section className="relative py-[clamp(2.5rem,5vw,4.5rem)]">
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -top-24 z-10 h-24"
-        style={{ background: "linear-gradient(180deg, rgba(250,248,244,0) 0%, #faf8f4 100%)" }}
-      />
+    <section className="py-[clamp(2.5rem,5vw,4.5rem)]">
       <div className="mx-auto max-w-[1180px] px-5 md:px-10">
-      <Reveal as="div" className="grid gap-6 md:grid-cols-2 md:items-start">
-        <h2 className="max-w-[16ch] font-display text-[clamp(1.5rem,3.2vw,2.2rem)] font-extrabold leading-[1.15] text-[#725826]">
-          From Assessment To Ongoing Care
-        </h2>
-        {/* Column is a flex stack so both the sentence and the link can be sent
-            to the container's right edge. Left-ranged on a phone, where there
-            is no width to push into. */}
-        <div className="flex flex-col items-start md:items-end md:pt-1">
-          <p className="max-w-[46ch] text-[0.88rem] leading-relaxed text-muted md:text-right">
-            A straightforward path to personalized treatment, with licensed medical oversight at every step
-          </p>
-          <Link
-            to="/start"
-            onClick={() => track(EVENTS.QUIZ_STARTED, { click_source: "product-journey" })}
-            className="group mt-3 inline-flex items-center gap-2.5 text-[0.92rem] font-bold text-ink transition-colors hover:text-[#725826] md:self-end"
-          >
-            Take a quick assessment
-            <ArrowRight size={16} className="transition-transform duration-300 group-hover:translate-x-1" />
-          </Link>
-        </div>
-      </Reveal>
-      {/* One column on a phone, two on a tablet, the comp's four-across from lg. */}
-      <ol className="mt-[clamp(2rem,4vw,3.25rem)] grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
-        {STEPS.map((s, k) => (
-          <li key={s.img} className="h-full">
-            <StepPanel step={s} index={k} />
-          </li>
-        ))}
-      </ol>
-      </div>
-
-      {/* Deliberately outside the 1180 container the rest of the section uses —
-          the comp runs this panel considerably wider than the carousel above it,
-          with only a thin margin left and right. */}
-      {programs.length > 0 && (
-        <Reveal as="div" className="mx-auto mt-[clamp(2.5rem,5vw,4rem)] max-w-[1520px] px-4 md:px-6">
-          <div
-            className="grid items-center gap-6 rounded-[calc(38px*var(--nv-r-scale,1))] px-6 py-10 md:px-12 lg:grid-cols-[1fr_1.35fr_0.85fr] lg:gap-10"
-            style={{ background: "linear-gradient(135deg, #9a7843 0%, #b8935c 45%, #a07c46 100%)" }}
-          >
-            <div>
-              <h3 className="max-w-[10ch] font-display text-[clamp(1.5rem,2.8vw,2.1rem)] font-extrabold leading-[1.2] text-[#ffe8b1]">
-                {product.categoryName} Treatments
-              </h3>
-            </div>
-
-            <div className="mx-auto grid w-full max-w-[560px] gap-5 sm:grid-cols-2">
-              {programs.slice(0, 2).map((c) => (
-                /* No quick-view here: we are already on a product page, so
-                   View Details routes to the other product instead of stacking
-                   a modal on top of one. */
-                <TreatmentCard key={c.key} item={c} compact onViewDetails={(p) => navigate(productPath(p))} />
-              ))}
-            </div>
-
-            {/* Hairline only from lg, where the three blocks actually sit in a row. */}
-            <div className="lg:border-l lg:border-white/30 lg:pl-10">
-              <h3 className="max-w-[12ch] font-display text-[clamp(1.4rem,2.6vw,1.95rem)] font-extrabold leading-[1.2] text-[#ffe8b1]">
-                Explore Other Treatments
-              </h3>
-              {/* Outlined, not filled — the comp keeps the solid cream button for
-                  the primary CTAs and gives this secondary one a ghost pill. */}
-              <Link
-                to="/treatments"
-                className="group mt-5 inline-flex items-center gap-2 rounded-full border border-[#ffe8b1]/70 px-6 py-2.5 text-[0.85rem] font-semibold text-[#ffe8b1] transition-all hover:-translate-y-0.5 hover:bg-[#ffe8b1]/10"
-              >
-                See More
-                <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-1" />
-              </Link>
-            </div>
+        <Reveal as="div" className="flex items-end justify-between gap-4">
+          <div>
+            <span className="nv-eyebrow">How it works</span>
+            <h2 className="mt-3 max-w-[16ch] font-display text-[clamp(1.6rem,3.2vw,2.3rem)] font-extrabold leading-[1.12] text-ink">
+              From assessment to ongoing care
+            </h2>
+          </div>
+          <div className="flex shrink-0 gap-2.5 lg:hidden">
+            <button
+              type="button"
+              onClick={() => go(at - 1)}
+              disabled={at === 0}
+              aria-label="Previous step"
+              className="grid h-12 w-12 place-items-center rounded-full border border-line-strong bg-surface text-ink transition-opacity disabled:opacity-35"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              type="button"
+              onClick={() => go(at + 1)}
+              disabled={at >= STEPS.length - 1 || last}
+              aria-label="Next step"
+              className="grid h-12 w-12 place-items-center rounded-full border border-line-strong bg-surface text-ink transition-opacity disabled:opacity-35"
+            >
+              <ChevronRight size={20} />
+            </button>
           </div>
         </Reveal>
-      )}
+
+        <ol
+          ref={row}
+          onScroll={onScroll}
+          className="no-scrollbar -mx-5 mt-[clamp(1.75rem,3.5vw,2.75rem)] flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-5 px-5 md:-mx-10 md:scroll-px-10 md:px-10 lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:px-0"
+        >
+          {STEPS.map((s, k) => (
+            <li key={s.img} className="w-5/6 shrink-0 snap-start sm:w-5/12 lg:w-auto">
+              <Reveal as="div" delay={k * 0.08} y={16} className="h-full">
+                <div className="flex h-full flex-col rounded-[calc(20px*var(--nv-r-scale,1))] bg-surface-2/45 p-2.5">
+                  <img
+                    src={s.img}
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                    className="aspect-5/4 w-full rounded-[calc(14px*var(--nv-r-scale,1))] object-cover"
+                  />
+                  <div className="px-3 pb-4 pt-5">
+                    <p className="font-mono text-[0.66rem] font-semibold uppercase tracking-[0.16em] text-accent">
+                      Step {String(k + 1).padStart(2, "0")}
+                    </p>
+                    <h3 className="mt-2 font-display text-[1.08rem] font-bold leading-snug text-ink">{s.title}</h3>
+                    <p className="mt-1.5 text-[0.9rem] leading-relaxed text-muted">{s.text}</p>
+                  </div>
+                </div>
+              </Reveal>
+            </li>
+          ))}
+        </ol>
+      </div>
     </section>
   );
 }
