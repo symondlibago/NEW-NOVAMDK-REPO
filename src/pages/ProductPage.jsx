@@ -403,7 +403,12 @@ export default function ProductPage() {
           {/* Same pill treatment as the shared BackButton on every other page. These
               stay plain Links rather than that component: back here means "up to the
               category", not browser history. */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Desktop only, from 2026-10-13 (client). On a phone these two pills
+              cost a row of vertical space above the fold and duplicate controls
+              the browser and the nav already give: the back gesture goes back,
+              and the logo goes home. The sticky Start button is what that space
+              is for. */}
+          <div className="hidden flex-wrap items-center gap-2 md:flex">
             <Link
               to={backLink}
               className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-2 text-[0.88rem] font-medium text-muted transition-all hover:-translate-x-0.5 hover:border-line-strong hover:text-ink"

@@ -597,7 +597,12 @@ export const productsData = [
        this blend carries both and the B12 only wording would understate it. */
     fdaDisclaimer:
       "FDA has stated that the safety and effectiveness of combining semaglutide with additional ingredients such as glycine and cyanocobalamin (vitamin B12) have not been established.",
-    price: "$169",
+    /* The client's 2026-10-10 table, the same figures this molecule carries
+       on its other blends: the table is flat per molecule, not per blend.
+       price3 is the whole 3 month term, set outright rather than worked out
+       from the month. Mirrored to api/_prices.js and only read on the server. */
+    price: "$250",
+    price3: "$587",
     shipping: "Shipped discreetly by a licensed pharmacy.",
     dosageForm: "Weekly Subcutaneous Injection",
     icon: <Syringe size={16} />,
@@ -647,7 +652,12 @@ export const productsData = [
       "The continuing fill of the compounded semaglutide protocol with glycine and cyanocobalamin (vitamin B12). Your provider reviews a short check-in before each refill and sets the dose.",
     fdaDisclaimer:
       "FDA has stated that the safety and effectiveness of combining semaglutide with additional ingredients such as glycine and cyanocobalamin (vitamin B12) have not been established.",
-    price: "$169",
+    /* The client's 2026-10-10 table, the same figures this molecule carries
+       on its other blends: the table is flat per molecule, not per blend.
+       price3 is the whole 3 month term, set outright rather than worked out
+       from the month. Mirrored to api/_prices.js and only read on the server. */
+    price: "$250",
+    price3: "$587",
     shipping: "Shipped discreetly by a licensed pharmacy.",
     dosageForm: "Weekly Subcutaneous Injection",
     icon: <Syringe size={16} />,
@@ -691,7 +701,12 @@ export const productsData = [
       "Tirzepatide acts on both the GIP and GLP-1 receptor pathways, which are involved in appetite and food intake. This compounded formulation also contains glycine and cyanocobalamin, a form of vitamin B12. If prescribed, your healthcare provider will determine your dose and treatment schedule.",
     fdaDisclaimer:
       "FDA has stated that the safety and effectiveness of combining tirzepatide with additional ingredients such as glycine and cyanocobalamin (vitamin B12) have not been established.",
-    price: "$179",
+    /* The client's 2026-10-10 table, the same figures this molecule carries
+       on its other blends: the table is flat per molecule, not per blend.
+       price3 is the whole 3 month term, set outright rather than worked out
+       from the month. Mirrored to api/_prices.js and only read on the server. */
+    price: "$320",
+    price3: "$765",
     shipping: "Shipped discreetly by a licensed pharmacy.",
     dosageForm: "Weekly Subcutaneous Injection",
     icon: <Syringe size={16} />,
@@ -741,7 +756,12 @@ export const productsData = [
       "The continuing fill of the compounded tirzepatide protocol with glycine and cyanocobalamin (vitamin B12). Your provider reviews a short check-in before each refill and sets the dose.",
     fdaDisclaimer:
       "FDA has stated that the safety and effectiveness of combining tirzepatide with additional ingredients such as glycine and cyanocobalamin (vitamin B12) have not been established.",
-    price: "$179",
+    /* The client's 2026-10-10 table, the same figures this molecule carries
+       on its other blends: the table is flat per molecule, not per blend.
+       price3 is the whole 3 month term, set outright rather than worked out
+       from the month. Mirrored to api/_prices.js and only read on the server. */
+    price: "$320",
+    price3: "$765",
     shipping: "Shipped discreetly by a licensed pharmacy.",
     dosageForm: "Weekly Subcutaneous Injection",
     icon: <Syringe size={16} />,

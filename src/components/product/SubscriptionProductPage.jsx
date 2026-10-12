@@ -140,10 +140,11 @@ export default function SubscriptionProductPage({
       />
       <Navbar />
 
-      {/* Horizontally scrollable on a phone rather than wrapping to two rows,
-          which pushed the picture below the fold on a 360px screen. */}
-      <div className="mx-auto max-w-[1180px] px-5 pt-5 md:px-10 md:pt-6">
-        <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+      {/* Desktop only, matching ProductPage from 2026-10-13 (client): on a
+          phone these two pills cost a row above the fold and duplicate the back
+          gesture and the logo. */}
+      <div className="mx-auto hidden max-w-[1180px] px-5 pt-5 md:block md:px-10 md:pt-6">
+        <div className="flex flex-wrap gap-2">
           <Link
             to={backLink}
             className="inline-flex flex-none items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-2 text-[0.85rem] font-medium text-muted transition-all hover:-translate-x-0.5 hover:border-line-strong hover:text-ink"

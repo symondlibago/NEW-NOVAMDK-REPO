@@ -1,5 +1,4 @@
-import { refillCadence } from "../components/data/subscriptions";
-import { priceLabel } from "../components/data/products";
+import { priceLabel, isOtc } from "../components/data/products";
 import { displayTitle } from "./catalog";
 import { productPath } from "./slug";
 
@@ -7,14 +6,14 @@ import { productPath } from "./slug";
    product page's cross-sell. Lives here rather than in either component so the
    two can never drift into describing the same program differently. */
 
-/* "every week" -> "Once-Weekly", "every 8 weeks" -> "Every 8 Weeks". Reads off
-   the catalogue's Days Supply rather than assuming a monthly rhythm — these
-   vials run 28 or 56 days and calling that "monthly" on an Rx page is a claim. */
-export const cadenceLabel = (raw) => {
-  if (!raw) return "";
-  if (raw === "every week") return "Once-Weekly";
-  return raw.replace(/^every /, "Every ").replace(/\b\w/g, (c) => c.toUpperCase());
-};
+/* The refill cadence chip ("Every 8 Weeks") is gone from both cards at the
+   client's request, 2026-10-13. It was read off the catalogue's Days Supply, so
+   nothing was wrong with it; the client simply does not want the shelf stating
+   a refill rhythm next to the price. The fact is still on the product page, in
+   the Days Supply spec, which is where a patient can read it in context.
+
+   cadenceLabel went with it. refillCadence in data/subscriptions.js is still
+   used by the program blends, so that stays. */
 
 /* Programs collapse to a single card at their starting dose — no Starter /
    Mid-Dose / Maintenance ladder. `Get Started` deep-links to that dose's intake
@@ -27,10 +26,11 @@ export const programItem = (program) => {
     key: `program-${program.slug}`,
     ribbon: "Subscription",
     title: program.name,
-    chips: [
-      program.fromPrice ? `From $${program.fromPrice}/mo` : "",
-      cadenceLabel(cheapest.cadence),
-    ],
+    chips: [program.fromPrice ? `From $${program.fromPrice}/mo` : ""],
+    /* The prescription marker, on the card rather than only on the product
+       page (client, 2026-10-13). Read off the catalogue, not assumed: the
+       supplement line is not a prescription and must not claim to be. */
+    rx: !isOtc(starter),
     img: program.image || starter.img,
     blurb: program.blurb,
     /* The formulations behind the card.
@@ -58,11 +58,12 @@ export const productItem = (p) => ({
   // card should read "NAD+ Injection", not "NAD+ Injection — Starter". It also
   // sets combination names with a plus rather than a slash.
   title: displayTitle(p),
-  /* The price is a monthly rate; the cadence chip beside it still states the
-     actual refill rhythm, which is a different fact and stays as it was. */
   /* cardPrice wins when a ladder's shelf card has to open the range rather than
-     quote one fill ("Starts at $39" for the LDN starter). */
-  chips: [p.cardPrice || priceLabel(p), cadenceLabel(refillCadence(p)) || p.dosageForm || ""],
+     quote one fill ("Starts at $39" for the LDN starter). The dosage form sits
+     beside it now that the refill cadence has gone: it is what the patient is
+     choosing between, a spray or an injection. */
+  chips: [p.cardPrice || priceLabel(p), p.dosageForm || ""],
+  rx: !isOtc(p),
   img: p.img,
   blurb: p.blurb || p.description || "",
   product: p,

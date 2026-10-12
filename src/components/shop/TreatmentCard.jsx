@@ -2,9 +2,18 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import Reveal from "../ui/Reveal";
-export default function TreatmentCard({ item, delay = 0, floatDelay = 0, onViewDetails, compact = false }) {
+export default function TreatmentCard({
+  item,
+  delay = 0,
+  floatDelay = 0,
+  onViewDetails,
+  compact = false,
+  /* Sizing from the list that owns the layout. The category shelf is a snapping
+     row on phones and a grid from sm, and only it knows which. */
+  className = "",
+}) {
   return (
-    <Reveal as="div" delay={delay} className="h-full">
+    <Reveal as="div" delay={delay} className={`h-full ${className}`}>
       <div
         className={`group relative flex h-full flex-col overflow-hidden rounded-[calc(18px*var(--nv-r-scale,1))] border-2 border-[#b39355] transition-all duration-300 hover:-translate-y-1 hover:border-[#8f7136] nv-shadow hover:nv-shadow-lg ${compact ? "pt-9 pr-4 pb-4 pl-4" : "pt-11 pr-5 pb-5 pl-5"}`}
         style={{ background: "linear-gradient(90deg, #ffffff 0%, #e4d2b8 100%)" }}
@@ -23,6 +32,17 @@ export default function TreatmentCard({ item, delay = 0, floatDelay = 0, onViewD
         </h3>
 
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          {/* RX ONLY leads the row, filled rather than outlined, because it is
+              a regulatory marker and not another attribute: a patient skimming
+              a shelf should be able to tell a prescription from a supplement
+              without opening anything. Absent on the retail line. */}
+          {item.rx && (
+            <span
+              className={`rounded-full bg-[#6b511e] py-[3px] font-semibold tracking-[0.08em] text-[#fdfaf3] ${compact ? "px-2 text-[0.55rem]" : "px-2.5 text-[0.62rem]"}`}
+            >
+              RX ONLY
+            </span>
+          )}
           {item.chips.filter(Boolean).map((c) => (
             <span
               key={c}
@@ -33,7 +53,11 @@ export default function TreatmentCard({ item, delay = 0, floatDelay = 0, onViewD
           ))}
         </div>
 
-        <div className={`flex items-center justify-center ${compact ? "my-3.5 h-24 sm:h-28" : "my-5 h-32 sm:h-40"}`}>
+        {/* Taller at the client's request, 2026-10-13. The vial is the thing
+            being chosen and it was the smallest element on the card. object
+            contain, so a taller box shows more of the bottle rather than
+            cropping it. */}
+        <div className={`flex items-center justify-center ${compact ? "my-3 h-32 sm:h-36" : "my-4 h-44 sm:h-52"}`}>
           {/* Wrapper carries the idle float so the img keeps its own hover scale. */}
           <span
             className="nv-float flex h-full w-full items-center justify-center"
