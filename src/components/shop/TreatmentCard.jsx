@@ -52,6 +52,32 @@ export default function TreatmentCard({ item, delay = 0, floatDelay = 0, onViewD
           <p className={`text-center leading-snug text-[#b49a5d] ${compact ? "mb-3.5 text-[0.7rem]" : "mb-5 text-[0.82rem]"}`}>{item.blurb}</p>
         )}
 
+        {/* The formulations a program is available as, listed only when there is
+            more than one: a single entry repeats what the title already said.
+            Programs carry this; a standalone product card does not, so the
+            block disappears on its own there. */}
+        {item.formulations?.length > 1 && (
+          <ul
+            className={`flex flex-wrap justify-center gap-1.5 ${compact ? "mb-3.5" : "mb-5"}`}
+          >
+            {item.formulations.map((f) => (
+              <li key={f.name}>
+                {/* A link, not a label: the card's own Get Started goes to the
+                    cheapest blend, so a visitor who wants one of the others had
+                    no way to reach it from this tile. */}
+                <Link
+                  to={f.to}
+                  className={`block rounded-full border border-[#e3d3ad] bg-[#fdfaf3] px-2.5 py-0.5 font-medium text-[#8a6f3c] transition-colors hover:border-[#c3a461] hover:bg-[#f7edd8] ${
+                    compact ? "text-[0.62rem]" : "text-[0.7rem]"
+                  }`}
+                >
+                  {f.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+
         {/* mt-auto pins the buttons to the bottom so they line up across a row
             whatever the blurb length. */}
         <div className={`mt-auto flex flex-wrap items-center justify-center ${compact ? "gap-1.5" : "gap-2.5"}`}>

@@ -33,6 +33,17 @@ export const programItem = (program) => {
     ],
     img: program.image || starter.img,
     blurb: program.blurb,
+    /* The formulations behind the card.
+     *
+     * A program collapses several blends into one tile, which left a new blend
+     * invisible on the listing: adding "With Glycine and B12" changed nothing
+     * a visitor could see, because the card only ever showed the molecule and
+     * the cheapest price. Named here so the card can list what the molecule is
+     * actually available as. Only the blends that resolved, so a set of rungs
+     * that is entirely hidden still shows nothing. */
+    formulations: program.blends
+      .filter((b) => b.name && b.products[0])
+      .map((b) => ({ name: b.name, to: productPath(b.products[0]) })),
     // The product View Details quick-looks. For a program that's its starting
     // dose — the same one Get Started takes into intake.
     product: starter,
