@@ -286,6 +286,33 @@
     50%      { transform: translateY(-8px); }
   }
 
+  /* Skeleton block for the checkout's loading state.
+     A sweep across a tinted block, not a pulse: a pulse blinks the whole page
+     at once and reads as something broken, where a sweep reads as work in
+     progress. The gradient is 200% wide and travels one half, so the highlight
+     crosses the block exactly once per cycle.
+     The sweep carries no information, so it stops for prefers-reduced-motion
+     and the blocks simply sit there. */
+  .nv-skeleton {
+    background-color: var(--color-co-tint, #F5EDDD);
+    background-image: linear-gradient(
+      100deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.75) 50%,
+      transparent 80%
+    );
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: nv-skeleton 1.5s ease-in-out infinite;
+  }
+  @keyframes nv-skeleton {
+    from { background-position: 150% 0; }
+    to   { background-position: -50% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .nv-skeleton { animation: none; background-image: none; }
+  }
+
   /* Carousel frame swap — keyed on src, so React remounts the img and this
      replays on every step change. */
   .nv-fade-in { animation: nv-fade-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both; }

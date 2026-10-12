@@ -6,6 +6,7 @@ import { treatmentLabel } from "../lib/ghl";
 import { readScanSource, sourceLabel } from "../lib/kioskLocations";
 import Seo from "../components/Seo";
 import StripeCheckout from "../components/checkout/StripeCheckout";
+import CheckoutSkeleton from "../components/checkout/CheckoutSkeleton";
 import PlanTerms from "../components/checkout/PlanTerms";
 import PrepaidFill from "../components/checkout/PrepaidFill";
 
@@ -525,8 +526,17 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
      that has already been paid for. Named here all the same so that every
      effect keyed on `processor` skips it, rather than Collect.js being loaded
      and a Kurv link opened for a checkout with no money in it. */
-  const processor =
-    named === "prepaid"
+  /* null until the server has actually named one.
+   *
+   * This used to fall through to "nmi" whenever `named` was falsy, and `named`
+   * is falsy for the whole time the quote is in flight. So every checkout
+   * opened on the PayTechTrust card form, the oldest of the three, and only
+   * flipped to Stripe once the quote landed (client, 2026-10-13: the old Kurv
+   * payment is the first thing you see). Nothing is decided until there is an
+   * answer; the caller shows a loading panel in the gap. */
+  const processor = !named
+    ? null
+    : named === "prepaid"
       ? "prepaid"
       : named === "stripe"
         ? "stripe"
@@ -867,8 +877,13 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
   const canPay = status === "ready" && Boolean(quote);
   /* The Stripe path owns the whole viewport, confirmation included. Dropping
      back to a small dialog the moment the card went through was a jump from a
-     full screen cream page to a themed box, which read as a different site. */
-  const fullScreen = processor === "stripe";
+     full screen cream page to a themed box, which read as a different site.
+
+     The loading panel is full screen too. Stripe is the configured processor,
+     so that is what is about to appear, and sizing the sheet narrow first would
+     make it jump wider a moment later. A checkout that does land on Kurv or
+     PayTechTrust shrinks instead, which is the rare case. */
+  const fullScreen = processor === "stripe" || processor === null;
 
   /* The Stripe step takes the whole screen; every other state stays a centred
      dialog over the dimmed questionnaire.
@@ -927,6 +942,13 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
               </p>
             </div>
           </div>
+        ) : processor === null ? (
+          /* The quote is still in flight, so which processor takes this order
+             is not known yet. Ahead of every processor branch: showing one of
+             them on a guess is how the PayTechTrust form came to be the first
+             thing every patient saw. The skeleton is the Stripe checkout's own
+             layout, so nothing jumps when the real panel replaces it. */
+          <CheckoutSkeleton />
         ) : processor === "prepaid" ? (
           /* A month of a plan that has already been paid for. No card, no
              processor, no total: the only thing left is to record the month
