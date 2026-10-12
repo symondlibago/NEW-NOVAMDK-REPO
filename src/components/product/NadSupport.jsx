@@ -1,7 +1,6 @@
 import React from "react";
 import Reveal from "../ui/Reveal";
 import useRunOnceInView from "../../lib/useRunOnceInView";
-import { CoenzymeBand } from "./NadDirected";
 
 const INK = "#3f3a33";
 const MUTED = "#6b5e4b";
@@ -71,20 +70,50 @@ const CURVE_AREA = `
 
 const HEAD = POINTS[0];
 
-export default function NadSupport({ withCoenzyme = false }) {
+/* The graph's colours. Brass is the band it was drawn for, cream on gold; light
+   is the same figure in gold on the page's white, which the NAD+ Injection page
+   uses (client, 2026-10-12). Ids carry the tone so the two can never collide. */
+const TONES = {
+  brass: {
+    line: ["#fdf6e6", "#f6e9cd", "#eeddb6"],
+    area: ["#fff3d4", "#ffeecb", "#ffeac2", "#ffe8bd"],
+    areaOpacity: [0.52, 0.34, 0.16, 0.04],
+    glow: ["#fff4d6", "#fff0cb", "#ffecc2", "#ffe9bb"],
+    axis: AXIS_LINE,
+    label: CREAM_SOFT,
+    shadow: "#fff0c9",
+    halo: "#fff4d8",
+    dot: DOT,
+    dotRim: "rgba(255,255,255,0.55)",
+    age: CREAM,
+  },
+  light: {
+    line: ["#cfae74", "#b39258", "#8f6f3a"],
+    area: ["#e2c896", "#e8d3aa", "#efe0c2", "#f6eedd"],
+    areaOpacity: [0.55, 0.38, 0.2, 0.05],
+    glow: ["#e7cb93", "#ecd5a8", "#f1e0bf", "#f6ebd6"],
+    axis: "rgba(114,88,38,0.28)",
+    label: "#8a7550",
+    shadow: "#b39258",
+    halo: "#cfae74",
+    dot: "#b39258",
+    dotRim: "#ffffff",
+    age: "#725826",
+  },
+};
+
+/* The animated decline curve on its own, so the NAD+ Injection page can set it
+   on white while the tablet keeps it on the band. */
+export function DeclineGraph({ tone = "brass", className = "" }) {
   /* The shared hook rather than an observer of its own (2026-09-19): this one
      asked for 30% of the band to be on screen, and the band is now the graph
      itself, full bleed. On a phone it is taller than the viewport, so 30% of it
      can never be visible at once and the graph simply never drew. */
   const [graphRef, graphActive] = useRunOnceInView("-80px");
+  const c = TONES[tone];
 
   return (
-    <section
-      className="w-full"
-      style={{
-        background: BAND,
-      }}
-    >
+    <div ref={graphRef} className={`${className} ${graphActive ? "nv-energy-active" : ""}`}>
       {/* GRAPH ANIMATION */}
       <style>{`
         /* ==============================
@@ -349,7 +378,284 @@ export default function NadSupport({ withCoenzyme = false }) {
           }
         }
       `}</style>
+      <div className="relative">
+        {/* aria-hidden no longer: the ages are inside the SVG now, so it
+            carries the figure's own reading of the trend. The axis label
+            came inside with them — beside the SVG it centred on the whole
+            box, which sat it low against the plot it names. */}
+        <svg
+          viewBox="0 0 520 224"
+          role="img"
+          aria-label="Relative NAD+ level by age: highest at 30, falling steeply to 50, then levelling off through 70 and over."
+          className="block h-auto w-full overflow-visible"
+        >
+          <defs>
+            {/* THE LINE. Cream on the brass rather than gold on cream. */}
+            <linearGradient
+              id={`nv-energy-line-${tone}`}
+              x1="64"
+              y1="51"
+              x2="482"
+              y2="140"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0%" stopColor={c.line[0]} />
+              <stop offset="45%" stopColor={c.line[1]} />
+              <stop offset="100%" stopColor={c.line[2]} />
+            </linearGradient>
 
+            {/* THE YELLOW SHADE UNDER THE CURVE. Warm cream falling to
+                nothing at the axis, so the light pools right beneath the
+                line and the brass reads through it lower down. The old
+                stops were golds, mixed for a cream card, and vanished
+                against the band. */}
+            <linearGradient
+              id={`nv-energy-area-${tone}`}
+              x1="0"
+              y1="14"
+              x2="0"
+              y2="186"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop
+                offset="0%"
+                stopColor={c.area[0]}
+                stopOpacity={c.areaOpacity[0]}
+              />
+
+              <stop
+                offset="35%"
+                stopColor={c.area[1]}
+                stopOpacity={c.areaOpacity[1]}
+              />
+
+              <stop
+                offset="70%"
+                stopColor={c.area[2]}
+                stopOpacity={c.areaOpacity[2]}
+              />
+
+              <stop
+                offset="100%"
+                stopColor={c.area[3]}
+                stopOpacity={c.areaOpacity[3]}
+              />
+            </linearGradient>
+
+            {/* The shading is clipped to the plot rather than faded out
+                on the left: the comp squares it against the y-axis, and
+                the old fade only existed because the curve used to run
+                off the left edge of the card. */}
+            <clipPath id={`nv-energy-plot-${tone}`}>
+              <rect x="44" y="0" width="458" height="186" />
+            </clipPath>
+
+            {/* AREA BLUR */}
+            <filter
+              id={`nv-energy-area-blur-${tone}`}
+              x="-30%"
+              y="-30%"
+              width="170%"
+              height="180%"
+            >
+              <feGaussianBlur stdDeviation="5.2" />
+            </filter>
+
+            {/* STARTING DOT GLOW */}
+            <radialGradient
+              id={`nv-energy-head-glow-${tone}`}
+              cx="50%"
+              cy="50%"
+              r="50%"
+            >
+              <stop
+                offset="0%"
+                stopColor={c.glow[0]}
+                stopOpacity="0.5"
+              />
+
+              <stop
+                offset="30%"
+                stopColor={c.glow[1]}
+                stopOpacity="0.3"
+              />
+
+              <stop
+                offset="62%"
+                stopColor={c.glow[2]}
+                stopOpacity="0.14"
+              />
+
+              <stop
+                offset="100%"
+                stopColor={c.glow[3]}
+                stopOpacity="0"
+              />
+            </radialGradient>
+
+            {/* CURVE BLUR */}
+            <filter
+              id={`nv-energy-curve-blur-${tone}`}
+              x="-30%"
+              y="-50%"
+              width="170%"
+              height="220%"
+            >
+              <feGaussianBlur stdDeviation="6" />
+            </filter>
+          </defs>
+
+          {/* GOLD SHADE */}
+          <path
+            d={CURVE_AREA}
+            fill={`url(#nv-energy-area-${tone})`}
+            clipPath={`url(#nv-energy-plot-${tone})`}
+            filter={`url(#nv-energy-area-blur-${tone})`}
+            className="nv-energy-area-soft"
+          />
+
+          {/* SECOND GOLD LAYER */}
+          <path
+            d={CURVE_AREA}
+            fill={`url(#nv-energy-area-${tone})`}
+            clipPath={`url(#nv-energy-plot-${tone})`}
+            className="nv-energy-area-inner"
+          />
+
+          {/* AXES. The comp draws a plain L: one rule down the left and
+              one along the foot. Over the shading rather than under it,
+              so both stay crisp where the fill is densest. */}
+          <path
+            d={`M ${PLOT.left} ${PLOT.top} L ${PLOT.left} ${PLOT.bottom} L ${PLOT.right} ${PLOT.bottom}`}
+            fill="none"
+            stroke={c.axis}
+            strokeWidth="1.4"
+            strokeLinecap="square"
+            strokeLinejoin="miter"
+          />
+
+          {/* Axis label, rotated up the left of the plot as the comp has
+              it, centred on the plot's own height. The rotation lives on
+              a wrapper because the fade-in class animates `transform`,
+              and a CSS transform beats the attribute: on the text itself
+              the label landed flat across the plot. */}
+          <g transform="rotate(-90 20 100)">
+            <text
+              x="20"
+              y="100"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="nv-energy-top-copy"
+              fill={c.label}
+              fontSize="14"
+              fontWeight="700"
+            >
+              Relative NAD+ Level
+            </text>
+          </g>
+
+          {/* CURVE SHADOW. Stroke widths are in viewBox units now: with
+              non-scaling-stroke the browser resolves them in screen units
+              and pathLength="1" no longer normalises the dash, which
+              leaves the draw stopping short of the last point. */}
+          <path
+            d={CURVE}
+            pathLength="1"
+            fill="none"
+            stroke={c.shadow}
+            strokeWidth="12"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="0.17"
+            transform="translate(0 3)"
+            filter={`url(#nv-energy-curve-blur-${tone})`}
+            className="nv-energy-draw nv-energy-line-shadow"
+          />
+
+          {/* SMALL GOLD HALO */}
+          <path
+            d={CURVE}
+            pathLength="1"
+            fill="none"
+            stroke={c.halo}
+            strokeWidth="4.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="0.16"
+            transform="translate(0 1.5)"
+            className="nv-energy-draw nv-energy-line-halo"
+          />
+
+          {/* MAIN CURVE */}
+          <path
+            d={CURVE}
+            pathLength="1"
+            fill="none"
+            stroke={`url(#nv-energy-line-${tone})`}
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="nv-energy-draw nv-energy-main-line"
+          />
+
+          {/* DOT GLOW, on the first point only. */}
+          <circle
+            cx={HEAD.x}
+            cy={HEAD.y}
+            r="26"
+            fill={`url(#nv-energy-head-glow-${tone})`}
+            className="nv-energy-dot-glow"
+          />
+
+          {/* A dot per age, as the comp marks them, each landing as the
+              line reaches it rather than all five at once. */}
+          {POINTS.map((p, i) => (
+            <circle
+              key={p.age}
+              cx={p.x}
+              cy={p.y}
+              r="5.5"
+              fill={c.dot}
+              stroke={c.dotRim}
+              strokeWidth="1.2"
+              className="nv-energy-start-dot"
+              style={{ animationDelay: `${(0.2 + i * 0.54).toFixed(2)}s` }}
+            />
+          ))}
+
+          {/* The ages ride inside the plot so each one sits exactly under
+              its dot. As a grid below the SVG they were evenly spaced
+              across the card instead, which put every label off its
+              point. */}
+          {POINTS.map((p, i) => (
+            <text
+              key={`${p.age}-label`}
+              x={p.x}
+              y={LABEL_Y}
+              textAnchor="middle"
+              className="nv-energy-age font-display"
+              fill={c.age}
+              fontSize="14"
+              fontWeight="800"
+              style={{ animationDelay: `${(0.55 + i * 0.54).toFixed(2)}s` }}
+            >
+              {p.age}
+            </text>
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+export default function NadSupport() {
+  return (
+    <section
+      className="w-full"
+      style={{
+        background: BAND,
+      }}
+    >
       {/* The section IS the graph now (2026-09-19): the comp gives the whole
           band to it, headed by the eyebrow and one centred headline, with the
           card, its split layout and the droplet all gone. */}
@@ -371,278 +677,8 @@ export default function NadSupport({ withCoenzyme = false }) {
         </Reveal>
 
         <Reveal as="div" delay={0.08}>
-          <div
-            ref={graphRef}
-            className={`mt-[clamp(1.5rem,3.5vw,2.5rem)] ${
-              graphActive ? "nv-energy-active" : ""
-            }`}
-          >
-            <div className="relative">
-              {/* aria-hidden no longer: the ages are inside the SVG now, so it
-                  carries the figure's own reading of the trend. The axis label
-                  came inside with them — beside the SVG it centred on the whole
-                  box, which sat it low against the plot it names. */}
-              <svg
-                viewBox="0 0 520 224"
-                role="img"
-                aria-label="Relative NAD+ level by age: highest at 30, falling steeply to 50, then levelling off through 70 and over."
-                className="block h-auto w-full overflow-visible"
-              >
-                <defs>
-                  {/* THE LINE. Cream on the brass rather than gold on cream. */}
-                  <linearGradient
-                    id="nv-energy-line"
-                    x1="64"
-                    y1="51"
-                    x2="482"
-                    y2="140"
-                    gradientUnits="userSpaceOnUse"
-                  >
-                    <stop offset="0%" stopColor="#fdf6e6" />
-                    <stop offset="45%" stopColor="#f6e9cd" />
-                    <stop offset="100%" stopColor="#eeddb6" />
-                  </linearGradient>
-
-                  {/* THE YELLOW SHADE UNDER THE CURVE. Warm cream falling to
-                      nothing at the axis, so the light pools right beneath the
-                      line and the brass reads through it lower down. The old
-                      stops were golds, mixed for a cream card, and vanished
-                      against the band. */}
-                  <linearGradient
-                    id="nv-energy-area"
-                    x1="0"
-                    y1="14"
-                    x2="0"
-                    y2="186"
-                    gradientUnits="userSpaceOnUse"
-                  >
-                    <stop
-                      offset="0%"
-                      stopColor="#fff3d4"
-                      stopOpacity="0.52"
-                    />
-
-                    <stop
-                      offset="35%"
-                      stopColor="#ffeecb"
-                      stopOpacity="0.34"
-                    />
-
-                    <stop
-                      offset="70%"
-                      stopColor="#ffeac2"
-                      stopOpacity="0.16"
-                    />
-
-                    <stop
-                      offset="100%"
-                      stopColor="#ffe8bd"
-                      stopOpacity="0.04"
-                    />
-                  </linearGradient>
-
-                  {/* The shading is clipped to the plot rather than faded out
-                      on the left: the comp squares it against the y-axis, and
-                      the old fade only existed because the curve used to run
-                      off the left edge of the card. */}
-                  <clipPath id="nv-energy-plot">
-                    <rect x="44" y="0" width="458" height="186" />
-                  </clipPath>
-
-                  {/* AREA BLUR */}
-                  <filter
-                    id="nv-energy-area-blur"
-                    x="-30%"
-                    y="-30%"
-                    width="170%"
-                    height="180%"
-                  >
-                    <feGaussianBlur stdDeviation="5.2" />
-                  </filter>
-
-                  {/* STARTING DOT GLOW */}
-                  <radialGradient
-                    id="nv-energy-head-glow"
-                    cx="50%"
-                    cy="50%"
-                    r="50%"
-                  >
-                    <stop
-                      offset="0%"
-                      stopColor="#fff4d6"
-                      stopOpacity="0.5"
-                    />
-
-                    <stop
-                      offset="30%"
-                      stopColor="#fff0cb"
-                      stopOpacity="0.3"
-                    />
-
-                    <stop
-                      offset="62%"
-                      stopColor="#ffecc2"
-                      stopOpacity="0.14"
-                    />
-
-                    <stop
-                      offset="100%"
-                      stopColor="#ffe9bb"
-                      stopOpacity="0"
-                    />
-                  </radialGradient>
-
-                  {/* CURVE BLUR */}
-                  <filter
-                    id="nv-energy-curve-blur"
-                    x="-30%"
-                    y="-50%"
-                    width="170%"
-                    height="220%"
-                  >
-                    <feGaussianBlur stdDeviation="6" />
-                  </filter>
-                </defs>
-
-                {/* GOLD SHADE */}
-                <path
-                  d={CURVE_AREA}
-                  fill="url(#nv-energy-area)"
-                  clipPath="url(#nv-energy-plot)"
-                  filter="url(#nv-energy-area-blur)"
-                  className="nv-energy-area-soft"
-                />
-
-                {/* SECOND GOLD LAYER */}
-                <path
-                  d={CURVE_AREA}
-                  fill="url(#nv-energy-area)"
-                  clipPath="url(#nv-energy-plot)"
-                  className="nv-energy-area-inner"
-                />
-
-                {/* AXES. The comp draws a plain L: one rule down the left and
-                    one along the foot. Over the shading rather than under it,
-                    so both stay crisp where the fill is densest. */}
-                <path
-                  d={`M ${PLOT.left} ${PLOT.top} L ${PLOT.left} ${PLOT.bottom} L ${PLOT.right} ${PLOT.bottom}`}
-                  fill="none"
-                  stroke={AXIS_LINE}
-                  strokeWidth="1.4"
-                  strokeLinecap="square"
-                  strokeLinejoin="miter"
-                />
-
-                {/* Axis label, rotated up the left of the plot as the comp has
-                    it, centred on the plot's own height. The rotation lives on
-                    a wrapper because the fade-in class animates `transform`,
-                    and a CSS transform beats the attribute: on the text itself
-                    the label landed flat across the plot. */}
-                <g transform="rotate(-90 20 100)">
-                  <text
-                    x="20"
-                    y="100"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="nv-energy-top-copy"
-                    fill={CREAM_SOFT}
-                    fontSize="14"
-                    fontWeight="700"
-                  >
-                    Relative NAD+ Level
-                  </text>
-                </g>
-
-                {/* CURVE SHADOW. Stroke widths are in viewBox units now: with
-                    non-scaling-stroke the browser resolves them in screen units
-                    and pathLength="1" no longer normalises the dash, which
-                    leaves the draw stopping short of the last point. */}
-                <path
-                  d={CURVE}
-                  pathLength="1"
-                  fill="none"
-                  stroke="#fff0c9"
-                  strokeWidth="12"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity="0.17"
-                  transform="translate(0 3)"
-                  filter="url(#nv-energy-curve-blur)"
-                  className="nv-energy-draw nv-energy-line-shadow"
-                />
-
-                {/* SMALL GOLD HALO */}
-                <path
-                  d={CURVE}
-                  pathLength="1"
-                  fill="none"
-                  stroke="#fff4d8"
-                  strokeWidth="4.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity="0.16"
-                  transform="translate(0 1.5)"
-                  className="nv-energy-draw nv-energy-line-halo"
-                />
-
-                {/* MAIN CURVE */}
-                <path
-                  d={CURVE}
-                  pathLength="1"
-                  fill="none"
-                  stroke="url(#nv-energy-line)"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="nv-energy-draw nv-energy-main-line"
-                />
-
-                {/* DOT GLOW, on the first point only. */}
-                <circle
-                  cx={HEAD.x}
-                  cy={HEAD.y}
-                  r="26"
-                  fill="url(#nv-energy-head-glow)"
-                  className="nv-energy-dot-glow"
-                />
-
-                {/* A dot per age, as the comp marks them, each landing as the
-                    line reaches it rather than all five at once. */}
-                {POINTS.map((p, i) => (
-                  <circle
-                    key={p.age}
-                    cx={p.x}
-                    cy={p.y}
-                    r="5.5"
-                    fill={DOT}
-                    stroke="rgba(255,255,255,0.55)"
-                    strokeWidth="1.2"
-                    className="nv-energy-start-dot"
-                    style={{ animationDelay: `${(0.2 + i * 0.54).toFixed(2)}s` }}
-                  />
-                ))}
-
-                {/* The ages ride inside the plot so each one sits exactly under
-                    its dot. As a grid below the SVG they were evenly spaced
-                    across the card instead, which put every label off its
-                    point. */}
-                {POINTS.map((p, i) => (
-                  <text
-                    key={`${p.age}-label`}
-                    x={p.x}
-                    y={LABEL_Y}
-                    textAnchor="middle"
-                    className="nv-energy-age font-display"
-                    fill={CREAM}
-                    fontSize="14"
-                    fontWeight="800"
-                    style={{ animationDelay: `${(0.55 + i * 0.54).toFixed(2)}s` }}
-                  >
-                    {p.age}
-                  </text>
-                ))}
-              </svg>
-            </div>
+          <div className="mt-[clamp(1.5rem,3.5vw,2.5rem)]">
+            <DeclineGraph />
 
             {/* The age row that used to live here is inside the SVG now, under
                 its own dots. */}
@@ -665,11 +701,6 @@ export default function NadSupport({ withCoenzyme = false }) {
           </div>
         </Reveal>
       </div>
-
-      {/* The coenzyme diagram belongs to the same panel in the comp, so it is
-          rendered inside this section rather than as a band of its own
-          (2026-09-25): one box, one gradient, and no seam to match up. */}
-      {withCoenzyme && <CoenzymeBand />}
     </section>
   );
 }

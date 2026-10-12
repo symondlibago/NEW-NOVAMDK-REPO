@@ -40,7 +40,7 @@ import ProductRelated from "../components/product/ProductRelated";
 import { SafetySheet } from "../components/product/ProductSafety";
 import ProductStickyStart from "../components/product/ProductStickyStart";
 import NadSupport from "../components/product/NadSupport";
-import NadDirected from "../components/product/NadDirected";
+import NadInjectionSections from "../components/product/NadInjectionSections";
 import NadSublingual from "../components/product/NadSublingual";
 import GlutathioneSections from "../components/product/GlutathioneSections";
 import ScreamCreamSections from "../components/product/ScreamCreamSections";
@@ -526,17 +526,15 @@ export default function ProductPage() {
           and tirzepatide records carry a band today. */}
       <ProductMechanism product={active} />
 
-      {/* NAD+ only — every line of copy names it. Matched on the product name so
-          the injection, its dose ladder and the sublingual tablet all carry it. */}
-      {/* NAD+ editorial, split by format. The sublingual tablet gets its own
-          block; May Support and Provider-Directed are the injection's — their
-          copy and photography are about an injected treatment. */}
-      {/* The decline graph runs on both NAD+ formats, straight after the
-          product image, per the update. Everything below it is the injection's
-          own editorial. */}
-      {isNad && <NadSupport withCoenzyme={!isSublingual} />}
+      {/* NAD+ editorial, split by format and matched on the product name, so
+          the injection and its dose ladder share one set. The injection was
+          rebuilt on 2026-10-12 (gold "What is NAD+" first, the decline graph on
+          white); the tablet keeps the graph on the band and its own block. */}
+      {isNad && isSublingual && <NadSupport />}
       {isNad && isSublingual && <NadSublingual />}
-      {isNad && !isSublingual && <NadDirected />}
+      {isNad && !isSublingual && (
+        <NadInjectionSections product={active} startTo={`${productPath(product)}?start=1`} />
+      )}
 
       {/* Glutathione's own editorial. Same contract as the NAD+ blocks: gated on
           the product name, and its CTA lands on the intake this page's own Get

@@ -1975,6 +1975,8 @@ const FAQ_SETS = [
   ]],
   [/^nad\+ injection/i, [
     { q: "What is NAD+ Injection?", a: "NAD+ Injection is a compounded prescription treatment containing nicotinamide adenine dinucleotide, a coenzyme naturally found in the body." },
+    { q: "Is it the same as an NAD+ IV drip?", a: "Both contain NAD+, but an IV drip is given through a vein at a clinic. NAD+ Injection, if prescribed, is shipped to you and used at home as directed by your provider." },
+    { q: "Do I need to book a clinic visit?", a: "No IV appointment is needed. You start with an online intake that a licensed provider reviews, and if NAD+ Injection is prescribed, it is shipped to your home." },
     { q: "How is it used?", a: "Your provider will determine the dose and injection schedule based on your individual treatment plan." },
     { q: "Is NAD+ Injection right for me?", a: "A licensed provider will review your health history, medications, and goals before deciding if treatment may be appropriate." },
     { q: "What should I know before starting?", a: "Injection-site reactions and other side effects can occur. Your provider will explain what to expect and when to contact your care team." },
