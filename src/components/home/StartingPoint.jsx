@@ -1,10 +1,11 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import Reveal from "../ui/Reveal";
 import { visibleProducts } from "../data/products";
 import { productPath } from "../../lib/slug";
 import { stageOf, displayTitle } from "../../lib/catalog";
+import { SafetySheet } from "../product/ProductSafety";
 
 /**
  * "Find the Right Starting Point" — the swipeable product rail under the goals
@@ -46,8 +47,6 @@ const CARDS = PICKS.map((pick) => {
   return hit || null;
 }).filter(Boolean);
 
-/* The comp's fill on the lead card: D5B584 at 9% down to 97784A at 80%. */
-const LEAD = "linear-gradient(180deg, #d5b584 9%, #97784a 80%)";
 const CARD_R = "rounded-3xl";
 
 /* Native overflow gives touch its inertia for free, but a mouse cannot grab a
@@ -246,26 +245,66 @@ function ProductArt({ src }) {
   );
 }
 
+/* Where the rail is, as a thumb on a short track under it: its width is the
+   share of the rail on screen and it slides with the scroll. */
+function useRailMeter(ref) {
+  const [meter, setMeter] = React.useState({ left: 0, width: 0.3 });
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const read = () => {
+      const w = el.scrollWidth || 1;
+      setMeter({ left: el.scrollLeft / w, width: Math.min(1, el.clientWidth / w) });
+    };
+    read();
+    el.addEventListener("scroll", read, { passive: true });
+    window.addEventListener("resize", read);
+    return () => {
+      el.removeEventListener("scroll", read);
+      window.removeEventListener("resize", read);
+    };
+  }, [ref]);
+  return meter;
+}
+
+/* Laid out after the client's comp (2026-10-12): the heading with its line and
+   "View all options" across the top in place of the lead card, product cards
+   with their own safety link, and a swipe hint, meter and arrows under the
+   rail. */
 export default function StartingPoint() {
   const trackRef = useDragScroll();
+  const meter = useRailMeter(trackRef);
+  const [safetyFor, setSafetyFor] = React.useState(null);
+
+  const nudge = (dir) => {
+    const el = trackRef.current;
+    const first = el?.firstElementChild;
+    if (!first) return;
+    el.scrollBy({ left: dir * (first.getBoundingClientRect().width + 20), behavior: "smooth" });
+  };
 
   return (
     /* From md the band fills one screen under the sticky header and centres
        the rail in it (2026-09-15). White ground to match the page. */
     <section className="flex w-full flex-col justify-center overflow-hidden bg-white md:min-h-[calc(100svh-69px)] [@media(min-width:600px)_and_(orientation:portrait)]:min-h-0">
-      {/* The standfirst that sat beside the heading was dropped at the client's
-          request (2026-09-25). The band keeps the roomier spacing it came with:
-          the heading no longer sits hard against the rail. */}
-      <div className="mx-auto w-full max-w-[1340px] px-5 pb-[clamp(2rem,4vw,3rem)] pt-[clamp(2rem,4vw,3rem)] md:px-10">
+      <div className="mx-auto flex w-full max-w-[1340px] flex-col gap-5 px-5 pb-[clamp(1.5rem,3vw,2.25rem)] pt-[clamp(2rem,4vw,3rem)] md:flex-row md:items-end md:justify-between md:px-10">
         <Reveal>
-          <h2 className="nv-weight-keep font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-extrabold leading-[1.1] tracking-tight">
+          <h2 className="nv-weight-keep font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-semibold leading-[1.08] tracking-tight">
+            <span className="block text-ink">Find the right</span>
             <span className="block" style={{ color: "#b39258" }}>
-              Find the Right
-            </span>
-            <span className="block" style={{ color: "#6d5934" }}>
-              Starting Point
+              starting point
             </span>
           </h2>
+        </Reveal>
+        <Reveal as="div" delay={0.06} className="md:max-w-[22rem]">
+          <p className="text-[1.02rem] leading-snug text-ink">Explore care options through online provider review.</p>
+          <Link
+            to="/treatments"
+            className="group mt-3 inline-flex items-center gap-2 rounded-full border border-[#c9ab7c] px-6 py-2.5 text-[0.92rem] font-semibold text-ink transition-colors hover:bg-[#f5efe4]"
+          >
+            View all options
+            <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-1" />
+          </Link>
         </Reveal>
       </div>
 
@@ -279,50 +318,18 @@ export default function StartingPoint() {
         ref={trackRef}
         /* pt/pb leave the cards' shadow room: an overflow-x container clips
            vertically too. */
-        className="no-scrollbar flex cursor-grab select-none gap-5 overflow-x-auto overscroll-x-contain px-5 pb-[clamp(2rem,4vw,3rem)] pt-2 md:px-10"
+        className="no-scrollbar flex cursor-grab select-none gap-5 overflow-x-auto overscroll-x-contain px-5 pb-6 pt-2 md:px-10"
       >
-        {/* Lead card */}
-        <div
-          className={`relative flex w-80 shrink-0 flex-col justify-center p-7 text-white sm:w-96 lg:w-104 ${CARD_R}`}
-          style={{ background: LEAD }}
-        >
-          {/* The button is taken out of flow, so the copy centres against the
-              whole card rather than against the space left above the button.
-              In flow it was always pushed above the true centre by the button's
-              own height, however the free space was distributed. */}
-          <div>
-            <h3 className="font-display text-[clamp(1.6rem,2.2vw,2rem)] font-extrabold leading-tight">
-              Explore
-              <br />
-              Treatments
-            </h3>
-            <p className="mt-3 max-w-[30ch] text-[0.92rem] leading-relaxed text-white/85">
-              Browse care options across weight management, sexual health, longevity, skin health,
-              and more
-            </p>
-          </div>
-          <Link
-            to="/treatments"
-            className="group absolute inset-x-7 bottom-7 inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 text-[0.92rem] font-semibold text-[#6d5934] transition-transform duration-300 hover:-translate-y-0.5"
-          >
-            View All Options
-            <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-1" />
-          </Link>
-        </div>
-
         {CARDS.map((p) => (
-          /* On the white ground a white card needs its own edge: a hairline
-             and a soft warm shadow. */
           <div
             key={p.id}
-            className={`flex w-80 shrink-0 flex-col border border-[#ece3d3] bg-white p-6 shadow-[0_6px_24px_rgba(90,70,30,0.07)] sm:w-96 lg:w-104 ${CARD_R}`}
+            className={`flex w-80 shrink-0 flex-col border border-[#ece3d3] bg-[#fbf8f2] p-6 shadow-[0_6px_24px_rgba(90,70,30,0.07)] sm:w-96 lg:w-104 ${CARD_R}`}
           >
-            <h3 className="font-display text-[clamp(1.4rem,1.9vw,1.65rem)] font-extrabold leading-tight text-[#a5854f]">
+            <h3 className="nv-weight-keep font-display text-[clamp(1.3rem,1.8vw,1.55rem)] font-medium leading-tight text-ink">
               {displayTitle(p)}
             </h3>
             <div className="mt-3 flex flex-wrap gap-2">
               <Chip>{p.categoryName}</Chip>
-              {p.priceSuffix !== "" && <Chip>Subscription</Chip>}
             </div>
 
             {/* grow so every card's buttons sit on the same line whatever the
@@ -331,16 +338,24 @@ export default function StartingPoint() {
               <ProductArt src={p.img} />
             </div>
 
+            <button
+              type="button"
+              onClick={() => setSafetyFor(p)}
+              className="mx-auto mb-4 text-[0.86rem] font-medium text-ink underline decoration-[#c9ab7c] underline-offset-4 hover:decoration-ink"
+            >
+              Important safety information
+            </button>
+
             <div className="flex items-center gap-2.5">
               <Link
-                to={`/start`}
-                className="flex-1 rounded-full bg-[#c9ab7c] px-4 py-3 text-center text-[0.88rem] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#b8975e]"
+                to={`${productPath(p)}?start=1`}
+                className="flex-1 rounded-full bg-[#b39258] px-4 py-3 text-center text-[0.88rem] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#a5854f]"
               >
                 Get Started
               </Link>
               <Link
                 to={productPath(p)}
-                className="flex-1 rounded-full border border-[#d9cdb8] px-4 py-3 text-center text-[0.88rem] font-semibold text-[#6d5934] transition-colors hover:bg-[#f5efe4]"
+                className="flex-1 rounded-full border border-[#c9ab7c] bg-white px-4 py-3 text-center text-[0.88rem] font-semibold text-ink transition-colors hover:bg-[#f5efe4]"
               >
                 View Details
               </Link>
@@ -348,6 +363,40 @@ export default function StartingPoint() {
           </div>
         ))}
       </div>
+
+      <div className="mx-auto grid w-full max-w-[1340px] grid-cols-[1fr_auto] items-center gap-4 px-5 md:grid-cols-[1fr_auto_1fr] md:px-10">
+        <p className="text-[0.86rem] text-muted">Swipe to explore more treatments</p>
+        <span aria-hidden="true" className="relative block h-1 w-28 overflow-hidden rounded-full bg-[#ece3d3] md:w-44">
+          <span
+            className="absolute inset-y-0 rounded-full bg-[#b39258] transition-[left] duration-150"
+            style={{ left: `${meter.left * 100}%`, width: `${meter.width * 100}%` }}
+          />
+        </span>
+        <div className="hidden justify-end gap-2.5 md:flex">
+          <button
+            type="button"
+            onClick={() => nudge(-1)}
+            aria-label="Previous treatments"
+            className="grid h-11 w-11 place-items-center rounded-full border border-[#c9ab7c] text-ink transition-colors hover:bg-[#f5efe4]"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={() => nudge(1)}
+            aria-label="More treatments"
+            className="grid h-11 w-11 place-items-center rounded-full border border-[#c9ab7c] text-ink transition-colors hover:bg-[#f5efe4]"
+          >
+            <ArrowRight size={18} />
+          </button>
+        </div>
+      </div>
+      <p className="px-5 pb-[clamp(2rem,4vw,3rem)] pt-4 text-center text-[0.8rem] text-muted">
+        Prescription treatment requires provider evaluation.
+      </p>
+
+      {/* The same Important Safety Information panel the product page opens. */}
+      <SafetySheet product={safetyFor || CARDS[0]} open={Boolean(safetyFor)} onClose={() => setSafetyFor(null)} />
     </section>
   );
 }
