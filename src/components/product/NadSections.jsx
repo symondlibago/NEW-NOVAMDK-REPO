@@ -52,7 +52,7 @@ const FORMATS = {
     compare: {
       eyebrow: "Tablet or injection",
       title: "Needle-Free NAD+, Under the Tongue",
-      text: "NAD+ also comes as an injection. The tablet dissolves under the tongue instead, so there is no needle.",
+      text: "The tablet dissolves under the tongue, so there is no needle.",
       cols: ["Sublingual tablet", "Injection"],
       rows: (product) => [
         { label: "How it's taken", ours: "Dissolves under the tongue", theirs: "A short injection" },
@@ -95,27 +95,8 @@ function StartLink({ to, light = false, className = "" }) {
   );
 }
 
-/* 1. WHAT IS NAD+: the gold band, first, as the client asked. The product and its
-   two notes carry over from the old coenzyme panel. */
-
-const NOTES = [
-  { label: "In every cell", text: "A coenzyme the body makes and uses naturally" },
-  { label: "Cellular energy", text: "Part of the processes cells use to produce energy" },
-];
-
-function Note({ note, className = "" }) {
-  return (
-    <div className={`rounded-[14px] border border-white/25 bg-[#5a4423]/30 px-4 py-3 backdrop-blur-md ${className}`}>
-      <span className="flex items-center gap-2 text-[0.72rem] font-bold uppercase tracking-[0.1em]" style={{ color: CREAM }}>
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#ffe8b1]" />
-        {note.label}
-      </span>
-      <p className="mt-1.5 text-[0.82rem] leading-snug" style={{ color: "rgba(255,232,177,0.85)" }}>
-        {note.text}
-      </p>
-    </div>
-  );
-}
+/* 1. WHAT IS NAD+: the gold band, first, as the client asked. Kept to one
+   short paragraph and the product (client prefers less to read, 2026-10-12). */
 
 function WhatIs({ f, startTo }) {
   return (
@@ -142,8 +123,8 @@ function WhatIs({ f, startTo }) {
                 (nicotinamide adenine dinucleotide)
               </p>
               <p className="mt-5 max-w-[50ch] text-[1rem] leading-relaxed" style={{ color: CREAM }}>
-                NAD+ is a coenzyme found naturally in every cell of the body. Cells rely on it to turn nutrients
-                into energy, and it takes part in processes such as DNA repair.
+                NAD+ is a coenzyme found in every cell of the body. Cells use it to turn food into energy and to
+                repair DNA.
                 <Ref n={1} />
               </p>
               <StartLink to={startTo} light className="mt-7" />
@@ -162,12 +143,6 @@ function WhatIs({ f, startTo }) {
                     className="nv-float pointer-events-none block w-full drop-shadow-[0_18px_34px_rgba(70,50,20,0.34)]"
                   />
                 </span>
-              </div>
-              {/* From sm only: on a phone the paragraph beside them already says it. */}
-              <div className="mt-5 hidden gap-3 sm:grid sm:grid-cols-2">
-                {NOTES.map((n) => (
-                  <Note key={n.label} note={n} />
-                ))}
               </div>
             </div>
           </div>
@@ -188,13 +163,8 @@ function Decline() {
           <span className="nv-eyebrow">Why NAD+</span>
           <h2 className={`${H2} mt-3 max-w-[16ch]`}>NAD+ Levels Tend to Decline With Age</h2>
           <p className="mt-4 max-w-[46ch] text-[1rem] leading-relaxed text-muted">
-            Research shows that NAD+ levels in the body's tissues gradually fall as we get older.
-            <Ref n={1} /> In one study of skin samples from people aged 15 to 77, NAD+ was lower at older ages in
-            both men and women.
-            <Ref n={2} />
-          </p>
-          <p className="mt-4 max-w-[46ch] text-[1rem] leading-relaxed text-muted">
-            Scientists are still studying what lower NAD+ means for how the body works with age.
+            Research shows that NAD+ levels in the body gradually fall as we get older.
+            <Ref n={1} />
           </p>
         </Reveal>
 
@@ -223,22 +193,22 @@ const AT_WORK = [
   {
     icon: Zap,
     title: "Energy production",
-    text: "Cells use NAD+ to turn the nutrients in food into energy they can use.",
+    text: "Cells use NAD+ to turn food into energy.",
   },
   {
     icon: Dna,
     title: "DNA repair",
-    text: "Enzymes that help repair DNA, called PARPs, use NAD+ to do their work.",
+    text: "Enzymes that repair DNA need NAD+ to work.",
   },
   {
     icon: SlidersHorizontal,
     title: "Gene activity",
-    text: "Sirtuins, a family of enzymes that depend on NAD+, help control how DNA is packed and which genes are active.",
+    text: "Sirtuins, enzymes that rely on NAD+, help control which genes are active.",
   },
   {
     icon: Hourglass,
     title: "Cell aging",
-    text: "NAD+ is involved in senescence, the point at which older or damaged cells stop dividing.",
+    text: "NAD+ plays a part in senescence, when older or damaged cells stop dividing.",
   },
 ];
 
