@@ -1755,7 +1755,7 @@ export const productsData = [
       { label: "Formulation", value: "Injection" },
       { label: "Pharmacy", value: "Strive Compounding Pharmacy, 1275 E Baseline Rd #104, Gilbert, AZ 85233" },
     ],
-    safety: "Limit to once within any 24-hour period and a maximum of eight uses per month. Discontinue if tachycardia develops.",
+    safety: "Bremelanotide is a melanocortin receptor agonist that acts on melanocortin receptors in the central nervous system. Common side effects: nausea, flushing, headache, injection-site reactions, and rapid heartbeat. Less common but serious: elevated blood pressure and skin or gum pigmentation changes; your provider will monitor your blood pressure and explain how often it may be used.",
   },
   {
     id: 38,
@@ -2201,13 +2201,15 @@ const FAQ_SETS = [
     { q: "What is PT-141 Injection?", a: "PT-141 is a compounded prescription injection containing bremelanotide, a melanocortin receptor agonist." },
     { q: "When is it used?", a: "Your provider will give you specific instructions on when to use it based on your treatment plan." },
     { q: "How do I know if it may be appropriate for me?", a: "Your provider will review your health history, medications, and sexual health concerns before prescribing it." },
-    { q: "What should I watch for?", a: "Side effects can occur, including nausea, flushing, headache, or injection-site reactions. Contact your provider if you have concerns during treatment." },
+    { q: "What should I watch for?", a: "Side effects can occur, including nausea, flushing, headache, or injection-site reactions. Bremelanotide can also raise blood pressure, so your provider reviews your blood pressure and heart health first. Contact your provider if you have concerns during treatment." },
+    { q: "Is PT-141 FDA-approved?", a: "No. Compounded medications are not FDA-approved. This PT-141 is prepared by a licensed U.S. pharmacy, and a licensed provider decides if it is appropriate for you." },
   ]],
   [/^bremelanotide nasal spray$/i, [
     { q: "What is PT-141 Nasal Spray?", a: "PT-141 Nasal Spray is a compounded prescription treatment containing bremelanotide." },
     { q: "How do I use it?", a: "Use it exactly as directed by your provider, including the number of sprays and timing." },
     { q: "Who is it for?", a: "Your provider will review your health history, medications, and sexual health concerns to decide if it may be appropriate for you." },
-    { q: "What should I watch for?", a: "Side effects can occur, including nasal irritation or other unexpected reactions. Your provider will review potential risks and what to watch for before treatment." },
+    { q: "What should I watch for?", a: "Side effects can occur, including nausea, flushing, headache, or nasal irritation. Bremelanotide can also raise blood pressure, so your provider reviews your blood pressure and heart health first. Contact your provider if you have concerns during treatment." },
+    { q: "Is PT-141 FDA-approved?", a: "No. Compounded medications are not FDA-approved. This PT-141 is prepared by a licensed U.S. pharmacy, and a licensed provider decides if it is appropriate for you." },
   ]],
   [/^sermorelin nasal spray$/i, [
     { q: "What is Sermorelin Nasal Spray?", a: "Sermorelin is a compounded prescription nasal spray that acts on the growth hormone pathway." },
