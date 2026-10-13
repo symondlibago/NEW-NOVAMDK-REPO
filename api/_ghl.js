@@ -159,12 +159,12 @@ const marketingFields = (m) => {
   };
 };
 
-async function ghlFetch(path, { method = "GET", body } = {}) {
+async function ghlFetch(path, { method = "GET", body, version = VERSION } = {}) {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${TOKEN}`,
-      Version: VERSION,
+      Version: version,
       Accept: "application/json",
       ...(body && { "Content-Type": "application/json" }),
     },
@@ -1254,4 +1254,19 @@ export async function addContactNote(contactId, note) {
   const body = clean(note);
   if (!contactId || !body) return null;
   return ghlFetch(`/contacts/${contactId}/notes`, { method: "POST", body: { body } });
+}
+
+/* A text to one contact from the location's own number, sent now rather than
+ * by a workflow. Only the kiosk's text-me uses it (client, 2026-10-13: the
+ * workflow on the tag took about two minutes). The conversations API wants
+ * its own Version, and the token needs the conversations/message.write scope;
+ * without it this throws and the caller falls back to the workflow. */
+export async function sendSms(contactId, message) {
+  const text = clean(message);
+  if (!contactId || !text) return null;
+  return ghlFetch("/conversations/messages", {
+    method: "POST",
+    version: "2021-04-15",
+    body: { type: "SMS", contactId, message: text },
+  });
 }

@@ -6,6 +6,7 @@ import {
   updateContactFields,
   tagContact,
   untagContact,
+  sendSms,
   INTAKE_STAGE,
 } from "./_ghl.js";
 import { blocked } from "./_guard.js";
@@ -116,15 +117,24 @@ async function contactForm(req, res) {
 /* ----------------------------- kiosk text-me ----------------------------- */
 
 /* "Text me the link" on the in-store kiosk (client approved, 2026-10-10). The
-   number is saved with a link to start the visit, then tagged; a GHL workflow
-   on that tag sends the text, so its wording and opt-outs live in GHL. Same
-   field-then-tag order as the contact form above.
+   number is saved and the text goes out from here, through GHL's messaging API
+   on the clinic's number (client, 2026-10-13: the GHL workflow that used to
+   send it on a tag took about two minutes to pick the tag up). STOP replies
+   are still handled by GHL on that number.
+
+   If the direct send fails (a token without the messaging scope, say), the
+   old path takes over: the link is saved to the contact and the tag that the
+   workflow watches is added, so the text still goes, just slower. On success
+   that tag is never added, so the workflow can't send a second text.
 
    The link names the product by id, never by name, so nothing about a
    treatment reaches GHL from here. It is always built on the live site rather
    than from the request's Origin: a forged Origin must not be able to put
    another domain's link into a text sent from the clinic's number. */
 const TEXT_LINK_TAG = "kiosk-text-link";
+// Marks a text that went out directly, for reporting. No workflow watches it.
+const TEXT_SENT_TAG = "kiosk-text-sent";
+const textLinkMessage = (link) => `Nova MDK: here is your link to start your visit: ${link} Reply STOP to opt out.`;
 const SITE = "https://www.novamdk.com";
 const KIOSK_ID_RE = /^[a-z0-9-]{1,40}$/;
 
@@ -174,6 +184,15 @@ async function kioskTextLink(req, res) {
     const contact = await upsertContact({ patient: { phone_number: digits } });
     if (!contact?.id) throw new Error("GHL returned no contact");
 
+    // The text first, so nothing below delays it.
+    const sent = await sendSms(contact.id, textLinkMessage(link)).then(
+      () => true,
+      (e) => {
+        console.error("Kiosk text-me direct send failed, using the workflow:", e.message, e.details ?? "");
+        return false;
+      }
+    );
+
     await updateContactFields(contact.id, { kiosk_link: link });
 
     // The consent record: what the screen said, where, and when (the note's own date).
@@ -181,11 +200,15 @@ async function kioskTextLink(req, res) {
       console.error("Kiosk text-me note failed:", e.message)
     );
 
-    // Removed first so a second request fires the workflow again.
-    await untagContact(contact.id, [TEXT_LINK_TAG]).catch(() => {});
-    await tagContact(contact.id, [TEXT_LINK_TAG]);
+    if (sent) {
+      await tagContact(contact.id, [TEXT_SENT_TAG]).catch(() => {});
+    } else {
+      // Removed first so a second request fires the workflow again.
+      await untagContact(contact.id, [TEXT_LINK_TAG]).catch(() => {});
+      await tagContact(contact.id, [TEXT_LINK_TAG]);
+    }
 
-    console.info(`Kiosk text-me saved for contact ${contact.id}`);
+    console.info(`Kiosk text-me ${sent ? "sent" : "handed to the workflow"} for contact ${contact.id}`);
     return res.status(200).json({ ok: true });
   } catch (e) {
     console.error("Kiosk text-me failed:", e.message, e.details ?? "");
