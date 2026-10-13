@@ -60,14 +60,58 @@ export const STATE_PRODUCTS = {
     26, 27, 28, // Low-Dose Naltrexone, all three doses
     29, // Luminance Brightening Cream
     32, // Olympus Peak
-    37, 39, // Bremelanotide, injection and nasal spray
+    39, // Bremelanotide nasal spray; the injection can't ship here (table below)
     44, // being rewritten as Strive's Euphoria Cream O, which California allows
   ],
 };
 
+/* States a product can't ship to, by product id (client's pharmacy table,
+ * 2026-10-13). The other way round from STATE_PRODUCTS: the table names a
+ * few states per product, so this lists what is ruled out. California repeats
+ * where STATE_PRODUCTS already leaves the product out, so each row reads as the
+ * table does. A product with no row is limited only by the rules above.
+ */
+const NO_AR_IN_SC = ["Arkansas", "Indiana", "South Carolina"];
+const NO_AR_CA_IN_SC = ["Arkansas", "California", "Indiana", "South Carolina"];
+export const PRODUCT_NO_SHIP = {
+  1: NO_AR_IN_SC, 2: NO_AR_IN_SC, 3: NO_AR_IN_SC, 4: NO_AR_IN_SC, // Semaglutide injection
+  45: NO_AR_IN_SC, 46: NO_AR_IN_SC,
+  5: NO_AR_IN_SC, 6: NO_AR_IN_SC, 7: NO_AR_IN_SC, // Tirzepatide injection
+  8: NO_AR_IN_SC, 9: NO_AR_IN_SC, 10: NO_AR_IN_SC, 47: NO_AR_IN_SC, 48: NO_AR_IN_SC,
+  24: NO_AR_IN_SC, // Sermorelin injection
+  16: NO_AR_CA_IN_SC, 18: NO_AR_CA_IN_SC, 19: NO_AR_CA_IN_SC, 20: NO_AR_CA_IN_SC, // NAD+ injection (503A)
+  17: NO_AR_CA_IN_SC, // Glutathione injection (503A)
+  37: NO_AR_CA_IN_SC, // Bremelanotide injection
+  12: ["California"], // Lipo-C (MediVera)
+};
+
 /** Whether a product can be dispensed to a state. Unknown state means yes. */
 export function availableInState(state, productId) {
-  const allowed = STATE_PRODUCTS[String(state || "").trim()];
+  const name = String(state || "").trim();
+  if ((PRODUCT_NO_SHIP[Number(productId)] || []).includes(name)) return false;
+  const allowed = STATE_PRODUCTS[name];
   if (!allowed) return true;
   return allowed.includes(Number(productId));
+}
+
+const ABBR = {
+  Alabama: "AL", Alaska: "AK", Arizona: "AZ", Arkansas: "AR", California: "CA", Colorado: "CO", Connecticut: "CT",
+  Delaware: "DE", "District of Columbia": "DC", Florida: "FL", Georgia: "GA", Hawaii: "HI", Idaho: "ID",
+  Illinois: "IL", Indiana: "IN", Iowa: "IA", Kansas: "KS", Kentucky: "KY", Louisiana: "LA", Maine: "ME",
+  Maryland: "MD", Massachusetts: "MA", Michigan: "MI", Minnesota: "MN", Mississippi: "MS", Missouri: "MO",
+  Montana: "MT", Nebraska: "NE", Nevada: "NV", "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM",
+  "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", Ohio: "OH", Oklahoma: "OK", Oregon: "OR",
+  Pennsylvania: "PA", "Rhode Island": "RI", "South Carolina": "SC", "South Dakota": "SD", Tennessee: "TN",
+  Texas: "TX", Utah: "UT", Vermont: "VT", Virginia: "VA", Washington: "WA", "West Virginia": "WV",
+  Wisconsin: "WI", Wyoming: "WY",
+};
+
+/** The states a product can't be sent to, as postal codes in A to Z order,
+ *  for the line under a product's description. Leaves out BLOCKED_STATES,
+ *  which no treatment reaches. */
+export function unavailableStates(productId) {
+  const id = Number(productId);
+  const out = new Set(PRODUCT_NO_SHIP[id] || []);
+  for (const [name, allowed] of Object.entries(STATE_PRODUCTS)) if (!allowed.includes(id)) out.add(name);
+  return [...out].map((n) => ABBR[n] || n).sort();
 }

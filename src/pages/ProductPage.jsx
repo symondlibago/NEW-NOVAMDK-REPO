@@ -40,6 +40,7 @@ import ProductWhy from "../components/product/ProductWhy";
 import ProductRelated from "../components/product/ProductRelated";
 import { SafetySheet } from "../components/product/ProductSafety";
 import ProductStickyStart from "../components/product/ProductStickyStart";
+import ProductAvailability from "../components/product/ProductAvailability";
 import NadSections from "../components/product/NadSections";
 import GlutathioneSections from "../components/product/GlutathioneSections";
 import ScreamCreamSections from "../components/product/ScreamCreamSections";
@@ -383,14 +384,14 @@ export default function ProductPage() {
   return (
     <main className="min-h-screen w-full bg-bg text-ink">
       <Seo
-        title={`${product.name} — ${product.categoryName}`}
-        description={product.subtitle || `${product.name} from Nova MDK — physician-guided telehealth treatment, delivered to your door.`}
+        title={`${product.displayName || product.name} — ${product.categoryName}`}
+        description={product.subtitle || `${product.displayName || product.name} from Nova MDK — physician-guided telehealth treatment, delivered to your door.`}
         path={productPath(product)}
         image={product.img}
         jsonLd={{
           "@context": "https://schema.org",
           "@type": "Product",
-          name: product.name,
+          name: product.displayName || product.name,
           description: product.subtitle || undefined,
           image: `https://www.novamdk.com${product.img}`,
           category: product.categoryName,
@@ -455,6 +456,7 @@ export default function ProductPage() {
                 </p>
               )}
               <p className="mt-4 max-w-[58ch] text-[clamp(0.98rem,1.15vw,1.1rem)] leading-[1.65] text-muted">{active.subtitle}</p>
+              <ProductAvailability product={active} className="mt-3" />
 
               {/* required regulatory labels */}
               <ComplianceBadges compounded={isCompounded(active)} rx={!otc} size="lg" className="mt-5" />
@@ -577,17 +579,17 @@ export default function ProductPage() {
       {/* Glutathione's own editorial. Same contract as the NAD+ blocks: gated on
           the product name, and its CTA lands on the intake this page's own Get
           Started uses rather than a second entry point. */}
-      {isGlutathione && <GlutathioneSections startTo={`${productPath(product)}?start=1`} />}
+      {isGlutathione && <GlutathioneSections product={active} startTo={`${productPath(product)}?start=1`} />}
       {isScreamCream && <ScreamCreamSections startTo={`${productPath(product)}?start=1`} />}
       {isSermorelin && <SermorelinSections product={active} startTo={`${productPath(product)}?start=1`} />}
-      {isLdn && <LdnSections startTo={`${productPath(product)}?start=1`} />}
-      {isLuminance && <LuminanceSections startTo={`${productPath(product)}?start=1`} />}
-      {isOlympusPeak && <OlympusSections startTo={`${productPath(product)}?start=1`} />}
-      {isBremelanotideInjection && <BremelanotideSections startTo={`${productPath(product)}?start=1`} />}
+      {isLdn && <LdnSections product={active} startTo={`${productPath(product)}?start=1`} />}
+      {isLuminance && <LuminanceSections product={active} startTo={`${productPath(product)}?start=1`} />}
+      {isOlympusPeak && <OlympusSections product={active} startTo={`${productPath(product)}?start=1`} />}
+      {isBremelanotideInjection && <BremelanotideSections product={active} startTo={`${productPath(product)}?start=1`} />}
       {isBremelanotideNasal && (
-        <BremelanotideNasalSections startTo={`${productPath(product)}?start=1`} />
+        <BremelanotideNasalSections product={active} startTo={`${productPath(product)}?start=1`} />
       )}
-      {isLipoC && <LipoCSections startTo={`${productPath(product)}?start=1`} />}
+      {isLipoC && <LipoCSections product={active} startTo={`${productPath(product)}?start=1`} />}
       {isTirzepatide && <TirzepatideSections product={active} startTo={`${productPath(product)}?start=1`} />}
       </div>
 
@@ -647,7 +649,7 @@ export default function ProductPage() {
             <div className="relative">
               <h2 className="mx-auto max-w-[22ch] font-display text-[clamp(1.6rem,3.4vw,2.4rem)] font-extrabold leading-tight">
                 {otc ? "Add " : "Start consultation for "}
-                {product.name.split("—")[0].split("(")[0].split("/")[0].trim()}
+                {product.displayName || product.name.split("—")[0].split("(")[0].split("/")[0].trim()}
                 {otc ? " to your routine." : "."}
               </h2>
               <p className="mx-auto mt-3 max-w-[46ch] text-[1rem] text-muted">
