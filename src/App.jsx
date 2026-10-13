@@ -11,10 +11,12 @@ import SmoothScroll from "./components/SmoothScroll";
 import RouteTransition from "./components/transition/RouteTransition";
 import Platform from "./pages/Platform";
 import KioskAttractLoop from "./components/kiosk/KioskAttractLoop";
+import { useKioskApp } from "./lib/useKioskMode";
 const TreatmentsPage = lazy(() => import("./pages/Treatments"));
 const SupplementsPage = lazy(() => import("./pages/Supplements"));
 const ContactPage = lazy(() => import("./pages/Contact"));
 const KioskPage = lazy(() => import("./pages/Kiosk"));
+const KioskScreen = lazy(() => import("./pages/KioskScreen"));
 const Consult = lazy(() => import("./pages/Consult"));
 const ProductPage = lazy(() => import("./pages/ProductPage"));
 const IntakePage = lazy(() => import("./pages/Intake"));
@@ -60,6 +62,19 @@ function RouteAnalytics() {
   return null;
 }
 
+/* The home route. A kiosk-sized display gets the in-store app, everything else
+   gets the website (client, 2026-10-14: the kiosk should boot into it on its
+   own rather than being sent to /kiosk/home).
+
+   Only this route switches. The decision is client-side, which is what we want:
+   scripts/prerender.mjs writes meta tags into the built shell and never renders
+   React, so dist/index.html stays the real homepage and a crawler, which reads
+   at phone or desktop width, never matches the query. `?site=1` opts a kiosk
+   back into the website. */
+function HomeScreen() {
+  return useKioskApp() ? <KioskScreen /> : <Platform />;
+}
+
 function App() {
   return (
     <ThemeProvider>
@@ -70,7 +85,7 @@ function App() {
         <RouteTransition />
         <Suspense fallback={null}>
         <Routes>
-          <Route path="/" element={<Platform />} />
+          <Route path="/" element={<HomeScreen />} />
           <Route path="/treatments" element={<TreatmentsPage />} />
           {/* Renamed 2026-08-27 and again 2026-09-08. Kept as redirects because
               the catch-all below matches anything and would render the old slugs
@@ -104,6 +119,8 @@ function App() {
               live, just unlinked and noindexed. Same treatment as the kiosk. */}
           <Route path="/supplements" element={<SupplementsPage />} />
           <Route path="/kiosk" element={<KioskPage />} />
+          {/* The in-store kiosk app. Unlinked and noindexed; kiosks boot here. */}
+          <Route path="/kiosk/home" element={<KioskScreen />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/start" element={<Consult />} />
           <Route path="/start/:slug" element={<Consult />} />

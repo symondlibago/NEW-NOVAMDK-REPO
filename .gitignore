@@ -99,3 +99,4 @@ Thumbs.db
 # Claude Code workspace + local backups (not part of the website)
 .claude/
 _unused-backup/
+.env*

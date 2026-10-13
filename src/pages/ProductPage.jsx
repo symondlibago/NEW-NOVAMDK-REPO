@@ -165,7 +165,11 @@ export default function ProductPage() {
   if (isHidden(product)) {
     return <Navigate to={isOtc(product) || product.categorySlug === "supplements" ? "/treatments" : `/treatments/${product.categorySlug}`} replace />;
   }
-  if (id !== productSlug(product)) return <Navigate to={productPath(product)} replace />;
+  /* The query rides along: a link by id (the kiosk's texted link) carries
+     ?start=1 and the kiosk's tag, and both have to reach the slug page. */
+  if (id !== productSlug(product)) {
+    return <Navigate to={`${productPath(product)}${search.size ? `?${search}` : ""}`} replace />;
+  }
 
   const categoryLabel = product.categoryName;
   const active = product;
