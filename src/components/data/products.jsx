@@ -1394,7 +1394,7 @@ export const productsData = [
     icon: <Sparkles size={16} />,
     img: "/products/luminance.avif",
     imgDetail: "/products/detail/luminance.avif",
-    imgGallery: ["/products/detail/luminance-2.avif", "/products/detail/luminance-3.avif"],
+    imgGallery: ["/products/detail/luminance-2.avif"],
     questionnaireId: "64b181e7-0e25-4fe6-9bc5-00090a20410e",
     highlights: [
       { text: "Six Active Ingredients" },
