@@ -170,6 +170,13 @@ function useRunOnceInView() {
   return [ref, on];
 }
 
+/* On a phone the cards sit over her face and her white top, so they take a
+   light brown tint for the white type to read on. backdrop-filter makes each
+   card a stacking context, so -z-10 stays inside it. */
+function PhoneTint() {
+  return <span aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-[#5c4426]/30 md:hidden" />;
+}
+
 function ActiveGoals() {
   const [ref, on] = useRunOnceInView();
   const count = useSlotCount(3, on);
@@ -177,17 +184,14 @@ function ActiveGoals() {
   return (
     <div
       ref={ref}
-      className={`relative flex h-full flex-col rounded-3xl p-6 sm:p-7 ${on ? "is-in" : ""}`}
+      className={`relative flex h-full flex-col rounded-3xl p-5 sm:p-7 ${on ? "is-in" : ""}`}
       style={GLASS}
     >
       <Rim />
-      {/* On a phone the card sits over her white top rather than her face, so
-          it takes a light brown tint for the white type to read on. backdrop-
-          filter makes the card a stacking context, so -z-10 stays inside it. */}
-      <span aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-[#5c4426]/30 md:hidden" />
+      <PhoneTint />
 
       {/* ---- the ring ---- */}
-      <div className="relative mx-auto h-40 w-40 shrink-0 sm:h-44 sm:w-44">
+      <div className="relative mx-auto h-28 w-28 shrink-0 sm:h-44 sm:w-44">
         <svg viewBox="0 0 100 100" aria-hidden="true" className="h-full w-full -rotate-90">
           <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,0.26)" strokeWidth="2.5" />
           <circle
@@ -207,10 +211,10 @@ function ActiveGoals() {
           <div>
             {/* tabular-nums so the rolling digits all occupy the same width
                 and the number does not jitter on its way to 3. */}
-            <span className="block font-display text-[2.9rem] font-extrabold leading-none tabular-nums">
+            <span className="block font-display text-[2.2rem] font-extrabold leading-none tabular-nums sm:text-[2.9rem]">
               {count}
             </span>
-            <span className="mt-1 block text-[0.85rem] font-bold leading-tight">
+            <span className="mt-1 block text-[0.75rem] font-bold leading-tight sm:text-[0.85rem]">
               Active
               <br />
               Goals
@@ -223,11 +227,11 @@ function ActiveGoals() {
               Inset well inside the card's own padding, as the comp has them:
               the rows sit visibly narrower than the button below, which is
               what stops the card reading as a full-width list. */}
-      <ul className="mt-6 grow px-4 sm:px-10">
+      <ul className="mt-3 grow px-2 sm:mt-6 sm:px-10">
         {GOALS.map((g, i) => (
           <li
             key={g.label}
-            className={`nv-mty-row flex items-center gap-3 py-3.5 ${i > 0 ? "border-t border-white/20" : ""}`}
+            className={`nv-mty-row flex items-center gap-3 py-2.5 sm:py-3.5 ${i > 0 ? "border-t border-white/20" : ""}`}
             style={{ animationDelay: `${0.42 + i * 0.16}s` }}
           >
             <g.icon size={22} strokeWidth={1.8} className="shrink-0 text-white/85" aria-hidden="true" />
@@ -247,7 +251,7 @@ function ActiveGoals() {
 
       <Link
         to="/treatments"
-        className="mt-5 block rounded-full bg-white px-5 py-3 text-center text-[0.9rem] font-semibold text-[#6d5934] transition-transform duration-300 hover:-translate-y-0.5"
+        className="mt-4 block rounded-full bg-white px-5 py-3 text-center text-[0.9rem] font-semibold text-[#6d5934] transition-transform duration-300 hover:-translate-y-0.5 sm:mt-5"
       >
         See What Fits For You
       </Link>
@@ -259,14 +263,15 @@ function NextCheckIn() {
   return (
     <Link
       to="/portal"
-      className="group relative flex items-center gap-5 rounded-3xl p-6 sm:gap-8 sm:p-7"
+      className="group relative flex items-center gap-5 rounded-3xl p-5 sm:gap-8 sm:p-7"
       style={GLASS}
     >
       <Rim />
+      <PhoneTint />
 
       <span
         aria-hidden="true"
-        className="relative grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-white/90 sm:h-20 sm:w-20"
+        className="relative grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white/90 sm:h-20 sm:w-20"
         style={GLASS}
       >
         <Rim radius="rounded-2xl" />
@@ -302,7 +307,7 @@ function YourProgress() {
   return (
     <div
       ref={ref}
-      className={`relative flex flex-col rounded-3xl p-6 sm:p-7 ${on ? "is-in" : ""}`}
+      className={`relative hidden flex-col rounded-3xl p-6 sm:p-7 md:flex ${on ? "is-in" : ""}`}
       style={GLASS}
     >
       <Rim />
@@ -572,16 +577,16 @@ export default function MattersToYou() {
         </Reveal>
 
         {/* The comp's split from md: the goals card runs the full height beside
-            two stacked cards of matching size. A phone gets the goals card
-            alone, set low enough that her face shows above it (client,
-            2026-10-13). */}
+            two stacked cards of matching size. A phone gets the goals card and
+            the check-in under the heading, slimmed so the band is about a
+            screen tall like its neighbours (client, 2026-10-13). */}
         {/* No Reveal on these three (2026-09-19): an ancestor at opacity below 1
             is a backdrop root, which leaves a backdrop-filter with nothing to
             sample. Faded in, the cards spent the whole 0.7s as flat translucent
             panels and the blur snapped in at the end, which read as lag. They
             have plenty of motion of their own: the ring draws, the bars fill,
             the counter rolls and the curve draws. */}
-        <div className="mx-auto mt-96 grid max-w-225 gap-5 md:mt-[clamp(1.75rem,4vw,2.75rem)] md:grid-cols-2 md:gap-8">
+        <div className="mx-auto mt-6 grid max-w-225 gap-4 md:mt-[clamp(1.75rem,4vw,2.75rem)] md:grid-cols-2 md:gap-8">
           <div className="h-full">
             <ActiveGoals />
           </div>
@@ -589,7 +594,7 @@ export default function MattersToYou() {
               size. flex-grow was tried first and could not do it: a flex item
               will not shrink under its own content, so the taller card kept
               its content height and the other one came out short. */}
-          <div className="hidden h-full flex-col gap-5 md:grid md:grid-rows-2 md:gap-8">
+          <div className="flex h-full flex-col gap-5 md:grid md:grid-rows-2 md:gap-8">
             <NextCheckIn />
             <YourProgress />
           </div>

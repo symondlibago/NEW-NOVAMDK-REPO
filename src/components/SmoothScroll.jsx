@@ -18,7 +18,8 @@ export default function SmoothScroll() {
       duration: 1.1,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // expo-out
       smoothWheel: true,
-      wheelMultiplier: 1,
+      // A touch under 1: the client found the mouse wheel a bit fast (2026-10-13).
+      wheelMultiplier: 0.8,
       touchMultiplier: 1.6,
     });
     setLenis(lenis);

@@ -202,10 +202,14 @@ export default function HowItWorks() {
         </div>
 
         <Reveal as="div" className="mt-14 flex flex-col items-start gap-6 border-t border-line pt-8 md:flex-row md:items-center md:justify-between">
+          {/* The pharmacy line was dropped: step three already says it
+              (client, 2026-10-13). */}
           <p className="max-w-[80ch] text-[0.8rem] leading-relaxed text-muted">
             Prescription treatments require an online medical evaluation and are only prescribed when a licensed
-            provider determines they are appropriate. If prescribed, medications are fulfilled by U.S.-licensed
-            pharmacy partners. Availability, eligibility and individual response may vary.
+            provider determines they are appropriate.
+            <span className="mt-1 block text-[0.72rem] text-muted/70">
+              Availability, eligibility and individual response may vary.
+            </span>
           </p>
           <Link
             to="/start"
