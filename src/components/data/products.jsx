@@ -909,6 +909,10 @@ export const productsData = [
     icon: <Droplet size={16} />,
     img: "/products/semaglutide-sublingual-drops.avif",
     imgDetail: "/products/detail/semaglutide-sublingual-drops.avif",
+    imgGallery: [
+      "/products/detail/semaglutide-sublingual-drops-2.avif",
+      "/products/detail/semaglutide-sublingual-drops-3.avif",
+    ],
     /* MDI: "2. Semaglutide SubMagna Initial (standardized) 07.18.26" */
     questionnaireId: "268d77e8-6ffe-4df1-9164-04e4b7d09e0f",
     /* Month 1 is this record, month 2 onward is the refill, the way 45 and 47
