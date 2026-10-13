@@ -1,505 +1,314 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { motion as Motion } from "framer-motion";
+import { ArrowRight, Check, Flame, Leaf, Sun } from "lucide-react";
 import Reveal from "../ui/Reveal";
+import { priceLabel } from "../data/products";
 
+/* Luminance, rebuilt 2026-10-13 on the NAD+ layout (client: one layout for
+   every product page): what it is on the gold band, what it is prescribed for,
+   the six actives grouped by what they work on, and the dark price card. Kept
+   short (client prefers less to read). The side effect line now lives in the
+   FAQ and the compounded notice in Important Safety Information, so neither is
+   repeated here. */
 
-const EASE = [0.2, 0.7, 0.3, 1];
-const VIEWPORT_MARGIN = "-80px 0px -80px 0px";
-const STEP_GAP = 0.7;
-const INK = "#6b511e";
-const BODY = "#7a6d58";
-const CREAM = "#f7e9c9";
-const CREAM_SOFT = "rgba(247,233,201,0.84)";
-const PANEL = "#ece1cd";
-const PALE_BTN = "#f0e3cb";
-const DASH = "rgba(154,120,67,0.42)";
-const BRASS = "radial-gradient(circle at 50% 50%, #c1a27a, #9a7843)";
-const TAN_BTN = "#6b5a24";
-const HEAD_FILL = "linear-gradient(135deg, #6b511e 0%, #7f6528 34%, #c6ae87 100%)";
-const CARD_R = "rounded-[calc(26px*var(--nv-r-scale,1))]";
-const TILE_R = "rounded-[calc(18px*var(--nv-r-scale,1))]";
-const TITLE = "nv-weight-keep font-display font-extrabold leading-[1.14]";
-const TITLE_SIZE = "text-[clamp(1.3rem,3.4vw,2.5rem)]";
-const BODY_SIZE = "text-[clamp(0.8rem,1.02vw,0.95rem)]";
-const FINE_SIZE = "text-[clamp(0.76rem,0.92vw,0.88rem)]";
-const PART_PAD = "px-4 sm:px-10";
-const PART_TOP = "py-7 sm:py-[clamp(2.5rem,6vw,4.5rem)]";
-const PART_REST = "pb-7 sm:pb-[clamp(2.5rem,6vw,4.5rem)]";
-const RAMP = "bg-clip-text text-transparent";
-const rampFill = { backgroundImage: HEAD_FILL };
+const BAND = "radial-gradient(circle at 30% 40%, #c1a27a, #9a7843)";
+/* The price card's ground: a light champagne (client, 2026-10-13, in place
+   of the dark brown), with the heading in the page's deep gold. */
+const CHAMPAGNE = "linear-gradient(160deg, #f5ead6 0%, #ecdcbf 55%, #e2cda6 100%)";
+const GOLD_INK = "#725826";
+const CREAM = "#ffe8b1";
+const GROUND = "#fbfaf7";
+const TITLE = "font-display font-extrabold leading-[1.1]";
+const H2 = `${TITLE} text-[clamp(1.7rem,3.4vw,2.5rem)] text-[#725826]`;
+const CARD_R = "rounded-[calc(24px*var(--nv-r-scale,1))]";
 
-/* ------------------------- 1. the brass formula panel ------------------------- */
-
-const ACTIVES = [
-  {
-    label: "Hydroquinone",
-    body: "Helps reduce the production of excess melanin responsible for visible dark spots",
-  },
-  {
-    label: "Azelaic Acid",
-    body: "Helps address uneven pigmentation while also supporting calmer, clearer-looking skin",
-  },
-  {
-    label: "Kojic Acid",
-    body: "Targets another step involved in melanin production to help improve the appearance of stubborn pigmentation",
-  },
-  {
-    label: "Hydrocortisone",
-    body: "Helps reduce inflammation and redness that may accompany pigmentation concerns",
-  },
-  {
-    label: "Green Tea EGCG",
-    body: "Provides antioxidant support against oxidative and environmental stress",
-  },
-  {
-    label: "Resveratrol",
-    body: "Adds additional antioxidant support to help protect the skin from oxidative stress",
-  },
-];
-
-/* Scattered around the cut-out, as the comp has them. Anything past the middle
-   is anchored from the right so that opening it grows inwards and never runs
-   off the panel. */
-const ACTIVE_SLOTS = [
-  { left: "26%", top: "0%" },
-  { left: "13%", top: "30%" },
-  { right: "12%", top: "30%" },
-  { right: "8%", top: "53%" },
-  { left: "11%", top: "62%" },
-  { right: "6%", top: "78%" },
-];
-
-/* A tint at low alpha over the brass, not an opaque fill: the panel behind has
-   to stay readable through it, which is what gives the comp's chips their
-   glass. */
-const GLASS = {
-  background: "rgba(247,233,201,0.26)",
-  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.3), 0 12px 30px rgba(88,66,32,0.12)",
-};
-
-function ActiveDot() {
+function StartLink({ to, light = false, className = "" }) {
   return (
-    <span aria-hidden="true" className="relative grid h-2.5 w-2.5 shrink-0 place-items-center">
-      <span
-        className="absolute inset-0 rounded-full"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(253,246,230,0.8) 0%, rgba(253,246,230,0.24) 45%, rgba(253,246,230,0) 100%)",
-        }}
-      />
-      <span className="relative h-1.5 w-1.5 rounded-full" style={{ background: "#fdf6e6" }} />
-    </span>
-  );
-}
-
-/* Below md there is no hover to open a chip with, and six cards stacked open
-   ran the panel to nearly two screens (2026-09-19). So the phone shows one card
-   at a time and it changes itself, which keeps every description readable
-   without asking for a tap or the height. */
-const ROTATE_MS = 3800;
-
-function ActiveRow({ item, className = "" }) {
-  return (
-    <li
-      className={`border border-white/25 px-3 py-2 backdrop-blur-xl ${TILE_R} ${className}`}
-      style={GLASS}
+    <Link
+      to={to}
+      className={`group inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[0.95rem] font-semibold transition-all hover:-translate-y-0.5 ${
+        light ? "bg-[#f6efe0] text-[#6b511e]" : "bg-[#977e43] text-white hover:bg-[#836c39] nv-shadow"
+      } ${className}`}
     >
-      <span className="flex items-center gap-2">
-        <ActiveDot />
-        <span className="text-[0.78rem] font-semibold" style={{ color: CREAM }}>
-          {item.label}
-        </span>
-      </span>
-      <p className="mt-0.5 text-[0.71rem] leading-[1.4]" style={{ color: CREAM_SOFT }}>
-        {item.body}
-      </p>
-    </li>
+      Start your consultation
+      <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+    </Link>
   );
 }
 
-function ActiveRotator() {
-  const [i, setI] = React.useState(0);
+/* 1. WHAT IS LUMINANCE: the gold band, with the tube. */
 
-  React.useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const t = setInterval(() => setI((v) => (v + 1) % ACTIVES.length), ROTATE_MS);
-    return () => clearInterval(t);
-  }, []);
-
+function WhatIs({ startTo }) {
   return (
-    <div className="mt-4 sm:mt-6">
-      {/* A floor under the card so the panel does not jump as the copy changes
-          length between actives. */}
-      <ul className="min-h-19 sm:min-h-17">
-        {/* Keyed on the label so each active remounts and replays the fade. */}
-        <ActiveRow key={ACTIVES[i].label} item={ACTIVES[i]} className="nv-fade-in" />
-      </ul>
-      <div className="mt-3 flex justify-center gap-1.5">
-        {ACTIVES.map((a, k) => (
-          <span
-            key={a.label}
-            aria-hidden="true"
-            className="h-1.5 w-1.5 rounded-full transition-colors duration-500"
-            style={{ background: k === i ? "#fdf6e6" : "rgba(253,246,230,0.3)" }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
+    <section className="relative overflow-hidden" style={{ background: BAND }}>
+      <img
+        src="/products/detail/luminance-2.avif"
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full scale-110 object-cover opacity-30 mix-blend-soft-light blur-2xl"
+      />
+      <div className="relative mx-auto max-w-[1180px] px-5 py-[clamp(2.5rem,6vw,5.5rem)] md:px-10">
+        <Reveal as="div">
+          <div
+            className={`grid gap-8 border border-white/25 bg-white/10 p-6 backdrop-blur-md sm:p-10 lg:grid-cols-[1.25fr_1fr] lg:items-center lg:gap-12 lg:p-14 ${CARD_R}`}
+          >
+            <div>
+              <span className="text-[0.75rem] font-bold uppercase tracking-[0.16em]" style={{ color: "rgba(255,232,177,0.8)" }}>
+                A prescription brightening cream
+              </span>
+              <h2 className={`${TITLE} mt-3 text-[clamp(1.8rem,3.6vw,2.7rem)]`} style={{ color: CREAM }}>
+                What is Luminance?
+              </h2>
+              <p className="mt-5 max-w-[50ch] text-[1rem] leading-relaxed" style={{ color: CREAM }}>
+                Luminance is a compounded prescription cream that combines six active ingredients in one formula. It
+                is prescribed for concerns such as dark spots and uneven skin tone.
+              </p>
+              <StartLink to={startTo} light className="mt-7" />
+            </div>
 
-/* On the stage the chip is a label-width pill that opens on hover or focus. The
-   description keeps a fixed inner width and the shell animates from zero, so a
-   closed pill is only as wide as its own label. */
-function ActiveChip({ item, slot }) {
-  return (
-    <li className="group absolute" style={slot}>
-      <div
-        tabIndex={0}
-        className={`cursor-default border border-white/25 px-5 py-3 backdrop-blur-xl transition-shadow duration-500 focus:outline-none ${TILE_R}`}
-        style={GLASS}
-      >
-        <span className="flex items-center gap-2.5">
-          <ActiveDot />
-          <span className="whitespace-nowrap text-[0.9rem] font-semibold" style={{ color: CREAM }}>
-            {item.label}
-          </span>
-        </span>
-        {/* Closed, the shell is zero-wide so the pill is only as wide as its own
-            label; the copy keeps a fixed inner width so it does not reflow on
-            the way open. The open width steps up at lg because a 16.5rem panel
-            does not fit beside the figure at the md breakpoint itself. */}
-        <div className="grid w-0 grid-rows-[0fr] overflow-hidden transition-all duration-500 ease-out group-hover:w-[13rem] group-hover:grid-rows-[1fr] group-focus-within:w-[13rem] group-focus-within:grid-rows-[1fr] lg:group-hover:w-[16.5rem] lg:group-focus-within:w-[16.5rem]">
-          <div className="overflow-hidden">
-            <p
-              className="w-[13rem] pt-2 text-[0.78rem] leading-relaxed lg:w-[16.5rem]"
-              style={{ color: CREAM_SOFT }}
-            >
-              {item.body}
-            </p>
-          </div>
-        </div>
-      </div>
-    </li>
-  );
-}
-
-function FormulaPanel({ startTo }) {
-  const [staged, setStaged] = React.useState(false);
-
-  React.useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const sync = () => setStaged(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-
-  return (
-    <div className={`w-full ${PART_TOP}`}>
-      <Reveal>
-        <div
-          className="relative overflow-hidden px-4 pb-6 pt-7 sm:px-9 sm:pb-8 sm:pt-12 md:px-12 md:pb-0 md:pt-14 lg:px-16"
-          style={{ background: BRASS }}
-        >
-          {/* The comp lifts the ground behind the cut-out; without it the
-              figure sits on flat brass and reads as a sticker. */}
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2"
-            style={{
-              background:
-                "radial-gradient(60% 100% at 50% 100%, rgba(240,225,196,0.34) 0%, rgba(240,225,196,0) 70%)",
-            }}
-          />
-
-          {/* The band is full bleed; its contents are not (2026-09-19). */}
-          <div className="relative mx-auto w-full max-w-[1180px]">
-            {/* The comp breaks after the comma. Below md the line is too long
-                to hold, so the break only applies once there is room for it. */}
-            <h2 className={`${TITLE} max-w-[26ch] text-[clamp(1.3rem,3.6vw,2.7rem)]`} style={{ color: CREAM }}>
-              Prescription care{" "}
-              <span className="md:block">for uneven skin tone</span>
-            </h2>
-
-            <p className={`mt-3 max-w-[46ch] leading-relaxed sm:mt-5 ${BODY_SIZE}`} style={{ color: CREAM_SOFT }}>
-              Luminance combines six active ingredients prescribed for concerns such as dark spots,
-              uneven skin tone, and hyperpigmentation
-            </p>
-
-            <Link
-              to={startTo}
-              className="mt-5 inline-flex rounded-full px-8 py-3 text-[0.88rem] font-semibold transition-all duration-300 hover:-translate-y-0.5 sm:mt-7 sm:px-9 sm:py-3.5 sm:text-[0.92rem]"
-              style={{ background: PALE_BTN, color: INK }}
-            >
-              Get Started
-            </Link>
-
-            {/* The swirl is decoration: on the phone it sits in the flow as a
-                divider, on the stage it floats out of the panel's top corner. */}
-            <img
-              src="/site/skin-health/luminance-swipe.avif"
-              alt=""
-              aria-hidden="true"
-              loading="lazy"
-              className="nv-drift mx-auto mt-3 block w-20 sm:mt-6 sm:w-40 md:hidden"
-            />
-            <img
-              src="/site/skin-health/luminance-swipe.avif"
-              alt=""
-              aria-hidden="true"
-              loading="lazy"
-              className="nv-drift pointer-events-none absolute right-0 top-[4%] hidden w-[30%] max-w-[17rem] md:block lg:right-[2%]"
-            />
-
-            <h3
-              className={`${TITLE} ${TITLE_SIZE} mt-7 max-w-[21ch] sm:mt-14 md:mt-[clamp(4rem,8vw,7rem)]`}
-              style={{ color: CREAM }}
-            >
-              Six actives
-              <span className="block">One focused approach</span>
-            </h3>
-
-            <p className={`mt-3 max-w-[52ch] leading-relaxed sm:mt-5 ${BODY_SIZE}`} style={{ color: CREAM_SOFT }}>
-              Six active ingredients in one provider-directed formula for uneven pigmentation
-            </p>
-
-            {/* The stage. Below md the figure and the chips are simply stacked;
-                from md the chips are pinned around her, which is the only place
-                the scatter has room to read. */}
-            <div className="relative mt-6 sm:mt-10 md:mt-12 md:h-[clamp(23rem,32vw,29rem)]">
+            <div className="relative mx-auto w-[min(88%,23rem)]">
               <img
-                src="/site/skin-health/luminance-actives.avif"
+                src="/site/skin-health/luminance-swipe.avif"
                 alt=""
                 aria-hidden="true"
                 loading="lazy"
-                /* Pulled down into the card below it on a phone (2026-09-19):
-                   the file carries transparent canvas under her, which read as
-                   a gap between the figure and the list. */
-                className="mx-auto -mb-4 block w-[52%] max-w-[11rem] sm:-mb-6 sm:w-[62%] sm:max-w-[15rem] md:mb-0 md:absolute md:bottom-0 md:left-1/2 md:h-full md:w-auto md:max-w-none md:-translate-x-1/2 md:object-contain md:object-bottom"
+                className="nv-drift pointer-events-none absolute bottom-[12%] left-0 w-[42%]"
               />
-
-              {staged ? (
-                <ul className="md:block">
-                  {ACTIVES.map((a, i) => (
-                    <ActiveChip key={a.label} item={a} slot={ACTIVE_SLOTS[i]} />
-                  ))}
-                </ul>
-              ) : (
-                <ActiveRotator />
-              )}
+              {/* The tilt has its own wrapper: the float animates the image's
+                  transform and would wipe a rotate set on it. */}
+              <span className="relative block rotate-12">
+                <img
+                  src="/products/luminance.avif"
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                  className="nv-float pointer-events-none block w-full drop-shadow-[0_18px_34px_rgba(70,50,20,0.34)]"
+                />
+              </span>
             </div>
-
-            {/* From md the figure runs into the card's bottom edge, as the comp
-                cuts her, so the footnote lifts off the flow and sits over the
-                brass beside her instead of pushing her up off it. */}
-            <p
-              className="mt-6 text-[0.72rem] italic leading-relaxed sm:text-[0.76rem] md:absolute md:bottom-8 md:left-0 md:mt-0"
-              style={{ color: "rgba(247,233,201,0.62)" }}
-            >
-              Prescription required. Eligibility determined by a licensed provider
-            </p>
           </div>
-        </div>
-      </Reveal>
-    </div>
+        </Reveal>
+      </div>
+    </section>
   );
 }
 
-/* ---------------------------- 2. how the formula works ---------------------------- */
+/* 2. WHAT IT IS PRESCRIBED FOR: the three concerns the record already names,
+   each described as a concern, not as something the cream changes. */
 
-const AREAS = [
-  {
-    label: "Excess pigment",
-    body: "Hydroquinone, kojic acid, and azelaic acid work on pathways involved in melanin production to help reduce visible discoloration",
-  },
-  {
-    label: "Inflammation",
-    body: "Hydrocortisone helps calm inflammation and redness that can contribute to an uneven-looking complexion",
-  },
-  {
-    label: "Oxidative stress",
-    body: "EGCG and resveratrol provide antioxidant support against environmental and oxidative stress",
-  },
+const CONCERNS = [
+  { title: "Dark spots", text: "Small areas of extra pigment, often from the sun." },
+  { title: "Uneven skin tone", text: "Patches that look darker than the skin around them." },
+  { title: "Post-inflammatory hyperpigmentation", text: "Marks left behind after acne or irritation." },
 ];
 
-function ThreeAreas() {
+function Concerns() {
   return (
-    <div className={`mx-auto max-w-[1180px] ${PART_PAD} ${PART_REST}`}>
-      <Reveal>
-        <span className="nv-eyebrow">How the formula works</span>
-        <h2 className={`${TITLE} ${TITLE_SIZE} ${RAMP} mt-3 max-w-[22ch]`} style={rampFill}>
-          Three areas
-          <span className="block">One targeted approach</span>
-        </h2>
-      </Reveal>
+    <section className="py-[clamp(2.75rem,6vw,5.5rem)]">
+      <div className="mx-auto grid max-w-[1180px] gap-9 px-5 md:px-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:gap-14">
+        <Reveal as="div">
+          <span className="nv-eyebrow">What it's for</span>
+          <h2 className={`${H2} mt-3 max-w-[18ch]`}>Prescription Care for Uneven Skin Tone</h2>
+          <ul className="mt-7">
+            {CONCERNS.map((c) => (
+              <li key={c.title} className="flex items-start gap-4 border-t border-line py-4 first:border-t-0 first:pt-0">
+                <Check size={18} strokeWidth={2.4} className="mt-1 shrink-0 text-[#977e43]" />
+                <div>
+                  <h3 className="font-display text-[1.1rem] font-bold leading-snug text-ink">{c.title}</h3>
+                  <p className="mt-1 text-[0.94rem] leading-relaxed text-muted">{c.text}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 max-w-[52ch] text-[0.86rem] leading-relaxed text-muted">
+            A licensed provider reviews your skin concerns and health history to decide if Luminance is appropriate
+            for you.
+          </p>
+        </Reveal>
 
-      <div className="mt-5 grid gap-5 sm:mt-12 sm:gap-8 md:grid-cols-3 md:gap-x-10 lg:mt-[6.5rem]">
-        {AREAS.map((a, i) => (
-          <Reveal as="div" key={a.label} delay={STEP_GAP * i}>
-            <div className="flex items-center gap-3">
-              <span
-                className="grid h-6 w-6 shrink-0 place-items-center rounded-full font-mono text-[0.66rem] font-bold sm:h-7 sm:w-7 sm:text-[0.72rem]"
-                style={{ background: "#9a7843", color: CREAM }}
-              >
-                {i + 1}
-              </span>
-              <span
-                className="whitespace-nowrap font-mono text-[0.7rem] font-bold uppercase tracking-[0.1em] sm:text-[0.8rem]"
-                style={{ color: INK }}
-              >
-                {a.label}
-              </span>
-              {i < AREAS.length - 1 && (
-                <Motion.span
-                  aria-hidden="true"
-                  className="hidden h-px flex-1 md:-mr-10 md:block"
-                  style={{
-                    backgroundImage: `repeating-linear-gradient(90deg, ${DASH} 0 4px, transparent 4px 9px)`,
-                  }}
-                  initial={{ clipPath: "inset(0 100% 0 0)" }}
-                  whileInView={{ clipPath: "inset(0 0% 0 0)" }}
-                  viewport={{ once: true, margin: VIEWPORT_MARGIN }}
-                  transition={{ duration: 0.42, ease: EASE, delay: STEP_GAP * i + 0.36 }}
-                />
-              )}
-            </div>
-
-            <p className={`mt-2.5 max-w-[38ch] leading-relaxed sm:mt-6 lg:mt-8 ${BODY_SIZE}`} style={{ color: BODY }}>
-              {a.body}
-            </p>
-          </Reveal>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------- 3. the complexion ------------------------------- */
-
-function Complexion() {
-  return (
-    <div className={`mx-auto max-w-[1180px] ${PART_PAD} ${PART_REST}`}>
-      <Reveal>
-        <div
-          className={`overflow-hidden px-4 py-6 sm:px-9 sm:py-10 lg:px-14 lg:py-12 ${CARD_R}`}
-          style={{ background: PANEL }}
-        >
-          <div className="grid items-center gap-5 sm:gap-7 lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-12">
-            <div>
-              <h2 className={`${TITLE} ${TITLE_SIZE} ${RAMP} max-w-[30ch]`} style={rampFill}>
-                Targeted
-                <span className="block">skin concerns</span>
-              </h2>
-
-              <p className={`mt-3 max-w-[64ch] leading-relaxed sm:mt-6 ${BODY_SIZE}`} style={{ color: BODY }}>
-                Dark spots, uneven tone, and post-inflammatory hyperpigmentation
-              </p>
-            </div>
-
-            <div className={`relative aspect-[21/9] w-full overflow-hidden lg:aspect-[9/10] ${TILE_R}`}>
-              <img
-                src="/site/skin-health/luminance-complexion.avif"
-                alt=""
-                aria-hidden="true"
-                loading="lazy"
-                className="absolute inset-0 h-full w-full object-cover object-center"
-              />
-            </div>
-          </div>
-        </div>
-      </Reveal>
-    </div>
-  );
-}
-
-/* ----------------------------- 4. prescription care ----------------------------- */
-/* The benefit list ("What Luminance brings to your routine") was removed on
-   2026-09-08 with the compliance pass: a standalone list of product benefits is
-   exactly what the review asked us to drop from the page. */
-
-function Oversight({ startTo }) {
-  return (
-    <div className={`mx-auto max-w-[1180px] ${PART_PAD} pb-8 sm:pb-[clamp(3rem,6vw,5rem)]`}>
-      <Reveal>
-        {/* The comp moves this panel onto the same brass field the rest of the
-            page uses, off the flat tan it was on. */}
-        <div className={`relative overflow-hidden ${CARD_R}`} style={{ background: BRASS }}>
+        <Reveal as="div" delay={0.08} className={`relative overflow-hidden ${CARD_R}`}>
           <img
-            src="/site/skin-health/luminance-guidance.avif"
+            src="/site/skin-health/luminance-complexion.avif"
             alt=""
             aria-hidden="true"
             loading="lazy"
-            /* The new shot is a cut-out, so she stands on the panel floor at
-               her own proportions and composites straight onto the brass.
-               object-cover would stretch her across the whole card and put the
-               copy on her face. */
-            className="pointer-events-none absolute bottom-0 right-0 hidden h-[108%] w-auto max-w-none lg:block"
+            className="aspect-4/3 w-full object-cover object-center lg:aspect-square"
           />
-          <div className="relative px-4 pb-8 pt-8 sm:px-9 sm:pb-11 sm:pt-11 lg:flex lg:min-h-144 lg:w-[58%] lg:flex-col lg:px-14 lg:py-[clamp(3rem,4.5vw,4rem)]">
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* 3. INSIDE THE FORMULA: the six actives under the three areas the old page
+   named, held heading beside a column of rows as NAD+ has it. What each
+   ingredient does, never what the cream will do for you. */
+
+const AREAS = [
+  {
+    icon: Sun,
+    title: "Excess pigment",
+    actives: ["Hydroquinone", "Kojic acid", "Azelaic acid"],
+    text: "Work on steps of melanin production, the pigment behind dark spots.",
+  },
+  {
+    icon: Flame,
+    title: "Redness",
+    actives: ["Hydrocortisone"],
+    text: "Helps calm the inflammation and redness that can come with pigment concerns.",
+  },
+  {
+    icon: Leaf,
+    title: "Oxidative stress",
+    actives: ["Green tea EGCG", "Resveratrol"],
+    text: "Antioxidants that support the skin against environmental stress.",
+  },
+];
+
+function Formula({ startTo }) {
+  return (
+    <section className="pb-[clamp(2.75rem,6vw,5.5rem)]">
+      <div className="mx-auto grid max-w-[1180px] gap-8 px-5 md:px-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+        <div className="lg:sticky lg:top-28 lg:self-start">
+          <Reveal as="div">
+            <span className="nv-eyebrow">Inside the formula</span>
+            <h2 className={`${H2} mt-3 max-w-[14ch]`}>Six Actives in One Cream</h2>
+            <p className="mt-4 max-w-[40ch] text-[1rem] leading-relaxed text-muted">
+              Each ingredient has its own job, so one cream covers three areas.
+            </p>
+            <StartLink to={startTo} className="mt-7 hidden lg:inline-flex" />
+          </Reveal>
+        </div>
+
+        <div>
+          <ul>
+            {AREAS.map((a, i) => (
+              <Reveal
+                as="li"
+                key={a.title}
+                delay={(i % 2) * 0.05}
+                className="flex items-center gap-5 border-t border-line py-5 first:border-t-0 first:pt-0 sm:gap-8 sm:py-7"
+              >
+                <span
+                  className="relative grid aspect-3/2 w-28 shrink-0 place-items-center overflow-hidden rounded-[18px] sm:w-48"
+                  style={{ background: BAND }}
+                >
+                  <img
+                    src="/products/detail/luminance.avif"
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover opacity-60 mix-blend-soft-light"
+                  />
+                  <a.icon size={36} strokeWidth={1.4} className="relative h-7 w-7 sm:h-10 sm:w-10" style={{ color: CREAM }} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="font-display text-[1.1rem] font-bold leading-snug text-ink sm:text-[1.3rem]">{a.title}</h3>
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                    {a.actives.map((name) => (
+                      <li
+                        key={name}
+                        className="rounded-full border border-[#e3d3b0] bg-[#f6efe0] px-2.5 py-0.5 text-[0.76rem] font-semibold text-[#6b511e]"
+                      >
+                        {name}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 max-w-[46ch] text-[0.9rem] leading-relaxed text-muted sm:text-[0.98rem]">{a.text}</p>
+                </div>
+              </Reveal>
+            ))}
+          </ul>
+          <p className="mt-6 border-t border-line pt-5 text-[0.76rem] italic leading-relaxed text-muted">
+            What each ingredient does, not an expected result of treatment. Individual response varies.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* 4. WHAT'S INCLUDED: the dark price card, with the record's own price. */
+
+const INCLUDED = [
+  "An online intake reviewed by a licensed provider",
+  "Luminance Brightening Cream, if prescribed",
+  "Compounded by a licensed U.S. pharmacy",
+  "Discreet home delivery",
+  "Follow-up care and guidance throughout your plan",
+];
+
+function Included({ product, startTo }) {
+  return (
+    <section className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.75rem,6vw,5.5rem)] md:px-10">
+      <Reveal as="div">
+        <div className={`relative grid overflow-hidden lg:grid-cols-2 ${CARD_R}`} style={{ background: CHAMPAGNE }}>
+          <div className="relative px-6 pt-9 sm:px-10 sm:pt-12">
+            {/* The warm glow behind her. Desktop only: stacked, the column ends
+                at the price card and would cut the glow off in a hard line. */}
             <span
-              className="font-mono text-[0.58rem] font-semibold uppercase tracking-[0.16em] sm:text-[0.6rem]"
-              style={{ color: CREAM_SOFT }}
-            >
-              Prescription care
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 hidden lg:block"
+              style={{ background: "radial-gradient(circle at 28% 88%, rgba(255,255,255,0.7), transparent 62%)" }}
+            />
+            <span className="relative flex items-center gap-2 text-[0.9rem] font-semibold" style={{ color: GOLD_INK }}>
+              <span className="h-2 w-2 rounded-full bg-[#977e43]" />
+              Provider-guided care
             </span>
-
-            <h2
-              className={`${TITLE} mt-2 max-w-[26ch] text-[clamp(1.15rem,2.5vw,1.9rem)] sm:mt-2.5`}
-              style={{ color: CREAM }}
-            >
-              The right treatment,{" "}
-              <span className="lg:block">with the right guidance</span>
+            <h2 className={`${TITLE} relative z-10 mt-4 max-w-[20ch] text-[clamp(1.5rem,2.8vw,2.1rem)]`} style={{ color: GOLD_INK }}>
+              Luminance, prescribed and followed by a licensed provider.
             </h2>
-
-            <p className={`mt-3 max-w-[54ch] leading-relaxed sm:mt-4 ${FINE_SIZE}`} style={{ color: CREAM_SOFT }}>
-              Luminance is a compounded prescription treatment. A licensed provider determines if
-              it&apos;s appropriate for you. Dryness, redness, peeling, burning, or stinging may
-              occur
-            </p>
-
-            <Link
-              to={startTo}
-              className="mt-5 inline-flex max-w-[13rem] rounded-full px-6 py-2.5 text-center text-[0.84rem] font-semibold leading-snug transition-all duration-300 hover:-translate-y-0.5 sm:mt-6 sm:px-7 sm:py-3 sm:text-[0.88rem]"
-              style={{ background: TAN_BTN, color: CREAM }}
-            >
-              See If Its Right For You
-            </Link>
-
-            <p
-              /* Sits on the panel floor, as the comp has it, rather than
-                 tucked under the button. */
-              className="mt-5 max-w-[54ch] text-[0.68rem] italic leading-relaxed sm:mt-[clamp(1.5rem,2.6vw,2.25rem)] sm:text-[0.72rem] lg:mt-auto"
-              style={{ color: "rgba(247,233,201,0.72)" }}
-            >
-              Compounded medications are not FDA-approved and have not been reviewed by the FDA for
-              safety, effectiveness, or quality
-            </p>
-          </div>
-
-          <div className="relative h-48 w-full overflow-hidden sm:h-56 lg:hidden">
+            {/* The cut-out is cropped on its right, so it is mirrored and set
+                against the card's left edge, where the crop meets the edge.
+                Stacked, its cropped bottom fades out under the price card. */}
             <img
               src="/site/skin-health/luminance-guidance.avif"
               alt=""
               aria-hidden="true"
               loading="lazy"
-              className="absolute bottom-0 right-3 h-[116%] w-auto max-w-none"
+              className="-ml-6 mt-6 block h-64 w-auto -scale-x-100 object-contain object-bottom [mask-image:linear-gradient(180deg,#000_70%,transparent)] sm:-ml-10 sm:h-80 lg:absolute lg:bottom-0 lg:left-0 lg:ml-0 lg:mt-0 lg:h-[66%] lg:[mask-image:none]"
             />
+          </div>
+
+          {/* Stacked, the card rides up over the photo's cropped bottom edge. */}
+          <div className="relative -mt-12 p-4 sm:p-8 lg:mt-0">
+            <div className={`bg-white px-6 py-7 sm:px-9 sm:py-9 ${CARD_R}`}>
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                <span className="font-display text-[clamp(2.4rem,4vw,3rem)] font-extrabold leading-none text-ink">
+                  {priceLabel(product)}
+                </span>
+                {product.priceNote && <span className="text-[1rem] text-muted">{product.priceNote}</span>}
+              </div>
+              <p className="mt-2 text-[0.88rem] text-muted">
+                You pay only if a provider determines that a prescription is appropriate.
+              </p>
+              <h3 className="mt-7 text-[0.95rem] font-bold text-ink">What's included</h3>
+              <ul className="mt-3 grid gap-3">
+                {INCLUDED.map((t) => (
+                  <li key={t} className="flex items-start gap-3 text-[0.94rem] leading-snug text-ink">
+                    <Check size={17} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#977e43]" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <StartLink to={startTo} className="mt-8 w-full justify-center" />
+            </div>
           </div>
         </div>
       </Reveal>
-    </div>
+    </section>
   );
 }
 
-export default function LuminanceSections({ startTo = "/start" }) {
+export default function LuminanceSections({ product, startTo = "/start" }) {
   return (
-    <section style={{ background: "#faf8f4" }}>
-      <FormulaPanel startTo={startTo} />
-      <ThreeAreas />
-      <Complexion />
-      <Oversight startTo={startTo} />
-    </section>
+    <>
+      <WhatIs startTo={startTo} />
+      <div style={{ background: GROUND }}>
+        <Concerns />
+        <Formula startTo={startTo} />
+        <Included product={product} startTo={startTo} />
+      </div>
+    </>
   );
 }

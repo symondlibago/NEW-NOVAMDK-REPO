@@ -180,7 +180,7 @@ export default function BlogPage() {
               journal face went with it: the client wants the site's own display
               type here, as everywhere else. */}
           <h1
-            className="nv-weight-keep mt-3 font-display text-[clamp(1.6rem,3vw,2.5rem)] font-extrabold leading-[1.1] tracking-tight"
+            className="nv-weight-keep mt-3 font-display text-[clamp(1.6rem,3vw,2.5rem)] font-normal leading-[1.1] tracking-tight"
             style={{ color: INK }}
           >
             Expert guidance for feeling your best

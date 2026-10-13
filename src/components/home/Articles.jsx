@@ -137,7 +137,7 @@ export default function Articles() {
         {fresh.length > 0 && (
           <Reveal className="hidden sm:block">
             <h2
-              className="nv-weight-keep mt-[clamp(2.25rem,4.5vw,3.5rem)] font-display text-[clamp(1.6rem,3.4vw,2.9rem)] font-extrabold leading-[1.05] tracking-[0.01em]"
+              className="nv-weight-keep mt-[clamp(2.25rem,4.5vw,3.5rem)] font-display text-[clamp(1.6rem,3.4vw,2.9rem)] font-normal leading-[1.05]"
               style={{ color: HEADING }}
             >
               What&rsquo;s New

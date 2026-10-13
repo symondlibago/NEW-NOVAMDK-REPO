@@ -6,8 +6,14 @@ import {
    Shared by the three tirzepatide rungs — one molecule at three doses, so the
    mechanism and pharmacokinetics are identical and must not drift apart across
    the ladder. Every string here is a clinical claim: change it only with the same
-   review the specs and safety copy get. */
+   review the specs and safety copy get.
+
+   The vial diagram Semaglutide has since 2026-10-12 (client: "that would
+   match"), its three labels taken from the description below. The stacked bars
+   stay under it, which the client asked to keep. */
 const TIRZEPATIDE_MECHANISM = {
+  layout: "callouts",
+  timelineLayout: "bars",
   title: "Two Pathways, One Approach",
   cardTitle: "Dual-Hormone Pathway",
   description:
@@ -16,6 +22,11 @@ const TIRZEPATIDE_MECHANISM = {
     { name: "GLP-1", text: "A receptor pathway involved in appetite and food intake" },
     { name: "GIP", text: "A second receptor pathway involved in appetite and food intake" },
     { name: "Tirzepatide", text: "Acts on both the GIP and GLP-1 receptor pathways" },
+  ],
+  callouts: [
+    { name: "GIP Receptor Pathway" },
+    { name: "Appetite & Food Intake" },
+    { name: "GLP-1 Receptor Pathway" },
   ],
   timelineTitle: "Tirzepatide at a Glance",
   timeline: [
@@ -847,7 +858,7 @@ export const productsData = [
     qrImg: "/qr/LIPO-C.png",
     tagline: "Compounded Lipotropic Injection",
     size: "10 mL vial",
-    subtitle: "Lipo-C combines several nutrients involved in fat metabolism and energy production. It's a provider-guided injection that can complement a broader weight-management plan",
+    subtitle: "Lipo-C combines four nutrients involved in how the body processes fats and makes energy. It is a provider-guided injection that can complement the rest of your care.",
     price: "$150",
     /* Sold one month at a time (client's pricing table, 2026-10-10): checkout
        offers no 3 month term. Enforced on the server through api/_prices.js. */
@@ -865,7 +876,7 @@ export const productsData = [
     highlights: [
       { text: "Lipotropic Blend" },
       { text: "With L-Carnitine" },
-      { text: "1–3× Weekly" },
+      { text: "Provider-Directed" },
     ],
     specs: [
       { label: "Active Compound", value: "Methionine 15 mg / Choline 50 mg / Carnitine 50 mg / Dexpanthenol 5 mg per mL" },
@@ -876,7 +887,7 @@ export const productsData = [
       { label: "Formulation", value: "Injection" },
       { label: "Pharmacy", value: "MediVera Compounding Pharmacy™, 5225 Crooks Rd, Troy, MI 48098" },
     ],
-    safety: "Lipotropic injection that supports fat mobilization and energy metabolism: choline and methionine aid hepatic fat processing while carnitine enhances fatty-acid oxidation. Generally well tolerated; mild redness at the injection site may occur.",
+    safety: "Lipo-C is a compounded injection containing methionine, choline, L-carnitine and dexpanthenol. Mild redness or discomfort at the injection site may occur.",
   },
   {
     id: 13,
@@ -1261,14 +1272,11 @@ export const productsData = [
     name: "Low-Dose Naltrexone (LDN) — Starter",
     size: "1.5 mg flex-dose",
     qrImg: "/qr/Low-Dose Naltrexone (LDN).png",
-    subtitle: "A low-dose prescription that works by temporarily blocking opioid receptors. LDN is sometimes used off-label for chronic pain and related symptoms.",
-    price: "$39",
-    exactPrice: true,
-    priceSuffix: "",
-    priceNote: "14-day starter supply",
-    /* The category shelf shows one card for the whole LDN ladder, so its chip
-       states the entry price as a range opener rather than a flat fill price. */
-    cardPrice: "Starts at $39",
+    subtitle: "A low-dose oral prescription that briefly blocks opioid receptors. Low-dose use is off-label, and a licensed provider decides if it is appropriate for you.",
+    /* Monthly, 1 or 3 months at checkout (client's pricing table, 2026-10-10),
+       in place of the 14 and 90 day fills. The tag is what offers 3 months. */
+    audience: "Subscription",
+    price: "$69.17",
     shipping: "Shipped discreetly by a licensed pharmacy.",
     dosageForm: "Oral Tablet",
     icon: <Shield size={16} />,
@@ -1279,18 +1287,17 @@ export const productsData = [
     caseOfferingId: "c9ed972c-96e7-490f-be00-ebdc75535d66",
     highlights: [
       { text: "Oral Prescription" },
-      { text: "14 Tablets" },
+      { text: "30-Day Supply" },
       { text: "Provider-Guided" },
     ],
     specs: [
       { label: "Active Compound", value: "Naltrexone 1.5 mg flex-dose tablet" },
-      { label: "Quantity", value: "14 tablets" },
-      { label: "Days Supply", value: "14 days" },
+      { label: "Days Supply", value: "30 days" },
       { label: "Dosing Schedule", value: "Use only as directed by your healthcare provider and prescription label." },
       { label: "Formulation", value: "Oral" },
       { label: "Pharmacy", value: "Strive Compounding Pharmacy, 1275 E Baseline Rd #104, Gilbert, AZ 85233" },
     ],
-    safety: "Low-dose opioid antagonist that may boost endorphin production. May cause vivid dreams (first few weeks), fatigue, insomnia, flu-like symptoms, decreased appetite, anxiety, headache, or dizziness. Contraindicated in anyone taking opioid analgesics, who is opioid-dependent, or who has a positive opioid screen or failed naloxone challenge.",
+    safety: "Low-dose opioid antagonist that is thought to affect endorphin signaling. May cause vivid dreams (first few weeks), fatigue, insomnia, flu-like symptoms, decreased appetite, anxiety, headache, or dizziness. Contraindicated in anyone taking opioid analgesics, who is opioid-dependent, or who has a positive opioid screen or failed naloxone challenge.",
   },
   {
     id: 27,
@@ -1299,11 +1306,9 @@ export const productsData = [
     name: "Low-Dose Naltrexone (LDN) — Mid-Dose",
     size: "3 mg flex-dose",
     qrImg: "/qr/Low-Dose Naltrexone (LDN).png",
-    subtitle: "A low-dose prescription that works by temporarily blocking opioid receptors. LDN is sometimes used off-label for chronic pain and related symptoms.",
-    price: "$39",
-    exactPrice: true,
-    priceSuffix: "",
-    priceNote: "14-day supply",
+    subtitle: "A low-dose oral prescription that briefly blocks opioid receptors. Low-dose use is off-label, and a licensed provider decides if it is appropriate for you.",
+    audience: "Subscription",
+    price: "$69.17",
     shipping: "Shipped discreetly by a licensed pharmacy.",
     dosageForm: "Oral Tablet",
     icon: <Shield size={16} />,
@@ -1314,18 +1319,17 @@ export const productsData = [
     caseOfferingId: "45f6b3f2-5b83-4993-9d71-84d5d2da3d2a",
     highlights: [
       { text: "Oral Prescription" },
-      { text: "14 Tablets" },
+      { text: "30-Day Supply" },
       { text: "Provider-Guided" },
     ],
     specs: [
       { label: "Active Compound", value: "Naltrexone 3 mg flex-dose tablet" },
-      { label: "Quantity", value: "14 tablets" },
-      { label: "Days Supply", value: "14 days" },
+      { label: "Days Supply", value: "30 days" },
       { label: "Dosing Schedule", value: "Use only as directed by your healthcare provider and prescription label." },
       { label: "Formulation", value: "Oral" },
       { label: "Pharmacy", value: "Strive Compounding Pharmacy, 1275 E Baseline Rd #104, Gilbert, AZ 85233" },
     ],
-    safety: "Low-dose opioid antagonist that may boost endorphin production. May cause vivid dreams (first few weeks), fatigue, insomnia, flu-like symptoms, decreased appetite, anxiety, headache, or dizziness. Contraindicated in anyone taking opioid analgesics, who is opioid-dependent, or who has a positive opioid screen or failed naloxone challenge.",
+    safety: "Low-dose opioid antagonist that is thought to affect endorphin signaling. May cause vivid dreams (first few weeks), fatigue, insomnia, flu-like symptoms, decreased appetite, anxiety, headache, or dizziness. Contraindicated in anyone taking opioid analgesics, who is opioid-dependent, or who has a positive opioid screen or failed naloxone challenge.",
   },
   {
     id: 28,
@@ -1334,11 +1338,9 @@ export const productsData = [
     name: "Low-Dose Naltrexone (LDN) — Maintenance",
     size: "4.5 mg flex-dose",
     qrImg: "/qr/Low-Dose Naltrexone (LDN).png",
-    subtitle: "A low-dose prescription that works by temporarily blocking opioid receptors. LDN is sometimes used off-label for chronic pain and related symptoms.",
-    price: "$109",
-    exactPrice: true,
-    priceSuffix: "",
-    priceNote: "90-day maintenance supply",
+    subtitle: "A low-dose oral prescription that briefly blocks opioid receptors. Low-dose use is off-label, and a licensed provider decides if it is appropriate for you.",
+    audience: "Subscription",
+    price: "$69.17",
     shipping: "Shipped discreetly by a licensed pharmacy.",
     dosageForm: "Oral Tablet",
     icon: <Shield size={16} />,
@@ -1349,18 +1351,17 @@ export const productsData = [
     caseOfferingId: "03b413cb-6811-4c30-bb29-50bd924c3a53",
     highlights: [
       { text: "Oral Prescription" },
-      { text: "90 Tablets" },
+      { text: "30-Day Supply" },
       { text: "Provider-Guided" },
     ],
     specs: [
       { label: "Active Compound", value: "Naltrexone 4.5 mg flex-dose tablet" },
-      { label: "Quantity", value: "90 tablets" },
-      { label: "Days Supply", value: "90 days" },
+      { label: "Days Supply", value: "30 days" },
       { label: "Dosing Schedule", value: "Use only as directed by your healthcare provider and prescription label." },
       { label: "Formulation", value: "Oral" },
       { label: "Pharmacy", value: "Strive Compounding Pharmacy, 1275 E Baseline Rd #104, Gilbert, AZ 85233" },
     ],
-    safety: "Low-dose opioid antagonist that may boost endorphin production. May cause vivid dreams (first few weeks), fatigue, insomnia, flu-like symptoms, decreased appetite, anxiety, headache, or dizziness. Contraindicated in anyone taking opioid analgesics, who is opioid-dependent, or who has a positive opioid screen or failed naloxone challenge. Dispensed up to a 3-month supply per policy.",
+    safety: "Low-dose opioid antagonist that is thought to affect endorphin signaling. May cause vivid dreams (first few weeks), fatigue, insomnia, flu-like symptoms, decreased appetite, anxiety, headache, or dizziness. Contraindicated in anyone taking opioid analgesics, who is opioid-dependent, or who has a positive opioid screen or failed naloxone challenge. Dispensed up to a 3-month supply per policy.",
   },
   /* ============================================================ */
   /* SKIN HEALTH (Dermatology)                                    */
@@ -1383,7 +1384,7 @@ export const productsData = [
     icon: <Sparkles size={16} />,
     img: "/products/luminance.avif",
     imgDetail: "/products/detail/luminance.avif",
-    imgGallery: ["/products/detail/luminance-2.avif", "/products/detail/luminance-3.avif"],
+    imgGallery: ["/products/detail/luminance-2.avif"],
     questionnaireId: "64b181e7-0e25-4fe6-9bc5-00090a20410e",
     highlights: [
       { text: "Six Active Ingredients" },
@@ -1744,7 +1745,7 @@ export const productsData = [
       { label: "Formulation", value: "Injection" },
       { label: "Pharmacy", value: "Strive Compounding Pharmacy, 1275 E Baseline Rd #104, Gilbert, AZ 85233" },
     ],
-    safety: "Limit to once within any 24-hour period and a maximum of eight uses per month. Discontinue if tachycardia develops.",
+    safety: "Bremelanotide is a melanocortin receptor agonist that acts on melanocortin receptors in the central nervous system. Common side effects: nausea, flushing, headache, injection-site reactions, and rapid heartbeat. Less common but serious: elevated blood pressure and skin or gum pigmentation changes; your provider will monitor your blood pressure and explain how often it may be used.",
   },
   {
     id: 38,
@@ -2169,7 +2170,7 @@ const FAQ_SETS = [
     { q: "How will my treatment be monitored?", a: "Your provider may check in on your response, tolerance, and overall treatment plan and make adjustments when appropriate." },
   ]],
   [/lipo-c/i, [
-    { q: "What is Lipo-C Injection?", a: "Lipo-C is a compounded injectable treatment. Its ingredients and strength depend on the prescribed formulation." },
+    { q: "What is Lipo-C Injection?", a: "Lipo-C is a compounded prescription injection that combines methionine, choline, L-carnitine and dexpanthenol, a form of vitamin B5. A licensed provider decides if it is appropriate for you." },
     { q: "How is it used?", a: "It is given by injection on a schedule determined by your healthcare provider." },
     { q: "Who might consider Lipo-C?", a: "Your provider will review your health history, medications, and treatment goals to determine whether it may be appropriate for you." },
     { q: "What should I know before starting?", a: "Injection-site discomfort and other side effects can occur. Your provider can explain what to expect and what to watch for during treatment." },
@@ -2181,7 +2182,7 @@ const FAQ_SETS = [
     { q: "What if I experience irritation?", a: "Contact your provider if you experience irritation, discomfort, or another unexpected reaction." },
   ]],
   [/olympus (max )?peak/i, [
-    { q: "What is Olympus Peak?", a: "Olympus Peak is a compounded sublingual prescription that combines tadalafil, bremelanotide, and oxytocin." },
+    { q: "What is Olympus Peak?", a: "Olympus Peak is a compounded prescription tablet for men that combines tadalafil, bremelanotide, and oxytocin. It dissolves under the tongue." },
     { q: "How do I take it?", a: "Use it exactly as prescribed by your provider, including the amount and timing." },
     { q: "Is Olympus Peak right for me?", a: "Your provider will review your health history, medications, and sexual health concerns before deciding if it is appropriate for you." },
     { q: "What should I know before using it?", a: "Because it contains multiple prescription ingredients, side effects and drug interactions are possible. Your provider will review important precautions before treatment starts." },
@@ -2190,13 +2191,15 @@ const FAQ_SETS = [
     { q: "What is PT-141 Injection?", a: "PT-141 is a compounded prescription injection containing bremelanotide, a melanocortin receptor agonist." },
     { q: "When is it used?", a: "Your provider will give you specific instructions on when to use it based on your treatment plan." },
     { q: "How do I know if it may be appropriate for me?", a: "Your provider will review your health history, medications, and sexual health concerns before prescribing it." },
-    { q: "What should I watch for?", a: "Side effects can occur, including nausea, flushing, headache, or injection-site reactions. Contact your provider if you have concerns during treatment." },
+    { q: "What should I watch for?", a: "Side effects can occur, including nausea, flushing, headache, or injection-site reactions. Bremelanotide can also raise blood pressure, so your provider reviews your blood pressure and heart health first. Contact your provider if you have concerns during treatment." },
+    { q: "Is PT-141 FDA-approved?", a: "No. Compounded medications are not FDA-approved. This PT-141 is prepared by a licensed U.S. pharmacy, and a licensed provider decides if it is appropriate for you." },
   ]],
   [/^bremelanotide nasal spray$/i, [
     { q: "What is PT-141 Nasal Spray?", a: "PT-141 Nasal Spray is a compounded prescription treatment containing bremelanotide." },
     { q: "How do I use it?", a: "Use it exactly as directed by your provider, including the number of sprays and timing." },
     { q: "Who is it for?", a: "Your provider will review your health history, medications, and sexual health concerns to decide if it may be appropriate for you." },
-    { q: "What should I watch for?", a: "Side effects can occur, including nasal irritation or other unexpected reactions. Your provider will review potential risks and what to watch for before treatment." },
+    { q: "What should I watch for?", a: "Side effects can occur, including nausea, flushing, headache, or nasal irritation. Bremelanotide can also raise blood pressure, so your provider reviews your blood pressure and heart health first. Contact your provider if you have concerns during treatment." },
+    { q: "Is PT-141 FDA-approved?", a: "No. Compounded medications are not FDA-approved. This PT-141 is prepared by a licensed U.S. pharmacy, and a licensed provider decides if it is appropriate for you." },
   ]],
   [/^sermorelin nasal spray$/i, [
     { q: "What is Sermorelin Nasal Spray?", a: "Sermorelin is a compounded prescription nasal spray that acts on the growth hormone pathway." },

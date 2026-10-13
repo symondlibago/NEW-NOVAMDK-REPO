@@ -39,7 +39,7 @@ function KeepMoving({ assessmentTo }) {
           frame over the open sky, not stacked into the left third. */}
       <div className="mx-auto flex min-h-[clamp(26rem,54vw,50rem)] max-w-[1320px] flex-col items-center justify-center px-5 py-[clamp(3rem,8vw,6rem)] text-center md:px-10">
         <Reveal className="flex flex-col items-center">
-          <h2 className="nv-weight-keep font-display text-[clamp(1.75rem,6vw,3.6rem)] font-extrabold leading-[1.06] text-white drop-shadow-[0_2px_18px_rgba(40,32,20,0.45)]">
+          <h2 className="nv-weight-keep font-display text-[clamp(1.75rem,6vw,3.6rem)] font-normal leading-[1.06] text-white drop-shadow-[0_2px_18px_rgba(40,32,20,0.45)]">
             Keep Moving Forward
           </h2>
 
@@ -273,7 +273,7 @@ function RecoveryCarousel() {
 
       <Reveal className="relative px-5 text-center md:px-10">
         <h2
-          className="nv-weight-keep mx-auto max-w-[14ch] font-display text-[clamp(1.75rem,5.4vw,3rem)] font-extrabold leading-[1.12]"
+          className="nv-weight-keep mx-auto max-w-[14ch] font-display text-[clamp(1.75rem,5.4vw,3rem)] font-normal leading-[1.12]"
           style={{ color: TAUPE }}
         >
           Recovery Is Part of Progress
@@ -429,7 +429,7 @@ function StayInMotion() {
           <div className="relative flex min-h-[clamp(24rem,60vw,44rem)] items-center justify-center px-6 py-9 sm:px-10 sm:py-12 lg:px-14">
             <div className="w-full max-w-[34rem] text-center">
               <h2
-                className="nv-weight-keep font-display text-[clamp(2.2rem,7.6vw,4.4rem)] font-extrabold leading-[1.06]"
+                className="nv-weight-keep font-display text-[clamp(2.2rem,7.6vw,4.4rem)] font-normal leading-[1.06]"
                 style={{ color: "#b8c8c5" }}
               >
                 Stay in Motion
@@ -569,7 +569,7 @@ function ExploreBand({ startTo }) {
           />
 
           <div className="relative z-10 text-center">
-            <h2 className="nv-weight-keep max-w-[12ch] font-display text-[clamp(1.9rem,4.4vw,3.6rem)] font-extrabold leading-tight text-[#ffe8b1]">
+            <h2 className="nv-weight-keep max-w-[12ch] font-display text-[clamp(1.9rem,4.4vw,3.6rem)] font-normal leading-tight text-[#ffe8b1]">
               Explore Recovery &amp; Wellness
             </h2>
 

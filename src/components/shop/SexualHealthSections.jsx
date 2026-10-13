@@ -69,7 +69,7 @@ function ConfidenceStage({ startTo }) {
           className={`relative overflow-hidden px-5 pt-10 sm:px-10 sm:pt-14 ${CARD_R}`}
           style={{ background: "radial-gradient(circle at 50% 50%, #c1a27a 0%, #9a7843 100%)" }}
         >
-          <h2 className="nv-weight-keep mx-auto max-w-[18ch] text-center font-display text-[clamp(1.7rem,5.4vw,3rem)] font-extrabold leading-[1.12] text-white">
+          <h2 className="nv-weight-keep mx-auto max-w-[18ch] text-center font-display text-[clamp(1.7rem,5.4vw,3rem)] font-normal leading-[1.12] text-white">
             {/* The emphasis stays semantic, the slant does not (client,
                 2026-10-13: no italics). not-italic rather than dropping the
                 <em>, so a screen reader still hears the stress. */}
@@ -179,7 +179,7 @@ function TalkingBand() {
           {/* The photograph runs the full width; the copy on it does not
               (2026-09-19). */}
           <div className="relative z-10 mx-auto w-full max-w-[1180px] px-7 py-10 sm:px-12">
-            <h2 className="nv-weight-keep font-display text-[clamp(1.5rem,3.4vw,2.7rem)] font-extrabold leading-[1.16] text-white">
+            <h2 className="nv-weight-keep font-display text-[clamp(1.5rem,3.4vw,2.7rem)] font-normal leading-[1.16] text-white">
               When something feels different,
               <br />
               {/* #ffe8b1 — the comp's "Light orange", second line only. */}
@@ -270,7 +270,7 @@ function ExploreBand({ startTo }) {
           />
 
           <div className="relative z-10 text-center">
-            <h2 className="nv-weight-keep mx-auto max-w-[12ch] font-display text-[clamp(1.75rem,4.4vw,3.1rem)] font-extrabold leading-[1.12] text-[#f0dcac]">
+            <h2 className="nv-weight-keep mx-auto max-w-[12ch] font-display text-[clamp(1.75rem,4.4vw,3.1rem)] font-normal leading-[1.12] text-[#f0dcac]">
               Explore Sexual Health
             </h2>
             <Link

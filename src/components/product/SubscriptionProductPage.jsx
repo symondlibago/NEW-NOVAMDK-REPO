@@ -14,6 +14,7 @@ import ProductJourney from "./ProductJourney";
 import { ComplianceBadges } from "../Compliance";
 import { doseStage } from "../data/subscriptions";
 import { productPath } from "../../lib/slug";
+import ProductAvailability from "./ProductAvailability";
 
 /* The product page for the triple blends (molecule + glycine + B12).
  *
@@ -197,6 +198,7 @@ export default function SubscriptionProductPage({
             <p className="mt-4 max-w-[58ch] text-[0.98rem] leading-[1.7] text-muted md:text-[1.02rem]">
               {product.subtitle}
             </p>
+            <ProductAvailability product={product} className="mt-3" />
 
             <ComplianceBadges compounded rx size="lg" className="mt-5" />
 

@@ -92,7 +92,7 @@ export default function WeightLossCalculatorPage() {
       <section className="mx-auto max-w-[1040px] px-5 py-[clamp(2rem,5vw,4rem)] md:px-10">
         <div className="grid gap-8 lg:grid-cols-[1.1fr_1fr] lg:gap-12">
           <Reveal as="div">
-            <h1 className="nv-weight-keep font-display text-[clamp(2rem,4.4vw,3rem)] font-extrabold leading-[1.08] tracking-tight">
+            <h1 className="nv-weight-keep font-display text-[clamp(2rem,4.4vw,3rem)] font-normal leading-[1.08] tracking-tight">
               BMI Calculator
             </h1>
             <p className="mt-3 max-w-[48ch] text-[0.98rem] leading-relaxed text-muted">

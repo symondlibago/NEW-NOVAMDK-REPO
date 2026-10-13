@@ -157,10 +157,12 @@ export default function HeroVideo() {
           <span className="sr-only">Feel better, perform better, look better</span>
 
           {/* The rotating line is kept at the taller word's height so "Better"
-              never shifts as the word changes. */}
+              never shifts as the word changes. Medium at every width, the
+              phone's weight (client, 2026-10-13): extrabold read too thick on
+              a desktop, where Windows draws it as Arial Black. */}
           <span
             aria-hidden="true"
-            className="block text-[clamp(1.9rem,4.5vw,5.2rem)] font-medium tracking-[-0.01em] sm:font-extrabold"
+            className="block text-[clamp(1.9rem,4.5vw,5.2rem)] font-medium tracking-[-0.01em]"
           >
             <AnimatePresence mode="wait" initial={false}>
               <Motion.span
