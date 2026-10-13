@@ -11,7 +11,10 @@ import BmiCalculator from "../tools/BmiCalculator";
    Their benefit claims, testimonials and lab-results panel are left out. */
 
 const BAND = "radial-gradient(circle at 30% 40%, #c1a27a, #9a7843)";
-const DARK = "linear-gradient(160deg, #3a2f1f 0%, #2a2217 55%, #1f1a12 100%)";
+/* The price card's ground: a light champagne (client, 2026-10-13, in place
+   of the dark brown), with the heading in the page's deep gold. */
+const CHAMPAGNE = "linear-gradient(160deg, #f5ead6 0%, #ecdcbf 55%, #e2cda6 100%)";
+const GOLD_INK = "#725826";
 const CREAM = "#ffe8b1";
 const GROUND = "#fbfaf7";
 const SAND = "linear-gradient(160deg, #f6eee1 0%, #efe3cf 100%)";
@@ -150,17 +153,21 @@ function Included({ product, startTo }) {
   return (
     <section className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.75rem,6vw,5.5rem)] md:px-10">
       <Reveal as="div">
-        <div className={`relative grid overflow-hidden lg:grid-cols-2 ${CARD_R}`} style={{ background: DARK }}>
+        <div className={`relative grid overflow-hidden lg:grid-cols-2 ${CARD_R}`} style={{ background: CHAMPAGNE }}>
           {/* A woman in the page's audience, 35 to 60 (client, 2026-10-12). */}
-          <div
-            className="relative px-6 pt-9 sm:px-10 sm:pt-12"
-            style={{ background: "radial-gradient(circle at 50% 88%, rgba(193,162,122,0.38), transparent 62%)" }}
-          >
-            <span className="flex items-center gap-2 text-[0.9rem] font-semibold" style={{ color: CREAM }}>
-              <span className="h-2 w-2 rounded-full bg-[#ffe8b1]" />
+          <div className="relative px-6 pt-9 sm:px-10 sm:pt-12">
+            {/* Desktop only: stacked, the column ends at the price card and
+                would cut the glow off in a hard line. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 hidden lg:block"
+              style={{ background: "radial-gradient(circle at 50% 88%, rgba(255,255,255,0.7), transparent 62%)" }}
+            />
+            <span className="relative flex items-center gap-2 text-[0.9rem] font-semibold" style={{ color: GOLD_INK }}>
+              <span className="h-2 w-2 rounded-full bg-[#977e43]" />
               Provider-guided care
             </span>
-            <h2 className={`${TITLE} relative z-10 mt-4 max-w-[20ch] text-[clamp(1.5rem,2.8vw,2.1rem)]`} style={{ color: CREAM }}>
+            <h2 className={`${TITLE} relative z-10 mt-4 max-w-[20ch] text-[clamp(1.5rem,2.8vw,2.1rem)]`} style={{ color: GOLD_INK }}>
               Tirzepatide, prescribed and followed by a licensed provider.
             </h2>
             <img
