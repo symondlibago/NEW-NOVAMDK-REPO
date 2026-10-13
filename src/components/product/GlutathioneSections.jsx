@@ -1,546 +1,338 @@
-import React, { useEffect, useState } from "react";
-import { Check } from "lucide-react";
+import React from "react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Check } from "lucide-react";
 import Reveal from "../ui/Reveal";
-import useRunOnceInView from "../../lib/useRunOnceInView";
+import { priceLabel } from "../data/products";
 
-const INK = "#544529";
-const TAN = "#b9a179";
-const BODY = "#7a6d58";
+/* Glutathione, rebuilt 2026-10-13 on the NAD+ layout (client: one layout for
+   every product page): what it is on the gold band, then the old page's second
+   block kept in its format (a heading either side of a centre piece), how the
+   injection differs from a capsule, and the dark price card. The brass diagram,
+   the white card and the role chips are gone; their few facts live in the
+   kept block. The product sits on the Recovery & Wellness shelf since the
+   2026-09-08 compliance pass, so nothing here touches skin, tone or
+   brightening. The old legal footnote is not repeated: Important Safety
+   Information carries the compounded notice and the eligibility line. */
 
-const TITLE = "nv-weight-keep font-display font-extrabold leading-[1.14]";
-const TITLE_SIZE = "text-[clamp(1.6rem,3.6vw,2.7rem)]";
-const BODY_SIZE = "text-[clamp(0.9rem,1.2vw,1.05rem)]";
+const BAND = "radial-gradient(circle at 30% 40%, #c1a27a, #9a7843)";
+/* The price card's ground: a light champagne (client, 2026-10-13, in place
+   of the dark brown), with the heading in the page's deep gold. */
+const CHAMPAGNE = "linear-gradient(160deg, #f5ead6 0%, #ecdcbf 55%, #e2cda6 100%)";
+const GOLD_INK = "#725826";
+const CREAM = "#ffe8b1";
+const GROUND = "#fbfaf7";
+const TITLE = "font-display font-extrabold leading-[1.1]";
+const H2 = `${TITLE} text-[clamp(1.7rem,3.4vw,2.5rem)] text-[#725826]`;
+const CARD_R = "rounded-[calc(24px*var(--nv-r-scale,1))]";
 
+function StartLink({ to, light = false, className = "" }) {
+  return (
+    <Link
+      to={to}
+      className={`group inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[0.95rem] font-semibold transition-all hover:-translate-y-0.5 ${
+        light ? "bg-[#f6efe0] text-[#6b511e]" : "bg-[#977e43] text-white hover:bg-[#836c39] nv-shadow"
+      } ${className}`}
+    >
+      Start your consultation
+      <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+    </Link>
+  );
+}
+
+/* The old block's gold fade on the last words of each heading, kept with it. */
 function Ramp({ children }) {
   return (
     <span
       className="bg-clip-text text-transparent"
-      style={{ backgroundImage: `linear-gradient(90deg, ${INK} 0%, ${TAN} 100%)` }}
+      style={{ backgroundImage: "linear-gradient(90deg, #725826 0%, #b39258 100%)" }}
     >
       {children}
     </span>
   );
 }
 
-const CREAM = "#f4e3c1";
-const CREAM_SOFT = "rgba(244,227,193,0.88)";
+/* 1. WHAT IS GLUTATHIONE: the gold band, with the vial. */
 
-const CARD_R = "rounded-[calc(26px*var(--nv-r-scale,1))]";
-const BRASS = "radial-gradient(circle at 50% 50%, #c1a27a, #9a7843)";
-/* The comp's ground under the white card: pale at the top, warming into tan as
-   it falls, so the card reads as lifted off it. */
-const GROUND =
-  "radial-gradient(120% 100% at 50% 0%, #fdfbf6 0%, #f7eeda 52%, #ecd9b6 100%)";
-const WITHIN = [
-  { label: "Naturally Produced", body: "Found throughout the body" },
-  { label: "Antioxidant Role", body: "Participates in the body's response to oxidative stress" },
-  { label: "Cellular Function", body: "Involved in normal cellular processes" },
-];
-
-
-function AlreadyUsing() {
+function WhatIs({ startTo }) {
   return (
-    <div className="mx-auto max-w-[1180px] px-5 py-[clamp(2.5rem,6vw,4.5rem)] md:px-10">
-      <div className="grid items-center gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.62fr)_minmax(0,1fr)]">
-        <Reveal as="div" className="lg:self-start">
-          <h2 className={`${TITLE} ${TITLE_SIZE}`} style={{ color: INK }}>
-            Support something
-            <br />
-            your body is already
-            <br />
-            using <Ramp>every day</Ramp>
-          </h2>
-          <p className={`mt-5 max-w-[46ch] leading-[1.5] ${BODY_SIZE}`} style={{ color: BODY }}>
-            Your body naturally makes it, but levels can change with age, stress, lifestyle, and
-            environmental exposure
-          </p>
-        </Reveal>
-        <Reveal as="div" delay={0.06} className="order-first lg:order-none">
-          <span className="nv-float mx-auto block w-[52%] max-w-[13rem] sm:w-[38%] lg:w-full">
-            <picture>
-              <source srcSet="/products/glutathione-tilted.webp" type="image/webp" />
-              <img
-                src="/products/glutathione-tilted.avif"
-                alt=""
-                aria-hidden="true"
-                loading="lazy"
-                className="block h-auto w-full drop-shadow-[0_22px_34px_rgba(104,82,50,0.22)]"
-              />
-            </picture>
-          </span>
-        </Reveal>
+    <section className="relative overflow-hidden" style={{ background: BAND }}>
+      <img
+        src="/products/detail/glutathione-2.avif"
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full scale-110 object-cover opacity-30 mix-blend-soft-light blur-2xl"
+      />
+      <div className="relative mx-auto max-w-[1180px] px-5 py-[clamp(2.5rem,6vw,5.5rem)] md:px-10">
+        <Reveal as="div">
+          <div
+            className={`grid gap-8 border border-white/25 bg-white/10 p-6 backdrop-blur-md sm:p-10 lg:grid-cols-[1.25fr_1fr] lg:items-center lg:gap-12 lg:p-14 ${CARD_R}`}
+          >
+            <div>
+              <span className="text-[0.75rem] font-bold uppercase tracking-[0.16em]" style={{ color: "rgba(255,232,177,0.8)" }}>
+                An antioxidant your body makes
+              </span>
+              <h2 className={`${TITLE} mt-3 text-[clamp(1.8rem,3.6vw,2.7rem)]`} style={{ color: CREAM }}>
+                What is Glutathione?
+              </h2>
+              <p className="mt-5 max-w-[50ch] text-[1rem] leading-relaxed" style={{ color: CREAM }}>
+                Glutathione is an antioxidant the body makes on its own. This compounded prescription form is an
+                injection used at home, if a licensed provider decides it is appropriate.
+              </p>
+              <StartLink to={startTo} light className="mt-7" />
+            </div>
 
-        <Reveal as="div" delay={0.12}>
-          {/* Same reason as the left column: the comp breaks after "comes". */}
-          <h2 className={`${TITLE} ${TITLE_SIZE}`} style={{ color: INK }}>
-            Some support comes
-            <br />
-            <Ramp>naturally</Ramp>
-          </h2>
-          <p className={`mt-4 max-w-[46ch] leading-[1.5] ${BODY_SIZE}`} style={{ color: BODY }}>
-            Glutathione works throughout the body to help protect cells from everyday oxidative
-            stress
-          </p>
+            <div>
+              <div className="mx-auto w-32 sm:w-36 lg:w-44">
+                {/* The tilt has its own wrapper: the float animates the image's
+                    transform and would wipe a rotate set on it. */}
+                <span className="block rotate-6">
+                  <img
+                    src="/products/glutathione.avif"
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                    className="nv-float pointer-events-none block w-full drop-shadow-[0_18px_34px_rgba(70,50,20,0.34)]"
+                  />
+                </span>
+              </div>
+            </div>
+          </div>
         </Reveal>
       </div>
-    </div>
+    </section>
   );
 }
 
-/* ------------------------- 2. how glutathione works ------------------------- */
+/* 2. MADE IN YOUR CELLS: the old page's second block, kept in its format at
+   the client's request (2026-10-13): a heading either side of a centre piece.
+   The vial now sits on the gold band, so the centre holds the three amino
+   acids glutathione is built from instead of a second vial. */
 
-const CALLOUTS = [
-  {
-    label: "What is glutathione?",
-    body: "A naturally occurring tripeptide made from cysteine, glycine and glutamic acid",
-    pos: "right-[1%] top-[5%] w-[27%]",
-    wire: "62,40 85.5,40 85.5,27",
-  },
-  {
-    label: "Antioxidant role",
-    body: "Participates in the body's normal response to oxidative stress",
-    pos: "left-[1%] top-[32%] w-[25%]",
-    wire: "38,24 13.5,24 13.5,31",
-  },
-  {
-    label: "Cellular function",
-    body: "Involved in normal cellular processes throughout the body",
-    pos: "left-[34%] top-[74%] w-[32%]",
-    wire: "50,68 50,73",
-  },
+const AMINO = [
+  { abbr: "Glu", name: "Glutamic acid", cx: 90, cy: 88, r: 58 },
+  { abbr: "Cys", name: "Cysteine", cx: 200, cy: 186, r: 53 },
+  { abbr: "Gly", name: "Glycine", cx: 98, cy: 290, r: 48 },
 ];
 
-const STAGES = ["Oxidative activity", "Glutathione activity", "Cellular redox balance"];
-const RAIL_S = 1.6;
-const RAIL_HOLD_MS = 3000;
-
-const PANEL = "border border-[#f4e3c1]/35 bg-[#f4e3c1]/10 backdrop-blur-[2px]";
-const PANEL_R = "rounded-[calc(16px*var(--nv-r-scale,1))]";
-const CALLOUT_LABEL =
-  "block font-mono text-[0.6rem] font-bold uppercase leading-tight tracking-[0.13em] sm:text-[0.64rem]";
-
-function CalloutCard({ item, className = "" }) {
-  return (
-    <div className={`${PANEL} ${PANEL_R} px-4 py-3.5 sm:px-5 sm:py-4 ${className}`}>
-      <span className={CALLOUT_LABEL} style={{ color: CREAM_SOFT }}>
-        {item.label}
-      </span>
-      <p
-        className="mt-2 text-[0.86rem] leading-[1.45] sm:text-[0.95rem]"
-        style={{ color: CREAM }}
-      >
-        {item.body}
-      </p>
-    </div>
-  );
-}
-
-function Vial({ className = "" }) {
+function Tripeptide({ className = "" }) {
   return (
     <span className={`nv-float pointer-events-none block ${className}`}>
-      {/* WebP first: some iOS Safari builds decode this AVIF's alpha plane
-          wrong and paint a solid rectangle behind the glass. */}
-      <picture>
-        <source srcSet="/products/glutathione-tilted.webp" type="image/webp" />
-        <img
-          src="/products/glutathione-tilted.avif"
-          alt=""
-          aria-hidden="true"
-          loading="lazy"
-          className="block h-full w-auto drop-shadow-[0_26px_38px_rgba(74,56,28,0.34)]"
-        />
-      </picture>
+      <svg viewBox="14 14 258 350" aria-hidden="true" className="block h-auto w-full overflow-visible">
+        <defs>
+          <radialGradient id="glu-bead" cx="38%" cy="32%" r="72%">
+            <stop offset="0%" stopColor="#f8ecd0" />
+            <stop offset="24%" stopColor="#cdae78" />
+            <stop offset="72%" stopColor="#9c7a44" />
+            <stop offset="100%" stopColor="#74582a" />
+          </radialGradient>
+          <radialGradient id="glu-glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#f1e2c2" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#f1e2c2" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <circle cx="145" cy="190" r="140" fill="url(#glu-glow)" />
+        {/* The two peptide bonds, drawn under the beads. */}
+        {AMINO.slice(1).map((a, i) => (
+          <g key={a.abbr}>
+            <line x1={AMINO[i].cx} y1={AMINO[i].cy} x2={a.cx} y2={a.cy} stroke="#b89a64" strokeWidth="12" strokeLinecap="round" />
+            <line x1={AMINO[i].cx} y1={AMINO[i].cy} x2={a.cx} y2={a.cy} stroke="#ecdcb8" strokeWidth="3" strokeLinecap="round" />
+          </g>
+        ))}
+        {AMINO.map((a) => (
+          <g key={a.abbr} style={{ filter: "drop-shadow(0 14px 18px rgba(70,50,20,0.28))" }}>
+            <circle cx={a.cx} cy={a.cy} r={a.r} fill="url(#glu-bead)" />
+            <text x={a.cx} y={a.cy + 3} textAnchor="middle" fontSize="26" fontWeight="600" fill="#fffaf0">
+              {a.abbr}
+            </text>
+            <text x={a.cx} y={a.cy + 23} textAnchor="middle" fontSize="12.5" fontWeight="500" fill="rgba(255,250,240,0.9)">
+              {a.name}
+            </text>
+          </g>
+        ))}
+      </svg>
     </span>
   );
 }
 
-function HowItWorks() {
-  const [ref, running] = useRunOnceInView("-80px");
-  /* The diagram is display:none below lg, so its observer never fires there and
-     the stacked version needs one of its own. */
-  const [dropRef, dropping] = useRunOnceInView("-80px");
-  const [railRef, railIn] = useRunOnceInView("-80px");
-
-  const [active, setActive] = useState(0);
-  useEffect(() => {
-    if (!railIn) return undefined;
-    const t = setInterval(() => setActive((v) => (v + 1) % STAGES.length), RAIL_HOLD_MS);
-    return () => clearInterval(t);
-  }, [railIn]);
-
+function MadeInYou() {
   return (
-    /* Full-bleed brass, like the Semaglutide mechanism section: this is the
-       page's own stage, not a card sitting on the cream ground. */
-    <section className="overflow-hidden" style={{ background: BRASS }}>
-      <div className="mx-auto max-w-[1180px] px-5 py-[clamp(2.75rem,6vw,5rem)] md:px-10">
-        <Reveal>
-          <h2
-            className={`${TITLE} text-[clamp(1.5rem,3.6vw,2.5rem)]`}
-            style={{ color: CREAM }}
-          >
-            How Glutathione Works
-          </h2>
-        </Reveal>
-        <div
-          ref={ref}
-          className={`nv-diagram relative mt-8 hidden aspect-15/8 w-full lg:block ${
-            running ? "is-in" : ""
-          }`}
-        >
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            className="pointer-events-none absolute inset-0 h-full w-full"
-          >
-            {CALLOUTS.map((c, i) => (
-              <polyline
-                key={c.label}
-                className="nv-wire"
-                points={c.wire}
-                pathLength="1"
-                fill="none"
-                stroke="rgba(244,227,193,0.5)"
-                strokeWidth="0.14"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ animationDelay: `${i * 0.42 + 0.2}s` }}
-              />
-            ))}
-          </svg>
+    <section className="py-[clamp(2.75rem,6vw,5.5rem)]">
+      <div className="mx-auto max-w-[1180px] px-5 md:px-10">
+        <div className="grid items-center gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.62fr)_minmax(0,1fr)]">
+          <Reveal as="div" className="lg:self-start">
+            <span className="nv-eyebrow">Made in your cells</span>
+            <h2 className={`${H2} mt-3 max-w-[15ch]`}>
+              Something Your Body Makes <Ramp>Every Day</Ramp>
+            </h2>
+            <p className="mt-4 max-w-[40ch] text-[1rem] leading-relaxed text-muted">
+              Cells build glutathione from three amino acids. Levels vary from person to person.
+            </p>
+          </Reveal>
 
-          {CALLOUTS.map((c, i) => (
-            <div
-              key={c.label}
-              className={`nv-wire__label absolute ${c.pos}`}
-              style={{ animationDelay: `${i * 0.42 + 0.5}s` }}
-            >
-              <CalloutCard item={c} />
-            </div>
-          ))}
+          <Reveal as="div" delay={0.06} className="order-first lg:order-none">
+            <Tripeptide className="mx-auto w-[min(72%,15rem)] lg:w-full" />
+          </Reveal>
 
-          {/* Drawn last so it covers where the wires land. */}
-          <Vial className="absolute left-1/2 top-[3%] h-[62%] -translate-x-1/2" />
+          <Reveal as="div" delay={0.12} className="lg:self-end">
+            <span className="nv-eyebrow">Its role</span>
+            <h2 className={`${H2} mt-3 max-w-[15ch]`}>
+              An Antioxidant in <Ramp>Nearly Every Cell</Ramp>
+            </h2>
+            <p className="mt-4 max-w-[40ch] text-[1rem] leading-relaxed text-muted">
+              Glutathione takes part in how cells handle oxidative stress, a normal by-product of everyday cell
+              activity.
+            </p>
+          </Reveal>
         </div>
-
-        {/* ---- the stack, below lg ----
-                One column with a hairline dropping into each card, which is the
-                diagram's wires stood on end: gridded, the cards had no thread
-                running through them at all (2026-09-19). */}
-        <div ref={dropRef} className={`nv-diagram mt-8 lg:hidden ${dropping ? "is-in" : ""}`}>
-          <Vial className="mx-auto h-56 w-fit sm:h-64" />
-          <ol className="mx-auto mt-4 flex max-w-136 flex-col items-center">
-            {CALLOUTS.map((c, i) => (
-              <li key={c.label} className="flex w-full flex-col items-center">
-                <span
-                  aria-hidden="true"
-                  className="nv-drop block h-7 w-px bg-[#f4e3c1]/45"
-                  style={{ animationDelay: `${i * 0.36}s` }}
-                />
-                <div
-                  className="nv-wire__label w-full"
-                  style={{ animationDelay: `${i * 0.36 + 0.26}s` }}
-                >
-                  <CalloutCard item={c} className="h-full" />
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        {/* ---- the three-stage rule ---- */}
-        <div ref={railRef} className={`nv-rail relative mt-10 sm:mt-12 ${railIn ? "is-in" : ""}`}>
-          <ol className="grid grid-cols-3 gap-x-3">
-            {STAGES.map((s, i) => (
-              <li
-                key={s}
-                className={`nv-rail__item ${
-                  i === 0 ? "text-left" : i === 1 ? "text-center" : "text-right"
-                }`}
-                style={{ animationDelay: `${(i / STAGES.length) * RAIL_S + 0.12}s` }}
-              >
-                <span
-                  className="block font-mono text-[0.58rem] font-bold uppercase leading-tight tracking-[0.12em] transition-colors duration-500 sm:text-[0.7rem]"
-                  /* Dimmed by colour, not opacity: the entry animation owns
-                     opacity and its `both` fill would win. */
-                  style={{ color: i === active ? "#fff6dd" : "rgba(244,227,193,0.55)" }}
-                >
-                  {s}
-                </span>
-              </li>
-            ))}
-          </ol>
-
-          {/* The rule and its three stops. Positioned rather than gridded so
-              the outer dots sit on the line's own ends, under the outer
-              labels, exactly as the comp draws them. */}
-          <div className="relative mt-4 h-3 sm:mt-5">
-            <span
-              aria-hidden="true"
-              className="nv-rail__line absolute left-0 top-1/2 h-px w-full -translate-y-1/2"
-              style={{ background: "rgba(244,227,193,0.4)" }}
-            />
-            {STAGES.map((s, i) => {
-              const lit = i === active;
-              return (
-                <span
-                  key={s}
-                  aria-hidden="true"
-                  className="absolute top-1/2 block h-3 w-3 -translate-x-1/2 -translate-y-1/2"
-                  style={{ left: `${(i / (STAGES.length - 1)) * 100}%` }}
-                >
-                  <span
-                    className="nv-rail__dot block h-full w-full"
-                    style={{ animationDelay: `${(i / STAGES.length) * RAIL_S}s` }}
-                  >
-                    <span
-                      className="block h-full w-full rounded-full transition-all duration-500 ease-out"
-                      style={{
-                        background: lit ? "#fff6dd" : CREAM,
-                        transform: lit ? "scale(1.4)" : "scale(1)",
-                        boxShadow: lit ? "0 0 20px 7px rgba(255,246,221,0.4)" : "none",
-                      }}
-                    />
-                  </span>
-                </span>
-              );
-            })}
-          </div>
-        </div>
-
-        <p
-          className="mt-8 text-center text-[0.86rem] leading-relaxed sm:mt-10 sm:text-[0.95rem]"
-          style={{ color: CREAM }}
-        >
-          Glutathione participates in the body&rsquo;s normal antioxidant and cellular-balance
-          processes
-        </p>
-        {/* Required framing: a biological role is not a promise of a result. */}
-        <p
-          /* No max-width: the comp sets this on one line and at 0.78rem it
-             fits the full row with room to spare. It still wraps on a phone,
-             where the row is too narrow for any single-line setting. */
-          className="mx-auto mt-2 text-center text-[0.72rem] italic leading-relaxed sm:text-[0.78rem]"
-          style={{ color: "rgba(244,227,193,0.62)" }}
-        >
-          This describes glutathione&rsquo;s biological role and does not represent a guaranteed
-          treatment outcome
+        <p className="mt-10 border-t border-line pt-5 text-center text-[0.76rem] italic leading-relaxed text-muted">
+          How glutathione works in the body, not an expected result of treatment. Individual response varies.
         </p>
       </div>
     </section>
   );
 }
 
-/* --------------------------- 2. the brass card --------------------------- */
+/* 3. INJECTION OR CAPSULE: NAD+'s comparison table, against the oral
+   supplement people already know. How each is taken and what it costs,
+   nothing about how well either works. */
 
-function NotSurfaceLevel() {
-  return (
-    /* Full-bleed: the comp runs its soft gradient edge to edge behind the white
-       card, so this band carries the ground rather than sitting on the page's
-       own cream. */
-    <section style={{ background: GROUND }}>
-      <div className="mx-auto max-w-[1180px] px-5 py-[clamp(2.5rem,6vw,4.5rem)] md:px-10">
-        <Reveal>
-          <div className={`bg-white px-7 py-9 sm:px-10 sm:py-11 lg:px-14 lg:py-14 ${CARD_R} nv-shadow`}>
-            {/* One rule between the columns, drawn with a border on the second so
-                it cannot outlive the layout: below lg the columns stack and the
-                border simply does not apply. */}
-            <div className="grid gap-9 lg:grid-cols-2 lg:gap-0">
-              <div className="lg:pr-12">
-                <h3
-                  className="nv-weight-keep max-w-[13ch] font-display text-[clamp(1.4rem,3.2vw,2.05rem)] font-extrabold leading-[1.12]"
-                  style={{ color: INK }}
-                >
-                  Glutathione in the body
-                </h3>
-                <ul className="mt-7 flex flex-col gap-5">
-                  {WITHIN.map((w) => (
-                    <li key={w.label} className="flex items-start gap-3.5">
-                      <span
-                        className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-white"
-                        style={{ background: "linear-gradient(120deg, #b8975e 0%, #a3854c 100%)" }}
-                      >
-                        <Check size={13} strokeWidth={3} />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-[0.92rem] font-semibold" style={{ color: INK }}>
-                          {w.label}
-                        </span>
-                        <span
-                          className="mt-1 block max-w-[38ch] text-[0.86rem] leading-relaxed"
-                          style={{ color: BODY }}
-                        >
-                          {w.body}
-                        </span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                {/* Required framing: what a molecule does in the body is not what
-                    a treatment will do for the reader. */}
-                <p
-                  className="mt-6 max-w-[44ch] text-[0.74rem] italic leading-relaxed"
-                  style={{ color: "rgba(122,109,88,0.78)" }}
-                >
-                  Biological role does not guarantee a treatment outcome
-                </p>
-              </div>
-
-              {/* Stacked, the rule that divides the two columns from lg runs
-                  across instead of down (2026-09-19); it was missing entirely
-                  below lg and the two halves ran together. */}
-              <div className="border-t border-[#544529]/12 pt-9 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
-                <h3
-                  className="nv-weight-keep max-w-[13ch] font-display text-[clamp(1.4rem,3.2vw,2.05rem)] font-extrabold leading-[1.12]"
-                  style={{ color: INK }}
-                >
-                  Why injectable glutathione?
-                </h3>
-                <p className="mt-6 text-[0.92rem] font-semibold leading-relaxed" style={{ color: INK }}>
-                  Injectable glutathione doesn&apos;t rely on digestion
-                </p>
-                <p className="mt-3 max-w-[44ch] text-[0.88rem] leading-relaxed" style={{ color: BODY }}>
-                  Your provider reviews your health history and goals, then determines whether
-                  treatment makes sense for you and what your plan should look like
-                </p>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-
-        <RoleChips />
-      </div>
-    </section>
-  );
-}
-
-/* --------------------- the three role chips ---------------------
-   Same interaction as the Luminance actives: the pill is only as wide as its
-   own label until hover or keyboard focus opens the description beside it.
-   Below md there is no hover to give, so they become a plain stack with the
-   copy already showing. */
-
-const ROLES = [
+const compareRows = (product) => [
+  { label: "How it's taken", ours: "A short injection at home", theirs: "A capsule or tablet" },
+  { label: "Provider review", ours: "Yes, by a licensed provider", theirs: "Not required" },
   {
-    label: "Cellular Defense",
-    body: "Participates in processes that help cells respond to oxidative stress",
-    /* Scattered rather than gridded, as the comp draws them: two on the upper
-       line, the third centred below. */
-    slot: { left: "20%", top: "0" },
-  },
-  {
-    label: "Antioxidant Support",
-    body: "May support the body's natural antioxidant defenses",
-    slot: { left: "84%", top: "0" },
-  },
-  {
-    label: "Cellular Balance",
-    /* The client's copy sets this with an em dash. House style is a comma. */
-    body: "Supports normal redox balance, an important part of cellular function",
-    slot: { left: "52%", top: "4.5rem" },
+    label: "Pricing",
+    ours: [priceLabel(product), product.priceNote].filter(Boolean).join(", "),
+    theirs: "Varies by brand",
   },
 ];
 
-const CHIP =
-  "cursor-default rounded-full border border-[#544529]/12 bg-white/70 px-5 py-2.5 backdrop-blur-[2px] transition-shadow duration-500 focus:outline-none";
-
-function RoleChips() {
+function Compare({ product, startTo }) {
   return (
-    <>
-      {/* The stage keeps a fixed height because the chips are taken out of flow;
-          nothing below it may be pushed around by a pill opening. */}
-      <div className="relative mt-9 hidden h-40 md:block">
-        {ROLES.map((r) => (
-          <div
-            key={r.label}
-            className="group absolute -translate-x-1/2"
-            style={{ left: r.slot.left, top: r.slot.top }}
-          >
-            <div tabIndex={0} className={`${CHIP} hover:nv-shadow focus:nv-shadow`}>
-              <span
-                className="block whitespace-nowrap text-[0.88rem] font-semibold"
-                style={{ color: INK }}
-              >
-                {r.label}
-              </span>
-              {/* Closed, the shell is zero-wide so the pill measures only its own
-                  label; the copy holds a fixed inner width so it does not reflow
-                  on the way open. */}
-              <div className="grid w-0 grid-rows-[0fr] overflow-hidden transition-all duration-500 ease-out group-focus-within:w-[15rem] group-focus-within:grid-rows-[1fr] group-hover:w-[15rem] group-hover:grid-rows-[1fr]">
-                <div className="overflow-hidden">
-                  <p
-                    className="w-[15rem] pt-2 text-[0.78rem] leading-relaxed"
-                    style={{ color: BODY }}
-                  >
-                    {r.body}
-                  </p>
-                </div>
+    <section className="pb-[clamp(2.75rem,6vw,5.5rem)]">
+      <div className="mx-auto grid max-w-[1180px] gap-9 px-5 md:px-10 lg:grid-cols-2 lg:items-center lg:gap-14">
+        <Reveal as="div">
+          <span className="nv-eyebrow">Injection or capsule</span>
+          <h2 className={`${H2} mt-3 max-w-[18ch]`}>An Injection, Not a Capsule</h2>
+          <p className="mt-4 max-w-[48ch] text-[1rem] leading-relaxed text-muted">
+            Glutathione is also sold as an oral supplement. Here is how the two are taken.
+          </p>
+
+          <div className={`mt-7 overflow-hidden border border-line bg-surface ${CARD_R}`}>
+            <div className="grid grid-cols-[0.8fr_1fr_1fr] gap-3 bg-surface-2 px-4 py-3 text-[0.78rem] font-bold text-ink sm:px-5">
+              <span />
+              <span>Injection</span>
+              <span className="text-muted">Oral supplement</span>
+            </div>
+            {compareRows(product).map((r) => (
+              <div key={r.label} className="grid grid-cols-[0.8fr_1fr_1fr] gap-3 border-t border-line px-4 py-3.5 text-[0.86rem] leading-snug sm:px-5">
+                <span className="font-semibold text-ink">{r.label}</span>
+                <span className="text-ink">{r.ours}</span>
+                <span className="text-muted">{r.theirs}</span>
               </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[0.76rem] italic leading-relaxed text-muted">
+            A comparison of how each is taken, not of how well either works.
+          </p>
+          <StartLink to={startTo} className="mt-7" />
+        </Reveal>
+
+        <Reveal as="div" delay={0.08} className={`relative hidden overflow-hidden sm:block ${CARD_R}`}>
+          <img
+            src="/site/skin-health/trust-delivery.avif"
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            className="aspect-4/3 w-full object-cover object-[30%_center] lg:aspect-5/6"
+          />
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* 4. WHAT'S INCLUDED: the dark price card, with the record's own price. */
+
+const INCLUDED = [
+  "An online intake reviewed by a licensed provider",
+  "Glutathione Injection, if prescribed",
+  "Compounded by a licensed U.S. pharmacy",
+  "Discreet home delivery",
+  "Follow-up care and guidance throughout your plan",
+];
+
+function Included({ product, startTo }) {
+  return (
+    <section className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.75rem,6vw,5.5rem)] md:px-10">
+      <Reveal as="div">
+        <div className={`relative grid overflow-hidden lg:grid-cols-2 ${CARD_R}`} style={{ background: CHAMPAGNE }}>
+          {/* The warm glow behind her, laid on the whole card so it fades out
+              before the price card instead of ending at the column's edge.
+              Desktop only: stacked, it would sit under the price card. */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 hidden lg:block"
+            style={{ background: "radial-gradient(circle at 28% 92%, rgba(193,162,122,0.36), transparent 42%)" }}
+          />
+          <div className="relative px-6 pt-9 sm:px-10 sm:pt-12">
+            <span className="relative flex items-center gap-2 text-[0.9rem] font-semibold" style={{ color: GOLD_INK }}>
+              <span className="h-2 w-2 rounded-full bg-[#977e43]" />
+              Provider-guided care
+            </span>
+            <h2 className={`${TITLE} relative z-10 mt-4 max-w-[20ch] text-[clamp(1.5rem,2.8vw,2.1rem)]`} style={{ color: GOLD_INK }}>
+              Glutathione, prescribed and followed by a licensed provider.
+            </h2>
+            {/* A woman in the page's audience, 35 to 60. The cut-out is cropped
+                only at the waist, so it stands on the card's bottom edge.
+                Stacked, that crop fades out under the price card. */}
+            <img
+              src="/site/anti-aging/benefit-vitality.avif"
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              className="mx-auto mt-6 block h-64 w-auto object-contain object-bottom [mask-image:linear-gradient(180deg,#000_70%,transparent)] sm:h-80 lg:absolute lg:bottom-0 lg:left-1/2 lg:mt-0 lg:h-[60%] lg:-translate-x-1/2 lg:[mask-image:none]"
+            />
+          </div>
+
+          {/* Stacked, the card rides up over the photo's cropped bottom edge. */}
+          <div className="relative -mt-12 p-4 sm:p-8 lg:mt-0">
+            <div className={`bg-white px-6 py-7 sm:px-9 sm:py-9 ${CARD_R}`}>
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                <span className="font-display text-[clamp(2.4rem,4vw,3rem)] font-extrabold leading-none text-ink">
+                  {priceLabel(product)}
+                </span>
+                {product.priceNote && <span className="text-[1rem] text-muted">{product.priceNote}</span>}
+              </div>
+              <p className="mt-2 text-[0.88rem] text-muted">
+                You pay only if a provider determines that a prescription is appropriate.
+              </p>
+              <h3 className="mt-7 text-[0.95rem] font-bold text-ink">What's included</h3>
+              <ul className="mt-3 grid gap-3">
+                {INCLUDED.map((t) => (
+                  <li key={t} className="flex items-start gap-3 text-[0.94rem] leading-snug text-ink">
+                    <Check size={17} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#977e43]" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <StartLink to={startTo} className="mt-8 w-full justify-center" />
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Below md the chips wrap into rows rather than scattering across a
-          stage, but they are the same pill the comp draws: closed to its own
-          label, opened by a tap, which focuses the chip the same way the
-          keyboard does (2026-09-19). They used to sit here as cards with the
-          description always showing, which is not what the design has. */}
-      <ul className="mt-7 flex flex-wrap gap-3 md:hidden">
-        {ROLES.map((r) => (
-          <li key={r.label} className="group">
-            <div tabIndex={0} className={`${CHIP} focus:nv-shadow`}>
-              <span
-                className="block whitespace-nowrap text-[0.86rem] font-semibold"
-                style={{ color: INK }}
-              >
-                {r.label}
-              </span>
-              <div className="grid w-0 grid-rows-[0fr] overflow-hidden transition-all duration-500 ease-out group-focus-within:w-[15rem] group-focus-within:grid-rows-[1fr]">
-                <div className="overflow-hidden">
-                  <p className="w-[15rem] pt-2 text-[0.78rem] leading-relaxed" style={{ color: BODY }}>
-                    {r.body}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </>
-  );
-}
-
-/* ------------------------- 3. the legal footer -------------------------
-   These four sentences are required on the page. They used to sit under "The
-   Role of Glutathione" — the portrait-and-CTA block that opened this component,
-   removed on 2026-09-08 at the client's request — so they carry on alone here
-   rather than leaving the page without them. */
-
-function Qualifiers() {
-  return (
-    <div className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.5rem,6vw,4.5rem)] md:px-10">
-      <p className="max-w-[62ch] text-[0.76rem] italic leading-relaxed text-muted">
-        Prescription required. Eligibility determined by a licensed provider. Individual results may
-        vary. Compounded medications are not FDA-approved.
-      </p>
-    </div>
-  );
-}
-
-/* ----------------------------- 4. closing band ----------------------------
-   Removed on 2026-09-08 with the compliance pass: "Support how you want to
-   feel" is an outcome promise, and the band existed to carry it. Its legal
-   footnote lives in Qualifiers so nothing required was lost. */
-
-
-export default function GlutathioneSections() {
-  return (
-    <section style={{ background: "#faf8f4" }}>
-      <HowItWorks />
-      <AlreadyUsing />
-      <NotSurfaceLevel />
-      <Qualifiers />
+        </div>
+      </Reveal>
     </section>
+  );
+}
+
+export default function GlutathioneSections({ product, startTo = "/start" }) {
+  return (
+    <>
+      <WhatIs startTo={startTo} />
+      <div style={{ background: GROUND }}>
+        <MadeInYou />
+        <Compare product={product} startTo={startTo} />
+        <Included product={product} startTo={startTo} />
+      </div>
+    </>
   );
 }

@@ -1,430 +1,425 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight } from "lucide-react";
+import { motion as Motion } from "framer-motion";
+import { ArrowRight, Brain, Check, KeyRound, Link2 } from "lucide-react";
 import Reveal from "../ui/Reveal";
-import useRunOnceInView from "../../lib/useRunOnceInView";
+import { priceLabel, productsData } from "../data/products";
+import { productPath } from "../../lib/slug";
 
-/* Same dwell the Semaglutide rail uses, so the two highlights read as one
-   system. */
-const FEATURE_HOLD_MS = 3000;
+/* Both PT-141 pages, rebuilt 2026-10-13 on the NAD+ layout (client: one layout
+   for every product page). The client kept one idea from the old pages: the
+   product with three things around it and the three steps under it, done best
+   on the nasal page. Those are restyled to the new look; the rest is the gold
+   band, a format comparison and the dark price card. The old timing card was a
+   dosing schedule and the mood pills read as promised outcomes, so both are
+   gone. The nasal page renders this file with format="nasal". */
 
-/* PT-141 editorial from the supplied product comp. Consultation links return
-   through this product page so they use its existing intake entry point. */
-const INK = "#745922";
-const BODY = "#625a4d";
-const CREAM = "#f8e8c5";
-const CREAM_SOFT = "rgba(248,232,197,0.82)";
-/* The resting pair for the cycling features. 0.82/0.64 sat too close to full
-   cream to read as "not lit" — the highlight was invisible. */
-const CREAM_DIM = "rgba(248,232,197,0.44)";
-const CREAM_DIMMER = "rgba(248,232,197,0.34)";
-const BRASS = "radial-gradient(circle at 50% 50%, #c1a27a, #9a7843)";
-const BRASS_FLAT = "#ad8a55";
-const PALE = "#f3e5ca";
-const CARD_R = "rounded-[calc(26px*var(--nv-r-scale,1))]";
-const TITLE = "nv-weight-keep font-display font-extrabold leading-[1.08]";
-const TITLE_SIZE = "text-[clamp(1.7rem,4vw,2.75rem)]";
-/* Tighter than the site default so this page's bands use more of their width. */
-const SECTION_X = "px-3 sm:px-5 md:px-6";
+const BAND = "radial-gradient(circle at 30% 40%, #c1a27a, #9a7843)";
+/* The price card's ground: a light champagne (client, 2026-10-13, in place
+   of the dark brown), with the heading in the page's deep gold. */
+const CHAMPAGNE = "linear-gradient(160deg, #f5ead6 0%, #ecdcbf 55%, #e2cda6 100%)";
+const GOLD_INK = "#725826";
+const CREAM = "#ffe8b1";
+const GROUND = "#fbfaf7";
+const TITLE = "font-display font-extrabold leading-[1.1]";
+const H2 = `${TITLE} text-[clamp(1.7rem,3.4vw,2.5rem)] text-[#725826]`;
+const CARD_R = "rounded-[calc(24px*var(--nv-r-scale,1))]";
+const EASE = [0.2, 0.7, 0.3, 1];
 
-const FEATURES = [
-  ["Melanocortin receptor agonist", "Bremelanotide acts on melanocortin receptors in the central nervous system"],
-  ["Compounded prescription", "Prepared by a licensed compounding pharmacy when prescribed"],
-  ["Injectable format", "Prescribed as a subcutaneous injection under provider guidance"],
-  ["Provider-guided use", "Use only as directed by your healthcare provider and prescription label"],
-];
+/* What differs between the two pages: the product art, the first two steps,
+   the comparison's point of view and the couple photo. Everything else is
+   shared. */
+const FORMATS = {
+  injection: {
+    record: "Bremelanotide Injection",
+    name: "PT-141 Injection",
+    noun: "injection",
+    blur: "/site/sexual-health/pt141-gallery-hero.avif",
+    art: "/products/pt-141.avif",
+    artSize: "w-[min(80%,19rem)]",
+    /* Art width against the disc. The spray bottle is narrow, so its square
+       is set larger to stand about as tall as the vial. */
+    stageArt: "w-[112%]",
+    firstStep: { title: "Injection", text: "A small injection under the skin, as your provider directs." },
+    absorb: "Bremelanotide passes from under the skin into the bloodstream.",
+    given: "A small injection under the skin",
+    needles: "A small needle",
+    ships: "A vial",
+    compareTitle: "PT-141 Injection, or a Needle-Free Spray",
+    compareText: "Both contain bremelanotide. They differ in how it is given and in price.",
+    img: "/site/sexual-health/pt141-couple.avif",
+    imgPos: "object-[60%_center]",
+  },
+  nasal: {
+    record: "Bremelanotide Nasal Spray",
+    name: "PT-141 Nasal Spray",
+    noun: "nasal spray",
+    blur: "/site/sexual-health/pt141-spray-gallery-hero.avif",
+    art: "/products/pt-141-nasal.avif",
+    artSize: "w-[min(92%,22rem)]",
+    stageArt: "w-[130%]",
+    firstStep: { title: "Nasal use", text: "A spray into the nose, as your provider directs." },
+    absorb: "Bremelanotide passes through the lining of the nose into the bloodstream.",
+    given: "A spray into the nose",
+    needles: "None",
+    ships: "A nasal spray bottle",
+    compareTitle: "Needle-Free PT-141",
+    compareText: "The spray contains bremelanotide, like the injection, and is used in the nose instead of under the skin.",
+    img: "/site/sexual-health/pt141-nasal-couple.avif",
+    imgPos: "object-[70%_center]",
+  },
+};
 
-function SignalPill({ children, className = "" }) {
+function StartLink({ to, light = false, className = "" }) {
   return (
-    <span
-      /* Smaller on a phone, where three of these are pinned around the vial
-         with only the width left over to sit in (2026-09-19). */
-      className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 font-display text-[0.56rem] font-bold uppercase leading-[1.25] sm:gap-2 sm:px-5 sm:py-2.5 sm:text-[0.78rem] ${className}`}
-      style={{ background: "rgba(248,232,197,0.28)", color: CREAM }}
+    <Link
+      to={to}
+      className={`group inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[0.95rem] font-semibold transition-all hover:-translate-y-0.5 ${
+        light ? "bg-[#f6efe0] text-[#6b511e]" : "bg-[#977e43] text-white hover:bg-[#836c39] nv-shadow"
+      } ${className}`}
     >
-      <span
+      Start your consultation
+      <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+    </Link>
+  );
+}
+
+/* 1. WHAT IS BREMELANOTIDE: the gold band, with the format's own product. */
+
+function WhatIs({ f, startTo }) {
+  return (
+    <section className="relative overflow-hidden" style={{ background: BAND }}>
+      <img
+        src={f.blur}
+        alt=""
         aria-hidden="true"
-        className="h-2 w-2 shrink-0 rounded-full"
-        style={{ background: "#d7a23f", boxShadow: "0 0 12px 4px rgba(215,162,63,0.46)" }}
+        className="absolute inset-0 h-full w-full scale-110 object-cover opacity-30 mix-blend-soft-light blur-2xl"
       />
-      {children}
-    </span>
-  );
-}
-
-/* An L: the riser sits under the pill's own end and the run heads toward the
-   vial, so the border pair flips with the side the pill is on. */
-function Elbow({ side, className = "" }) {
-  const rule = "1px solid rgba(255,255,255,0.22)";
-  return (
-    <span
-      aria-hidden="true"
-      className={`pointer-events-none absolute ${className}`}
-      style={{
-        borderBottom: rule,
-        ...(side === "left" ? { borderLeft: rule } : { borderRight: rule }),
-      }}
-    />
-  );
-}
-
-function SignalDiagram() {
-  return (
-    <>
-      {/* The phone gets the stage's own arrangement rather than a row of pills
-          under the vial (2026-09-19): same three labels, same elbows, drawn to
-          the width there is. The vial is sized off the box so the pair of
-          columns beside it always has room. */}
-      <div className="relative mx-auto mt-6 h-72 w-full max-w-[26rem] md:hidden">
-        <Elbow side="left" className="left-[27%] top-[46%] h-[5%] w-[12%]" />
-        <Elbow side="right" className="right-[25%] top-[25%] h-[5%] w-[13%]" />
-        <Elbow side="right" className="right-[27%] top-[62%] h-[5%] w-[12%]" />
-        <SignalPill className="absolute left-0 top-[36%] max-w-[26%] text-center">
-          Melanocortin pathways
-        </SignalPill>
-        <SignalPill className="absolute right-0 top-[16%] max-w-[26%] text-center">
-          Central signaling
-        </SignalPill>
-        <SignalPill className="absolute right-0 top-[53%] max-w-[24%] text-center">
-          As-needed use
-        </SignalPill>
-        <span className="absolute left-1/2 top-1/2 h-[92%] -translate-x-1/2 -translate-y-1/2">
-          <img
-            src="/site/sexual-health/pt141-vial-tall.avif"
-            alt=""
-            aria-hidden="true"
-            loading="lazy"
-            className="nv-drift h-full w-auto drop-shadow-2xl"
-          />
-        </span>
-      </div>
-
-      <div className="relative mx-auto mt-5 hidden h-[24rem] max-w-[52rem] md:block lg:h-[27rem]">
-        <Elbow side="left" className="left-[16%] top-[42%] h-[7%] w-[21%]" />
-        <Elbow side="right" className="right-[16%] top-[20%] h-[7%] w-[21%]" />
-        <Elbow side="right" className="right-[16%] top-[59%] h-[7%] w-[21%]" />
-        <SignalPill className="absolute left-[3%] top-[32%] max-w-[13.5rem] text-center">
-          Melanocortin pathways
-        </SignalPill>
-        <SignalPill className="absolute right-[1%] top-[11%]">Central signaling</SignalPill>
-        <SignalPill className="absolute right-[4%] top-[50%]">As-needed use</SignalPill>
-        <span className="absolute left-1/2 top-1/2 h-[96%] -translate-x-1/2 -translate-y-1/2">
-          <img
-            src="/site/sexual-health/pt141-vial-tall.avif"
-            alt=""
-            aria-hidden="true"
-            loading="lazy"
-            className="nv-drift h-full w-auto drop-shadow-2xl"
-          />
-        </span>
-      </div>
-    </>
-  );
-}
-
-/* The lit one moves on every 3s instead of the first being lit for good. Only
-   colour changes, so the entry reveal keeps ownership of opacity. */
-function FeatureGrid() {
-  const [ref, running] = useRunOnceInView();
-  const [active, setActive] = React.useState(0);
-
-  React.useEffect(() => {
-    if (!running) return undefined;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const t = setInterval(() => setActive((v) => (v + 1) % FEATURES.length), FEATURE_HOLD_MS);
-    return () => clearInterval(t);
-  }, [running]);
-
-  return (
-    <div ref={ref} className="mt-9 border-t border-white/25 pt-8 sm:mt-10 sm:pt-10">
-      {/* Left-aligned copy, but the pair of columns is centred in the band
-          rather than stretched across it. */}
-      <div className="mx-auto grid max-w-[50rem] gap-x-12 gap-y-8 sm:grid-cols-2 sm:gap-y-11">
-        {FEATURES.map(([title, body], index) => {
-          const on = index === active;
-          return (
-            <Reveal as="div" key={title} delay={(index % 2) * 0.08} y={12}>
-              <h3
-                className="font-display text-[0.92rem] font-bold uppercase tracking-[0.02em] transition-colors duration-500 sm:text-[1rem]"
-                style={{ color: on ? CREAM : CREAM_DIM }}
-              >
-                {title}
-              </h3>
-              <p
-                className="mt-2.5 max-w-[38ch] text-[0.98rem] leading-[1.45] transition-colors duration-500 sm:text-[1.05rem]"
-                style={{ color: on ? CREAM : CREAM_DIMMER }}
-              >
-                {body}
-              </p>
-            </Reveal>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function ResponseStartsEarlier({ startTo }) {
-  return (
-    <>
-      <section className="overflow-hidden" style={{ background: BRASS }}>
-        <div className={`mx-auto max-w-[1180px] py-9 sm:py-12 lg:py-16 ${SECTION_X}`}>
-          {/* The copy column carries more of the row than the comp's 0.95/0.75
-              split gave it: at that width the second line of the heading could
-              not hold and it broke to three. */}
-          <div className="grid gap-5 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.72fr)] md:gap-12">
-            <Reveal as="div">
-              <h2 className={`${TITLE} ${TITLE_SIZE} max-w-[30ch]`} style={{ color: CREAM }}>
-                Melanocortin
-                <span className="block">receptor activity</span>
+      <div className="relative mx-auto max-w-[1180px] px-5 py-[clamp(2.5rem,6vw,5.5rem)] md:px-10">
+        <Reveal as="div">
+          <div
+            className={`grid gap-8 border border-white/25 bg-white/10 p-6 backdrop-blur-md sm:p-10 lg:grid-cols-[1.25fr_1fr] lg:items-center lg:gap-12 lg:p-14 ${CARD_R}`}
+          >
+            <div>
+              <span className="text-[0.75rem] font-bold uppercase tracking-[0.16em]" style={{ color: "rgba(255,232,177,0.8)" }}>
+                A prescription peptide
+              </span>
+              <h2 className={`${TITLE} mt-3 text-[clamp(1.8rem,3.6vw,2.7rem)]`} style={{ color: CREAM }}>
+                What is Bremelanotide?
               </h2>
-              <Link
-                to={startTo}
-                className="mt-6 inline-flex rounded-full px-8 py-3 text-[0.88rem] font-semibold transition-all duration-300 hover:-translate-y-0.5 sm:mt-7 sm:px-10"
-                style={{ background: PALE, color: INK }}
-              >
-                Get Started
-              </Link>
-            </Reveal>
-            <Reveal
-              as="p"
-              delay={0.08}
-              className="max-w-[48ch] text-[clamp(0.92rem,1.05vw,1.02rem)] leading-[1.6] md:pt-1"
-              style={{ color: CREAM }}
-            >
-              Bremelanotide acts on melanocortin receptors in the central nervous system.
-            </Reveal>
+              <p className="mt-2 text-[0.9rem]" style={{ color: "rgba(255,232,177,0.75)" }}>
+                (also called PT-141)
+              </p>
+              <p className="mt-5 max-w-[50ch] text-[1rem] leading-relaxed" style={{ color: CREAM }}>
+                Bremelanotide is a synthetic peptide that acts on melanocortin receptors in the brain, part of the
+                pathways involved in sexual desire. Prescribed as a compounded {f.noun}, only if a licensed
+                provider decides it is appropriate.
+              </p>
+              <StartLink to={startTo} light className="mt-7" />
+            </div>
+
+            <div>
+              <div className={`mx-auto ${f.artSize}`}>
+                {/* The tilt has its own wrapper: the float animates the image's
+                    transform and would wipe a rotate set on it. */}
+                <span className="block rotate-6">
+                  <img
+                    src={f.art}
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                    className="nv-float pointer-events-none block w-full drop-shadow-[0_18px_34px_rgba(70,50,20,0.34)]"
+                  />
+                </span>
+              </div>
+            </div>
           </div>
-
-          <SignalDiagram />
-
-          <FeatureGrid />
-
-          {/* Inside the band, on the brass (2026-09-19). Sitting outside the
-              section it put a white strip between two brass bands. */}
-          <p className="pt-7 text-[0.73rem] italic sm:pt-9" style={{ color: CREAM_DIM }}>
-            Prescription required. Eligibility determined by a licensed provider
-          </p>
-        </div>
-      </section>
-    </>
-  );
-}
-
-/* All three read as the same translucent cream in the comp; only the lit one
-   steps up in fill and text. The old dark-brown fill on Confidence was a
-   different chip entirely. */
-const MOOD_PILLS = [
-  { label: "Desire", pos: "left-[34%] top-[7%] px-7", z: "z-10" },
-  { label: "Confidence", pos: "right-[3%] top-[31%] px-5", z: "z-30" },
-  /* On a phone the timing card takes the foot of the band, so Response moves
-     up the left side rather than sitting behind it. */
-  { label: "Response", pos: "left-[6%] top-[20%] px-5 sm:left-[42%] sm:top-auto sm:bottom-[7%]", z: "z-30" },
-];
-
-function ReadinessCard() {
-  const [ref, running] = useRunOnceInView();
-  const [active, setActive] = React.useState(1);
-
-  React.useEffect(() => {
-    if (!running) return undefined;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const t = setInterval(() => setActive((v) => (v + 1) % MOOD_PILLS.length), FEATURE_HOLD_MS);
-    return () => clearInterval(t);
-  }, [running]);
-
-  return (
-    <Reveal as="div" className="order-2 lg:relative lg:order-1">
-      {/* No fill and no radius of its own: the band behind it is the brass, so
-          the figure and the pills sit straight on the section (2026-09-19). */}
-      <div
-        ref={ref}
-        className="relative min-h-120 overflow-hidden sm:min-h-128 lg:min-h-136"
-      >
-        {MOOD_PILLS.map((p, i) => (
-          <span
-            key={p.label}
-            className={`absolute rounded-full py-2.5 font-display text-[1.02rem] font-bold transition-all duration-500 sm:py-3 sm:text-[1.15rem] ${p.pos} ${p.z}`}
-            style={{
-              background: i === active ? "rgba(248,232,197,0.5)" : "rgba(248,232,197,0.24)",
-              color: i === active ? "#fffaf0" : CREAM_SOFT,
-            }}
-          >
-            {p.label}
-          </span>
-        ))}
-        <img
-          src="/site/sexual-health/pt141-timing-card.avif"
-          alt="As-Needed Use. Provider-guided timing for PT-141: 45 minutes. Often administered at least 45 minutes before anticipated intimacy, as directed by your provider."
-          loading="lazy"
-          className="absolute bottom-[5%] left-[4%] z-30 w-[92%] max-w-none sm:bottom-auto sm:left-[4%] sm:top-[22%] sm:w-[74%] lg:z-10 lg:w-[64%]"
-        />
-        <img
-          src="/site/sexual-health/pt141-woman.avif"
-          alt=""
-          aria-hidden="true"
-          loading="lazy"
-          /* Flush with the foot of the stage, so the band closes just under
-             her rather than leaving a span of empty brass (2026-09-19). */
-          className="absolute bottom-0 right-0 z-20 h-[96%] w-auto max-w-none sm:h-full"
-        />
-      </div>
-      {/* Out of flow from lg, so the figure above can stand on the section's
-          own bottom edge instead of being lifted by this line (2026-09-19). */}
-      <p
-        className="mt-5 text-[0.72rem] italic leading-[1.35] lg:absolute lg:bottom-3 lg:left-0 lg:mt-0"
-        style={{ color: CREAM_DIM }}
-      >
-        PT-141 is a compounded prescription medication and is not FDA-approved.
-        <span className="block">
-          Compounded medications are not reviewed by the FDA for safety, effectiveness, or quality
-        </span>
-      </p>
-    </Reveal>
-  );
-}
-
-function IsItRight({ startTo }) {
-  return (
-    /* One full-bleed brass band carrying the stage AND the copy, as the comp
-       draws it (2026-09-19). It was a rounded brass card with the copy outside
-       it on the cream page: a different layout, not a different card. The copy
-       therefore turns cream, and the button inverts to pale on brass. */
-    <section className="w-full" style={{ background: BRASS_FLAT }}>
-      <div
-        className={`mx-auto grid max-w-[1180px] gap-7 pb-6 pt-8 sm:pb-8 sm:pt-12 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.68fr)] lg:items-end lg:gap-10 lg:pb-0 lg:pt-14 ${SECTION_X}`}
-      >
-        <ReadinessCard />
-        <Reveal as="div" className="order-1 lg:order-2" delay={0.08}>
-          <span
-            className="font-mono text-[0.65rem] uppercase tracking-[0.08em]"
-            style={{ color: CREAM_SOFT }}
-          >
-            Before you start
-          </span>
-          <h2
-            className={`${TITLE} mt-3 max-w-[13ch] text-[clamp(2rem,4.6vw,3.2rem)]`}
-            style={{ color: CREAM }}
-          >
-            Is PT-141
-            <span className="block">right for you?</span>
-          </h2>
-          <p
-            className="mt-5 max-w-[34ch] text-[clamp(1rem,1.2vw,1.15rem)] leading-[1.5]"
-            style={{ color: CREAM_SOFT }}
-          >
-            Our care starts with a medical review to make sure PT-141 fits your health and treatment
-            goals.
-          </p>
-          <Link
-            to={startTo}
-            className="mt-6 inline-flex rounded-full px-7 py-3 text-center text-[0.86rem] font-semibold transition-transform duration-300 hover:-translate-y-0.5 sm:px-8"
-            style={{ background: PALE, color: INK }}
-          >
-            See If PT-141 Is Right for You
-          </Link>
-          <p
-            className="mt-7 max-w-[64ch] text-[0.72rem] italic leading-[1.45] lg:mt-12"
-            style={{ color: CREAM_DIM }}
-          >
-            Prescription only. Treatment is provided when medically appropriate. Compounded
-            medications are not FDA-approved.
-          </p>
         </Reveal>
       </div>
     </section>
   );
 }
 
-function Formulation({ startTo }) {
+/* 2. HOW IT WORKS: the old pages' product with three things around it, now
+   white cards drawn to the product on a gold disc, and the three steps under
+   it. How the peptide acts, never what it will do for you. */
+
+const POINTS = [
+  { icon: Link2, title: "Peptide-based", text: "Bremelanotide is a synthetic peptide, a short chain of amino acids." },
+  { icon: KeyRound, title: "Melanocortin activity", text: "It activates several melanocortin receptors, including MC1R and MC4R." },
+  { icon: Brain, title: "Central pathway", text: "It works through pathways in the central nervous system." },
+];
+
+/* lg grid places: two cards on the left, held close to the middle so their
+   hairlines still meet the disc, and one on the right, the disc between. */
+const POINT_AT = [
+  "lg:col-start-1 lg:row-start-1 lg:self-end",
+  "lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:self-center",
+  "lg:col-start-1 lg:row-start-2 lg:self-start",
+];
+
+function PointCard({ p }) {
   return (
-    /* Full bleed, as the comp has it (2026-09-19): the photograph runs edge to
-       edge and the copy on it keeps the page's column. */
-    <section className="w-full pb-10 sm:pb-14 lg:pb-20">
-      <Reveal>
-        <div
-          className="relative min-h-164 overflow-hidden sm:min-h-152 lg:min-h-156"
-          /* Only ever seen above the photo on narrow screens; it ends on the
-             photo's own top-edge colour so the seam disappears. */
-          style={{ background: "linear-gradient(#7d6a52, #96826a)" }}
-        >
-          {/* A phone is far too narrow to hold both the couple and a clear
-              column to set the copy in, so below lg the photo takes the lower
-              band and the copy sits on the card's own ground above it. Same
-              split as the nasal spray page. */}
-          <img
-            src="/site/sexual-health/pt141-couple.avif"
-            alt="Couple relaxing together at home"
-            loading="lazy"
-            className="absolute inset-x-0 bottom-0 h-[62%] w-full object-cover object-[52%_center] sm:h-[66%] lg:inset-0 lg:h-full lg:object-center"
-          />
-          {/* No scrim: the comp uses the photograph as shot, and the tint was
-              flattening its warmth. */}
-          <div className="relative z-10 mx-auto w-full max-w-[1180px] px-6 pt-7 text-white sm:px-9 sm:pt-10 lg:px-12 lg:pt-12">
-            <div className="max-w-136">
-            <span className="font-display text-[0.72rem] font-bold uppercase tracking-[0.06em]">
-              Formulation
-            </span>
-            <h2 className={`${TITLE} mt-3 whitespace-nowrap text-[clamp(2rem,4.6vw,3.3rem)]`}>
-              PT-141 Injection
-            </h2>
-            <p className="mt-5 max-w-[42ch] text-[clamp(1rem,1.25vw,1.2rem)] font-semibold leading-[1.4]">
-              Compounded PT-141 (bremelanotide) in an injectable format, prescribed and guided by
-              your provider
-            </p>
-            <Link
-              to={startTo}
-              className="mt-7 inline-flex rounded-full px-11 py-3.5 text-[0.98rem] font-semibold transition-transform duration-300 hover:-translate-y-0.5"
-              style={{ background: PALE, color: INK }}
+    <div className="flex w-full items-start gap-4 rounded-[18px] border border-line bg-surface p-5 nv-shadow lg:w-72 lg:shrink-0">
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px]" style={{ background: BAND }}>
+        <p.icon size={22} strokeWidth={1.5} style={{ color: CREAM }} />
+      </span>
+      <div className="min-w-0">
+        <h3 className="font-display text-[1.05rem] font-bold leading-snug text-ink">{p.title}</h3>
+        <p className="mt-1 text-[0.9rem] leading-relaxed text-muted">{p.text}</p>
+      </div>
+    </div>
+  );
+}
+
+/* The hairline that carries a card to the product, lg only. It runs on under
+   the disc, so wherever a card sits it meets the disc's ring. */
+function Lead({ flip = false }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`hidden h-px flex-1 bg-[#c1a27a]/70 lg:block ${flip ? "-ml-36 xl:-ml-44" : "-mr-36 xl:-mr-44"}`}
+    />
+  );
+}
+
+function ProductDisc({ f, className = "" }) {
+  return (
+    <div className={`relative ${className}`}>
+      <span
+        aria-hidden="true"
+        className="block aspect-square w-full rounded-full shadow-[0_0_0_14px_rgba(193,162,122,0.14),0_0_0_30px_rgba(193,162,122,0.07)]"
+        style={{ background: BAND }}
+      />
+      <span className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[52%] ${f.stageArt}`}>
+        <img
+          src={f.art}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          className="nv-float pointer-events-none block w-full drop-shadow-[0_22px_30px_rgba(70,50,20,0.38)]"
+        />
+      </span>
+    </div>
+  );
+}
+
+function StepRail({ f }) {
+  const steps = [
+    f.firstStep,
+    { title: "Absorption", text: f.absorb },
+    { title: "Receptor activity", text: "It reaches melanocortin receptors in the central nervous system." },
+  ];
+  return (
+    <ol className="mt-7 grid gap-7 sm:grid-cols-3 sm:gap-6">
+      {steps.map((s, i) => (
+        <li key={s.title} className="flex items-start gap-4 sm:block">
+          <div className="flex items-center gap-4">
+            <Reveal
+              as="span"
+              y={0}
+              duration={0.5}
+              delay={i * 0.16}
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full font-display text-[0.95rem] font-semibold"
+              style={{ background: BAND, color: CREAM }}
             >
-              Get Started
-            </Link>
+              {i + 1}
+            </Reveal>
+            {i < steps.length - 1 && (
+              /* Clipped rather than scaled: scaleX on a 1px rule thins it. */
+              <Motion.span
+                aria-hidden="true"
+                className="hidden h-px flex-1 bg-[#c1a27a]/60 sm:block"
+                initial={{ clipPath: "inset(0 100% 0 0)" }}
+                whileInView={{ clipPath: "inset(0 0% 0 0)" }}
+                viewport={{ once: true, margin: "-80px 0px -80px 0px" }}
+                transition={{ duration: 0.5, ease: EASE, delay: i * 0.16 + 0.26 }}
+              />
+            )}
+          </div>
+          <div className="min-w-0 sm:mt-4 sm:pr-6">
+            <h4 className="font-display text-[1.05rem] font-bold leading-snug text-ink">{s.title}</h4>
+            <p className="mt-1 text-[0.92rem] leading-relaxed text-muted">{s.text}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function HowItWorks({ f }) {
+  return (
+    <section className="py-[clamp(2.75rem,6vw,5.5rem)]">
+      <div className="mx-auto max-w-[1180px] px-5 md:px-10">
+        <Reveal as="div" className="text-center">
+          <span className="nv-eyebrow">How it works</span>
+          <h2 className={`${H2} mx-auto mt-3 max-w-[20ch]`}>A Peptide That Acts Through the Brain</h2>
+        </Reveal>
+
+        <div className="mx-auto mt-10 grid max-w-xl gap-3 sm:mt-12 lg:max-w-none lg:grid-cols-[1fr_18rem_1fr] lg:grid-rows-2 lg:gap-x-0 lg:gap-y-10 xl:grid-cols-[1fr_22rem_1fr]">
+          <Reveal as="div" className="relative z-10 mx-auto mb-8 w-56 sm:w-64 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mb-0 lg:w-full lg:self-center">
+            <ProductDisc f={f} />
+          </Reveal>
+          {POINTS.map((p, i) => (
+            <Reveal
+              as="div"
+              key={p.title}
+              delay={0.1 + i * 0.1}
+              y={14}
+              className={`flex items-center ${POINT_AT[i]} ${i === 1 ? "lg:flex-row-reverse" : ""}`}
+            >
+              <PointCard p={p} />
+              <Lead flip={i === 1} />
+            </Reveal>
+          ))}
+        </div>
+
+        <div className="mt-14 border-t border-line pt-9 sm:mt-16">
+          <h3 className="font-display text-[1.2rem] font-bold text-[#725826]">From {f.noun} to receptor</h3>
+          <StepRail f={f} />
+          <p className="mt-9 border-t border-line pt-5 text-[0.76rem] italic leading-relaxed text-muted">
+            How bremelanotide works in the body, not an expected result of treatment. Individual response varies.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* 3. THE COMPARISON: injection against nasal spray, from this page's side.
+   Where, how and what it costs; nothing says one works better. */
+
+function Compare({ f, format, product, startTo }) {
+  const other = FORMATS[format === "nasal" ? "injection" : "nasal"];
+  const otherRecord = productsData.find((p) => p.name === other.record);
+  const rows = [
+    { label: "How it's given", ours: f.given, theirs: other.given },
+    { label: "Needles", ours: f.needles, theirs: other.needles },
+    { label: "Ships as", ours: f.ships, theirs: other.ships },
+    { label: "Pricing", ours: priceLabel(product), theirs: priceLabel(otherRecord) },
+  ];
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  return (
+    <section className="pb-[clamp(2.75rem,6vw,5.5rem)]">
+      <div className="mx-auto grid max-w-[1180px] gap-9 px-5 md:px-10 lg:grid-cols-2 lg:items-center lg:gap-14">
+        <Reveal as="div">
+          <span className="nv-eyebrow">
+            {cap(f.noun)} or {other.noun}
+          </span>
+          <h2 className={`${H2} mt-3 max-w-[18ch]`}>{f.compareTitle}</h2>
+          <p className="mt-4 max-w-[48ch] text-[1rem] leading-relaxed text-muted">{f.compareText}</p>
+
+          <div className={`mt-7 overflow-hidden border border-line bg-surface ${CARD_R}`}>
+            <div className="grid grid-cols-[0.8fr_1fr_1fr] gap-3 bg-surface-2 px-4 py-3 text-[0.78rem] font-bold text-ink sm:px-5">
+              <span />
+              <span>{cap(f.noun)}</span>
+              <span className="text-muted">{cap(other.noun)}</span>
             </div>
+            {rows.map((r) => (
+              <div key={r.label} className="grid grid-cols-[0.8fr_1fr_1fr] gap-3 border-t border-line px-4 py-3.5 text-[0.86rem] leading-snug sm:px-5">
+                <span className="font-semibold text-ink">{r.label}</span>
+                <span className="text-ink">{r.ours}</span>
+                <span className="text-muted">{r.theirs}</span>
+              </div>
+            ))}
           </div>
 
+          <div className="mt-7 flex flex-wrap items-center gap-x-7 gap-y-4">
+            <StartLink to={startTo} />
+            {otherRecord && (
+              <Link
+                to={productPath(otherRecord)}
+                className="group inline-flex items-center gap-1.5 text-[0.95rem] font-semibold text-[#725826] underline decoration-line-strong underline-offset-4 hover:decoration-[#725826]"
+              >
+                See {other.name}
+                <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
+              </Link>
+            )}
+          </div>
+        </Reveal>
+
+        <Reveal as="div" delay={0.08} className={`relative hidden overflow-hidden sm:block ${CARD_R}`}>
           <img
-            src="/site/sexual-health/pt141-vial-tall.avif"
+            src={f.img}
             alt=""
             aria-hidden="true"
             loading="lazy"
-            className="nv-drift absolute bottom-[27%] left-[3%] z-10 h-44 w-auto sm:bottom-[25%] sm:h-56 lg:bottom-[-6%] lg:left-[4%] lg:h-80"
-            style={{ rotate: "9deg" }}
+            className={`aspect-4/3 w-full object-cover lg:aspect-5/6 ${f.imgPos}`}
           />
+        </Reveal>
+      </div>
+    </section>
+  );
+}
 
-          <div
-            /* Pinned to the content column rather than the window: with the
-               band full bleed, sm:right-7 left it 28px off the screen edge
-               while the copy started at the column (2026-09-19). */
-            className="absolute bottom-4 left-4 right-4 z-20 rounded-[calc(20px*var(--nv-r-scale,1))] border-2 px-5 py-5 sm:bottom-7 sm:left-auto sm:right-[max(1.75rem,calc((100%-1180px)/2+2.25rem))] sm:w-84 sm:px-6"
-            /* #c5a171, the comp's "Gray orange", rather than the darker brass
-               that was here. */
-            style={{ background: "rgba(197,161,113,0.58)", borderColor: "rgba(255,241,210,0.35)" }}
-          >
-            <div className="flex items-center gap-4">
-              <div className="min-w-0 flex-1">
-                <p
-                  className="font-display text-[0.95rem] font-bold leading-[1.15]"
-                  style={{ color: CREAM }}
-                >
-                  Looking for a
-                  <span className="block">needle-free option?</span>
-                </p>
-                <Link
-                  to="/product/bremelanotide-nasal-spray"
-                  className="mt-4 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[0.7rem] font-medium transition-transform duration-300 hover:-translate-y-0.5"
-                  style={{ background: PALE, color: INK }}
-                >
-                  See PT-141 Nasal Spray <ArrowUpRight size={13} />
-                </Link>
+/* 4. WHAT'S INCLUDED: the dark price card, with the record's own price. Priced
+   per fill, not a plan, so there is no cancel line. */
+
+const included = (f) => [
+  "An online intake reviewed by a licensed provider",
+  `${f.name}, if prescribed`,
+  "Compounded by a licensed U.S. pharmacy",
+  "Discreet home delivery",
+  "Follow-up care and guidance from your provider",
+];
+
+function Included({ f, product, startTo }) {
+  return (
+    <section className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.75rem,6vw,5.5rem)] md:px-10">
+      <Reveal as="div">
+        <div className={`relative grid overflow-hidden lg:grid-cols-2 ${CARD_R}`} style={{ background: CHAMPAGNE }}>
+          {/* The warm glow behind her, across the whole card so it fades out
+              under the price card rather than stopping at the column's edge.
+              Desktop only: stacked, the photo sits higher than the glow. */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 hidden lg:block"
+            style={{ background: "radial-gradient(circle at 25% 88%, rgba(255,255,255,0.7), transparent 36%)" }}
+          />
+          <div className="relative px-6 pt-9 sm:px-10 sm:pt-12">
+            <span className="relative flex items-center gap-2 text-[0.9rem] font-semibold" style={{ color: GOLD_INK }}>
+              <span className="h-2 w-2 rounded-full bg-[#977e43]" />
+              Provider-guided care
+            </span>
+            <h2 className={`${TITLE} relative z-10 mt-4 max-w-[20ch] text-[clamp(1.5rem,2.8vw,2.1rem)]`} style={{ color: GOLD_INK }}>
+              {f.name}, prescribed and followed by a licensed provider.
+            </h2>
+            {/* A woman in the page's audience, 35 to 60: anti-aging's
+                benefit-vitality with its matte pulled in, as the original
+                showed a light halo on the dark card. Stacked, her cropped
+                waist fades out under the price card. */}
+            <img
+              src="/site/bremelanotide/price-woman.avif"
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              className="mx-auto mt-6 block h-64 w-auto object-contain object-bottom [mask-image:linear-gradient(180deg,#000_70%,transparent)] sm:h-80 lg:absolute lg:bottom-0 lg:left-1/2 lg:mt-0 lg:h-[60%] lg:-translate-x-1/2 lg:[mask-image:none]"
+            />
+          </div>
+
+          {/* Stacked, the card rides up over the photo's cropped bottom edge. */}
+          <div className="relative -mt-12 p-4 sm:p-8 lg:mt-0">
+            <div className={`bg-white px-6 py-7 sm:px-9 sm:py-9 ${CARD_R}`}>
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                <span className="font-display text-[clamp(2.4rem,4vw,3rem)] font-extrabold leading-none text-ink">
+                  {priceLabel(product)}
+                </span>
+                {product.priceNote && <span className="text-[1rem] text-muted">{product.priceNote}</span>}
               </div>
-              {/* The comp shows the nasal spray itself here, not a glyph. */}
-              <img
-                src="/site/sexual-health/pt141-nasal-spray.avif"
-                alt=""
-                aria-hidden="true"
-                loading="lazy"
-                className="h-32 w-auto shrink-0 drop-shadow-lg sm:h-40"
-              />
+              <p className="mt-2 text-[0.88rem] text-muted">
+                You pay only if a provider determines that a prescription is appropriate.
+              </p>
+              <h3 className="mt-7 text-[0.95rem] font-bold text-ink">What's included</h3>
+              <ul className="mt-3 grid gap-3">
+                {included(f).map((t) => (
+                  <li key={t} className="flex items-start gap-3 text-[0.94rem] leading-snug text-ink">
+                    <Check size={17} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#977e43]" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <StartLink to={startTo} className="mt-8 w-full justify-center" />
             </div>
           </div>
         </div>
@@ -433,12 +428,16 @@ function Formulation({ startTo }) {
   );
 }
 
-export default function BremelanotideSections({ startTo = "/start" }) {
+export default function BremelanotideSections({ product, format = "injection", startTo = "/start" }) {
+  const f = FORMATS[format];
   return (
-    <section style={{ background: "#faf8f4" }}>
-      <ResponseStartsEarlier startTo={startTo} />
-      <IsItRight startTo={startTo} />
-      <Formulation startTo={startTo} />
-    </section>
+    <>
+      <WhatIs f={f} startTo={startTo} />
+      <div style={{ background: GROUND }}>
+        <HowItWorks f={f} />
+        <Compare f={f} format={format} product={product} startTo={startTo} />
+        <Included f={f} product={product} startTo={startTo} />
+      </div>
+    </>
   );
 }

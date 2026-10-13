@@ -53,7 +53,7 @@ function HeroCard({ startTo }) {
             />
 
             <div className="relative z-10 text-center">
-              <h2 className="nv-weight-keep mx-auto max-w-[16ch] font-display text-[clamp(1.6rem,5.4vw,3.1rem)] font-extrabold leading-[1.1] text-white drop-shadow-[0_2px_16px_rgba(30,34,42,0.4)]">
+              <h2 className="nv-weight-keep mx-auto max-w-[16ch] font-display text-[clamp(1.6rem,5.4vw,3.1rem)] font-normal leading-[1.1] text-white drop-shadow-[0_2px_16px_rgba(30,34,42,0.4)]">
                 It might be time for something better
               </h2>
 
@@ -81,7 +81,7 @@ function HeroCard({ startTo }) {
               {/* Solid deep brown, with the ramp on "so much" alone. It stays
                   on one line, so clipping the fill to an inline span is safe. */}
               <h2
-                className="nv-weight-keep font-display text-[clamp(1.4rem,4.6vw,2.4rem)] font-extrabold leading-[1.14]"
+                className="nv-weight-keep font-display text-[clamp(1.4rem,4.6vw,2.4rem)] font-normal leading-[1.14]"
                 style={{ color: GOLD_DEEP }}
               >
                 Sometimes, your routine can only do{" "}
@@ -230,7 +230,7 @@ function BeyondRoutine({ startTo }) {
             </div>
             <div className="order-1 lg:order-2 lg:flex-1 lg:self-start lg:pl-4 lg:pt-[clamp(2rem,9vw,7.5rem)]">
               <h2
-                className="nv-weight-keep mx-auto max-w-[22ch] font-display text-[clamp(1.5rem,5vw,2.9rem)] font-extrabold leading-[1.12] lg:mx-0"
+                className="nv-weight-keep mx-auto max-w-[22ch] font-display text-[clamp(1.5rem,5vw,2.9rem)] font-normal leading-[1.12] lg:mx-0"
                 style={{ color: CREAM }}
               >
                 Beyond your <span className="lg:block">daily routine</span>
@@ -301,7 +301,7 @@ function TheGoal() {
   return (
     <div className="mx-auto max-w-[1320px] px-6 pt-[clamp(3rem,7vw,5.5rem)] md:px-10">
       <Reveal as="div">
-        <h2 className="nv-weight-keep font-display text-[clamp(1.4rem,4.6vw,2.2rem)] font-extrabold leading-[1.24]">
+        <h2 className="nv-weight-keep font-display text-[clamp(1.4rem,4.6vw,2.2rem)] font-normal leading-[1.24]">
           <span className="block" style={{ color: GOLD_DEEP }}>
             The goal?
           </span>
@@ -376,7 +376,7 @@ function Guided() {
         <div className="grid gap-9 lg:grid-cols-2 lg:items-center lg:gap-14">
           <div>
             <h2
-              className="nv-weight-keep max-w-[15ch] font-display text-[clamp(1.5rem,5vw,2.4rem)] font-extrabold leading-[1.16]"
+              className="nv-weight-keep max-w-[15ch] font-display text-[clamp(1.5rem,5vw,2.4rem)] font-normal leading-[1.16]"
               style={{ color: GOLD }}
             >
               You don&apos;t need to figure everything out on your own
@@ -445,7 +445,7 @@ function ExploreBand({ startTo }) {
 
           <div className="relative z-10 text-center">
             <h2
-              className="nv-weight-keep mx-auto max-w-[12ch] font-display text-[clamp(1.6rem,4.4vw,3.1rem)] font-extrabold leading-[1.12]"
+              className="nv-weight-keep mx-auto max-w-[12ch] font-display text-[clamp(1.6rem,4.4vw,3.1rem)] font-normal leading-[1.12]"
               style={{ color: CREAM }}
             >
               Explore Skin Health

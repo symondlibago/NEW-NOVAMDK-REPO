@@ -17,7 +17,7 @@ const RULE_TAN = "#dfd0bb";
 const RULE_BRASS = "#c3a475";
 
 const CARD_R = "rounded-[calc(26px*var(--nv-r-scale,1))]";
-const TITLE = "nv-weight-keep font-display font-extrabold";
+const TITLE = "nv-weight-keep font-display font-normal";
 const BODY_SIZE = "text-[clamp(0.86rem,1.15vw,0.98rem)]";
 
 /* ------------------------- 0. more feeling, more you -------------------------

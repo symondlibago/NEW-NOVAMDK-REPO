@@ -1,5 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,500;1,9..144,700&family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,500;1,9..144,700&family=Inter:opsz,wght@14..32,300..700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600;1,700&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,500&display=swap');
@@ -77,14 +77,14 @@
   /* Must match the "grotesk" entry in theme/themes.js. These are the runtime
      defaults, used before JS applies the saved theme, so a mismatch shows as
      the type reflowing on first paint. */
-  --nv-font-display: 'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', system-ui, sans-serif;
-  --nv-font-body: 'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', system-ui, sans-serif;
+  --nv-font-display: 'Inter', 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
+  --nv-font-body: 'Inter', 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
   --nv-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
   --nv-display-tracking: -0.032em;
-  --nv-weight-heading: 700;
-  /* 450 was an IBM Plex Sans weight. Helvetica Neue and Arial are not variable
-     fonts, so a request for 450 is rounded to 400 by the browser anyway; this
-     says 400 rather than pretending the half step exists. */
+  /* Regular headings, as Good Life Meds sets them (the "regular" weight in
+     themes.js). Inter is only loaded up to 700, so the extrabold and black
+     classes still on some pages land on bold rather than going heavier. */
+  --nv-weight-heading: 400;
   --nv-weight-body: 400;
 
   --nv-r: 22px;
@@ -281,6 +281,13 @@
   }
   /* Idle vertical float for product card images — wrapper-only so hover transforms compose. */
   .nv-float { animation: nv-float 5.5s ease-in-out infinite; }
+  /* Product sections on a phone: their Start links all go to ?start=1, and
+     the pinned Start bar already offers it on every screen (client,
+     2026-10-12). md matches the bar's own md:hidden. Important, because
+     the links carry their own display utility, and utilities outrank this layer. */
+  @media (max-width: 767.98px) {
+    .nv-phone-nostart a[href*="?start=1"] { display: none !important; }
+  }
   @keyframes nv-float {
     0%, 100% { transform: translateY(0); }
     50%      { transform: translateY(-8px); }

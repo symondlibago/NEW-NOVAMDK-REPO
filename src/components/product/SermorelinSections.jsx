@@ -12,7 +12,10 @@ import { priceLabel } from "../data/products";
    pathway copy is the site's own from the 2026-09-08 compliance pass. */
 
 const BAND = "radial-gradient(circle at 30% 40%, #c1a27a, #9a7843)";
-const DARK = "linear-gradient(160deg, #3a2f1f 0%, #2a2217 55%, #1f1a12 100%)";
+/* The price card's ground: a light champagne (client, 2026-10-13, in place
+   of the dark brown), with the heading in the page's deep gold. */
+const CHAMPAGNE = "linear-gradient(160deg, #f5ead6 0%, #ecdcbf 55%, #e2cda6 100%)";
+const GOLD_INK = "#725826";
 const CREAM = "#ffe8b1";
 const GROUND = "#fbfaf7";
 const TITLE = "font-display font-extrabold leading-[1.1]";
@@ -324,18 +327,18 @@ const PATHWAY = [
   },
 ];
 
-const CHIP = "rounded-full border border-[#ffe8b1]/45 bg-[#2a2217]/55 px-4 py-2 text-[0.85rem] font-semibold backdrop-blur-sm";
+const CHIP = "rounded-full border border-[#977e43]/30 bg-white/70 px-4 py-2 text-[0.85rem] font-semibold backdrop-blur-sm";
 
 function Pathway() {
   return (
     <section className="mx-auto max-w-[1180px] px-5 md:px-10">
       <Reveal as="div">
-        <div className={`relative overflow-hidden ${CARD_R}`} style={{ background: DARK }}>
+        <div className={`relative overflow-hidden ${CARD_R}`} style={{ background: CHAMPAGNE }}>
           <div className="relative mx-auto flex h-[clamp(22rem,42vw,30rem)] max-w-[30rem] items-end justify-center px-5 pt-8">
             {/* The frame the figure stands in, with its label inside the top. */}
-            <div className="absolute inset-x-5 bottom-0 top-8 rounded-t-[20px] border border-b-0 border-[#ffe8b1]/40">
-              <span className="absolute left-5 top-4 flex items-center gap-2 text-[0.9rem] font-semibold" style={{ color: CREAM }}>
-                <span className="h-2 w-2 rounded-full bg-[#ffe8b1]" />
+            <div className="absolute inset-x-5 bottom-0 top-8 rounded-t-[20px] border border-b-0 border-[#977e43]/30">
+              <span className="absolute left-5 top-4 flex items-center gap-2 text-[0.9rem] font-semibold" style={{ color: GOLD_INK }}>
+                <span className="h-2 w-2 rounded-full bg-[#977e43]" />
                 Where growth hormone is involved
               </span>
             </div>
@@ -346,30 +349,33 @@ function Pathway() {
               loading="lazy"
               className="relative h-[88%] w-auto object-contain object-bottom"
             />
-            <span className={`absolute bottom-[38%] left-2 sm:left-0 ${CHIP}`} style={{ color: CREAM }}>
+            <span className={`absolute bottom-[38%] left-2 sm:left-0 ${CHIP}`} style={{ color: GOLD_INK }}>
               Sleep
             </span>
-            <span className={`absolute bottom-[22%] right-2 sm:right-0 ${CHIP}`} style={{ color: CREAM }}>
+            <span className={`absolute bottom-[22%] right-2 sm:right-0 ${CHIP}`} style={{ color: GOLD_INK }}>
               Recovery
             </span>
           </div>
 
           {/* The reference's stats bar, carrying the four areas instead. */}
           <div className="relative px-4 pb-4 sm:px-8 sm:pb-8">
-            <ul className="-mt-10 grid grid-cols-2 gap-px overflow-hidden rounded-[18px] border border-white/10 bg-white/10 backdrop-blur-md lg:grid-cols-4">
+            <ul className="-mt-10 grid grid-cols-2 gap-px overflow-hidden rounded-[18px] border border-[#977e43]/15 bg-[#977e43]/15 backdrop-blur-md lg:grid-cols-4">
               {PATHWAY.map((p) => (
-                <li key={p.title} className="bg-[#2a2217]/70 p-4 sm:p-6">
-                  <img src={p.icon} alt="" aria-hidden="true" loading="lazy" className="h-8 w-8 object-contain sm:h-10 sm:w-10" />
-                  <h3 className="mt-3 font-display text-[1rem] font-bold sm:text-[1.1rem]" style={{ color: CREAM }}>
+                <li key={p.title} className="bg-white/80 p-4 sm:p-6">
+                  {/* The icons are drawn in cream, so they sit on a gold disc. */}
+                  <span className="grid h-10 w-10 place-items-center rounded-full bg-[#b39258] sm:h-12 sm:w-12">
+                    <img src={p.icon} alt="" aria-hidden="true" loading="lazy" className="h-6 w-6 object-contain sm:h-7 sm:w-7" />
+                  </span>
+                  <h3 className="mt-3 font-display text-[1rem] font-bold sm:text-[1.1rem]" style={{ color: GOLD_INK }}>
                     {p.title}
                   </h3>
-                  <p className="mt-1.5 text-[0.8rem] leading-relaxed sm:text-[0.86rem]" style={{ color: "rgba(255,232,177,0.78)" }}>
+                  <p className="mt-1.5 text-[0.8rem] leading-relaxed text-muted sm:text-[0.86rem]">
                     {p.text}
                   </p>
                 </li>
               ))}
             </ul>
-            <p className="mt-4 text-[0.74rem] italic leading-relaxed" style={{ color: "rgba(255,232,177,0.6)" }}>
+            <p className="mt-4 text-[0.74rem] italic leading-relaxed text-muted">
               What growth hormone does in the body, not an expected treatment result. Individual response varies.
             </p>
           </div>
@@ -449,7 +455,7 @@ function Included({ product, startTo }) {
   return (
     <section className="mx-auto max-w-[1180px] px-5 md:px-10">
       <Reveal as="div">
-        <div className={`relative grid overflow-hidden lg:grid-cols-2 ${CARD_R}`} style={{ background: DARK }}>
+        <div className={`relative grid overflow-hidden lg:grid-cols-2 ${CARD_R}`} style={{ background: CHAMPAGNE }}>
           {/* The photo fills the left half, shaded from the top so the heading
               stays readable on it. Behind the whole card on a phone. */}
           <div aria-hidden="true" className="absolute inset-0 lg:right-1/2">
@@ -459,14 +465,14 @@ function Included({ product, startTo }) {
               loading="lazy"
               className="h-full w-full object-cover object-bottom opacity-45 lg:opacity-100"
             />
-            <div className="absolute inset-0 bg-linear-to-b from-[#2a2217] via-[#2a2217]/60 to-[#2a2217]/10" />
+            <div className="absolute inset-0 bg-linear-to-b from-[#f5ead6] via-[#f5ead6]/60 to-[#f5ead6]/10" />
           </div>
           <div className="relative px-6 pb-2 pt-9 sm:px-10 sm:pt-12">
-            <span className="flex items-center gap-2 text-[0.9rem] font-semibold" style={{ color: CREAM }}>
-              <span className="h-2 w-2 rounded-full bg-[#ffe8b1]" />
+            <span className="flex items-center gap-2 text-[0.9rem] font-semibold" style={{ color: GOLD_INK }}>
+              <span className="h-2 w-2 rounded-full bg-[#977e43]" />
               Provider-guided care
             </span>
-            <h2 className={`${TITLE} mt-4 max-w-[20ch] text-[clamp(1.5rem,2.8vw,2.1rem)]`} style={{ color: CREAM }}>
+            <h2 className={`${TITLE} mt-4 max-w-[20ch] text-[clamp(1.5rem,2.8vw,2.1rem)]`} style={{ color: GOLD_INK }}>
               Sermorelin Nasal Spray, prescribed and followed by a licensed provider.
             </h2>
           </div>

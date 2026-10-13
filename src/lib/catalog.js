@@ -43,7 +43,10 @@ export const baseName = (product) => String(product?.name || "").replace(STAGE_R
 const VERSION_RE = /(?:\s+\d{1,2}\.\d{1,2}\.\d{2,4})+\s*$/;
 const FILL_RE = /\s+(Initial|Refill)\s*$/i;
 
+/* A record may carry its own patient-facing name (displayName) where the
+   stored name has to stay as the pharmacy and intake know it. */
 export const displayTitle = (product) =>
+  product?.displayName ||
   baseName(product)
     .replace(VERSION_RE, "")
     .replace(FILL_RE, "")

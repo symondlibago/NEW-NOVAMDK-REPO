@@ -40,6 +40,7 @@ import ProductWhy from "../components/product/ProductWhy";
 import ProductRelated from "../components/product/ProductRelated";
 import { SafetySheet } from "../components/product/ProductSafety";
 import ProductStickyStart from "../components/product/ProductStickyStart";
+import ProductAvailability from "../components/product/ProductAvailability";
 import NadSections from "../components/product/NadSections";
 import GlutathioneSections from "../components/product/GlutathioneSections";
 import ScreamCreamSections from "../components/product/ScreamCreamSections";
@@ -50,6 +51,8 @@ import OlympusSections from "../components/product/OlympusSections";
 import BremelanotideSections from "../components/product/BremelanotideSections";
 import BremelanotideNasalSections from "../components/product/BremelanotideNasalSections";
 import LipoCSections from "../components/product/LipoCSections";
+import TirzepatideSections from "../components/product/TirzepatideSections";
+import SubMagnaSections from "../components/product/SubMagnaSections";
 
 const HERO_ASSURANCES = [
   { icon: Stethoscope, l1: "US licensed", l2: "providers" },
@@ -182,6 +185,10 @@ export default function ProductPage() {
   const isBremelanotideInjection = product.name === "Bremelanotide Injection";
   const isBremelanotideNasal = product.name === "Bremelanotide Nasal Spray";
   const isLipoC = /lipo-c/i.test(product.name);
+  // The compounded rungs only, not Zepbound or Mounjaro, whose names end in "(Tirzepatide)".
+  const isTirzepatide = /^tirzepatide\//i.test(product.name);
+  /* All three drops rungs, which are the only records carrying the brand. */
+  const isSubMagna = /submagna/i.test(product.name);
   const backLink = otc ? "/treatments" : `/treatments/${product.categorySlug}`;
   const seenTitle = new Set();
   const related = visibleProducts
@@ -380,14 +387,14 @@ export default function ProductPage() {
   return (
     <main className="min-h-screen w-full bg-bg text-ink">
       <Seo
-        title={`${product.name} — ${product.categoryName}`}
-        description={product.subtitle || `${product.name} from Nova MDK — physician-guided telehealth treatment, delivered to your door.`}
+        title={`${product.displayName || product.name} — ${product.categoryName}`}
+        description={product.subtitle || `${product.displayName || product.name} from Nova MDK — physician-guided telehealth treatment, delivered to your door.`}
         path={productPath(product)}
         image={product.img}
         jsonLd={{
           "@context": "https://schema.org",
           "@type": "Product",
-          name: product.name,
+          name: product.displayName || product.name,
           description: product.subtitle || undefined,
           image: `https://www.novamdk.com${product.img}`,
           category: product.categoryName,
@@ -452,6 +459,7 @@ export default function ProductPage() {
                 </p>
               )}
               <p className="mt-4 max-w-[58ch] text-[clamp(0.98rem,1.15vw,1.1rem)] leading-[1.65] text-muted">{active.subtitle}</p>
+              <ProductAvailability product={active} className="mt-3" />
 
               {/* required regulatory labels */}
               <ComplianceBadges compounded={isCompounded(active)} rx={!otc} size="lg" className="mt-5" />
@@ -556,6 +564,10 @@ export default function ProductPage() {
           and tirzepatide records carry a band today. */}
       <ProductMechanism product={active} />
 
+      {/* A product's own sections. On a phone their Start buttons are hidden
+          (nv-phone-nostart in index.css): the pinned Start bar is always there
+          (client, 2026-10-12). The kiosk has no bar, so it keeps them. */}
+      <div className={isKiosk ? undefined : "nv-phone-nostart"}>
       {/* NAD+ editorial, matched on the product name so the injection, its
           dose ladder and the tablet all carry it. One layout for both formats
           since 2026-10-12; the format picks the art, comparison and price card. */}
@@ -570,17 +582,20 @@ export default function ProductPage() {
       {/* Glutathione's own editorial. Same contract as the NAD+ blocks: gated on
           the product name, and its CTA lands on the intake this page's own Get
           Started uses rather than a second entry point. */}
-      {isGlutathione && <GlutathioneSections startTo={`${productPath(product)}?start=1`} />}
+      {isGlutathione && <GlutathioneSections product={active} startTo={`${productPath(product)}?start=1`} />}
       {isScreamCream && <ScreamCreamSections startTo={`${productPath(product)}?start=1`} />}
       {isSermorelin && <SermorelinSections product={active} startTo={`${productPath(product)}?start=1`} />}
-      {isLdn && <LdnSections startTo={`${productPath(product)}?start=1`} />}
-      {isLuminance && <LuminanceSections startTo={`${productPath(product)}?start=1`} />}
-      {isOlympusPeak && <OlympusSections startTo={`${productPath(product)}?start=1`} />}
-      {isBremelanotideInjection && <BremelanotideSections startTo={`${productPath(product)}?start=1`} />}
+      {isLdn && <LdnSections product={active} startTo={`${productPath(product)}?start=1`} />}
+      {isLuminance && <LuminanceSections product={active} startTo={`${productPath(product)}?start=1`} />}
+      {isOlympusPeak && <OlympusSections product={active} startTo={`${productPath(product)}?start=1`} />}
+      {isBremelanotideInjection && <BremelanotideSections product={active} startTo={`${productPath(product)}?start=1`} />}
       {isBremelanotideNasal && (
-        <BremelanotideNasalSections startTo={`${productPath(product)}?start=1`} />
+        <BremelanotideNasalSections product={active} startTo={`${productPath(product)}?start=1`} />
       )}
-      {isLipoC && <LipoCSections startTo={`${productPath(product)}?start=1`} />}
+      {isLipoC && <LipoCSections product={active} startTo={`${productPath(product)}?start=1`} />}
+      {isTirzepatide && <TirzepatideSections product={active} startTo={`${productPath(product)}?start=1`} />}
+      {isSubMagna && <SubMagnaSections product={active} startTo={`${productPath(product)}?start=1`} />}
+      </div>
 
       {product.howItWorks && (
         <section className="bg-surface-2 py-[clamp(2.5rem,5vw,5.5rem)]">
@@ -627,7 +642,9 @@ export default function ProductPage() {
           <ProductFaq product={active} otc={otc} />
         </Reveal>
       </section>
-      <section className="mx-auto max-w-[1180px] px-5 md:px-10">
+      {/* Not on a phone outside the kiosk: the pinned Start bar does this job
+          there (client, 2026-10-12). */}
+      <section className={`mx-auto max-w-[1180px] px-5 md:px-10 ${isKiosk ? "" : "hidden md:block"}`}>
         <Reveal>
           {/* A solid gold rule rather than the page's hairline (2026-09-25):
               this is the page's last call to action and the client wants it to
@@ -636,7 +653,7 @@ export default function ProductPage() {
             <div className="relative">
               <h2 className="mx-auto max-w-[22ch] font-display text-[clamp(1.6rem,3.4vw,2.4rem)] font-extrabold leading-tight">
                 {otc ? "Add " : "Start consultation for "}
-                {product.name.split("—")[0].split("(")[0].split("/")[0].trim()}
+                {product.displayName || product.name.split("—")[0].split("(")[0].split("/")[0].trim()}
                 {otc ? " to your routine." : "."}
               </h2>
               <p className="mx-auto mt-3 max-w-[46ch] text-[1rem] text-muted">

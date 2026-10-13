@@ -170,6 +170,13 @@ function useRunOnceInView() {
   return [ref, on];
 }
 
+/* On a phone the cards sit over her face and her white top, so they take a
+   light brown tint for the white type to read on. backdrop-filter makes each
+   card a stacking context, so -z-10 stays inside it. */
+function PhoneTint() {
+  return <span aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-[#5c4426]/30 md:hidden" />;
+}
+
 function ActiveGoals() {
   const [ref, on] = useRunOnceInView();
   const count = useSlotCount(3, on);
@@ -177,13 +184,14 @@ function ActiveGoals() {
   return (
     <div
       ref={ref}
-      className={`relative flex h-full flex-col rounded-3xl p-6 sm:p-7 ${on ? "is-in" : ""}`}
+      className={`relative flex h-full flex-col rounded-3xl p-5 sm:p-7 ${on ? "is-in" : ""}`}
       style={GLASS}
     >
       <Rim />
+      <PhoneTint />
 
       {/* ---- the ring ---- */}
-      <div className="relative mx-auto h-40 w-40 shrink-0 sm:h-44 sm:w-44">
+      <div className="relative mx-auto h-28 w-28 shrink-0 sm:h-44 sm:w-44">
         <svg viewBox="0 0 100 100" aria-hidden="true" className="h-full w-full -rotate-90">
           <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,0.26)" strokeWidth="2.5" />
           <circle
@@ -203,10 +211,10 @@ function ActiveGoals() {
           <div>
             {/* tabular-nums so the rolling digits all occupy the same width
                 and the number does not jitter on its way to 3. */}
-            <span className="block font-display text-[2.9rem] font-extrabold leading-none tabular-nums">
+            <span className="block font-display text-[2.2rem] font-extrabold leading-none tabular-nums sm:text-[2.9rem]">
               {count}
             </span>
-            <span className="mt-1 block text-[0.85rem] font-bold leading-tight">
+            <span className="mt-1 block text-[0.75rem] font-bold leading-tight sm:text-[0.85rem]">
               Active
               <br />
               Goals
@@ -219,20 +227,21 @@ function ActiveGoals() {
               Inset well inside the card's own padding, as the comp has them:
               the rows sit visibly narrower than the button below, which is
               what stops the card reading as a full-width list. */}
-      <ul className="mt-6 grow px-4 sm:px-10">
+      <ul className="mt-3 grow px-2 sm:mt-6 sm:px-10">
         {GOALS.map((g, i) => (
           <li
             key={g.label}
-            className={`nv-mty-row flex items-center gap-3 py-3.5 ${i > 0 ? "border-t border-white/20" : ""}`}
+            className={`nv-mty-row flex items-center gap-3 py-2.5 sm:py-3.5 ${i > 0 ? "border-t border-white/20" : ""}`}
             style={{ animationDelay: `${0.42 + i * 0.16}s` }}
           >
             <g.icon size={22} strokeWidth={1.8} className="shrink-0 text-white/85" aria-hidden="true" />
             <div className="min-w-0 flex-1">
               <span className="block truncate text-[0.9rem] font-medium text-white/90">{g.label}</span>
               <span aria-hidden="true" className="mt-2 block h-0.75 w-full rounded-full bg-white/25">
+                {/* Gold, so the fill reads against the white card (client, 2026-10-13). */}
                 <span
-                  className="nv-mty-bar block h-full rounded-full bg-white"
-                  style={{ "--w": `${g.pct}%`, animationDelay: `${0.62 + i * 0.16}s` }}
+                  className="nv-mty-bar block h-full rounded-full"
+                  style={{ "--w": `${g.pct}%`, animationDelay: `${0.62 + i * 0.16}s`, background: "linear-gradient(90deg, #d9b56a, #b8913f)" }}
                 />
               </span>
             </div>
@@ -242,7 +251,7 @@ function ActiveGoals() {
 
       <Link
         to="/treatments"
-        className="mt-5 block rounded-full bg-white px-5 py-3 text-center text-[0.9rem] font-semibold text-[#6d5934] transition-transform duration-300 hover:-translate-y-0.5"
+        className="mt-4 block rounded-full bg-white px-5 py-3 text-center text-[0.9rem] font-semibold text-[#6d5934] transition-transform duration-300 hover:-translate-y-0.5 sm:mt-5"
       >
         See What Fits For You
       </Link>
@@ -254,14 +263,15 @@ function NextCheckIn() {
   return (
     <Link
       to="/portal"
-      className="group relative flex items-center gap-5 rounded-3xl p-6 sm:gap-8 sm:p-7"
+      className="group relative flex items-center gap-5 rounded-3xl p-5 sm:gap-8 sm:p-7"
       style={GLASS}
     >
       <Rim />
+      <PhoneTint />
 
       <span
         aria-hidden="true"
-        className="relative grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-white/90 sm:h-20 sm:w-20"
+        className="relative grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white/90 sm:h-20 sm:w-20"
         style={GLASS}
       >
         <Rim radius="rounded-2xl" />
@@ -297,7 +307,7 @@ function YourProgress() {
   return (
     <div
       ref={ref}
-      className={`relative flex flex-col rounded-3xl p-6 sm:p-7 ${on ? "is-in" : ""}`}
+      className={`relative hidden flex-col rounded-3xl p-6 sm:p-7 md:flex ${on ? "is-in" : ""}`}
       style={GLASS}
     >
       <Rim />
@@ -533,20 +543,20 @@ export default function MattersToYou() {
 
       <div className="relative mx-auto max-w-310 px-5 py-[clamp(2.75rem,6vw,4.75rem)] md:px-10">
         <Reveal className="text-center">
-          <h2 className="nv-weight-keep font-display text-[clamp(2rem,4.6vw,3.9rem)] font-extrabold leading-[1.1] tracking-tight text-white">
+          <h2 className="nv-weight-keep font-display text-[clamp(2rem,4.6vw,3.9rem)] font-normal leading-[1.1] tracking-tight text-white">
             <span className="block">Starts With What</span>
             <span className="block">Matters To You</span>
           </h2>
 
-          <p className="mx-auto mt-4 max-w-[46ch] text-[clamp(0.95rem,1.35vw,1.15rem)] leading-relaxed text-white/85">
+          <p className="mx-auto mt-4 hidden max-w-[46ch] text-[clamp(0.95rem,1.35vw,1.15rem)] leading-relaxed text-white/85 md:block">
             Explore treatment options for your health goals and take the next step when you&rsquo;re
             ready
           </p>
 
-          {/* Pill-width and centred on a phone (2026-09-19), matching the hero:
-              at max-w-sm the pair ran the whole screen and, with mx-auto only
-              from sm, sat off the band's centre line. */}
-          <div className="mx-auto mt-7 flex w-full max-w-60 flex-col gap-2.5 sm:max-w-none sm:flex-row sm:justify-center sm:gap-3">
+          {/* The line and the two buttons are desktop only: on a phone the
+              band is just the heading and the goals card, whose own button
+              leads on (client, 2026-10-13). */}
+          <div className="mx-auto mt-7 hidden w-full max-w-60 flex-col gap-2.5 sm:max-w-none sm:flex-row sm:justify-center sm:gap-3 md:flex">
             {/* Solid white in the comp, against the outlined secondary. */}
             <Link
               to="/treatments"
@@ -566,15 +576,17 @@ export default function MattersToYou() {
           </div>
         </Reveal>
 
-        {/* One column on a phone, then the comp's split: the goals card runs the
-            full height beside two stacked cards of matching size. */}
+        {/* The comp's split from md: the goals card runs the full height beside
+            two stacked cards of matching size. A phone gets the goals card and
+            the check-in under the heading, slimmed so the band is about a
+            screen tall like its neighbours (client, 2026-10-13). */}
         {/* No Reveal on these three (2026-09-19): an ancestor at opacity below 1
             is a backdrop root, which leaves a backdrop-filter with nothing to
             sample. Faded in, the cards spent the whole 0.7s as flat translucent
             panels and the blur snapped in at the end, which read as lag. They
             have plenty of motion of their own: the ring draws, the bars fill,
             the counter rolls and the curve draws. */}
-        <div className="mx-auto mt-[clamp(1.75rem,4vw,2.75rem)] grid max-w-225 gap-5 md:grid-cols-2 md:gap-8">
+        <div className="mx-auto mt-6 grid max-w-225 gap-4 md:mt-[clamp(1.75rem,4vw,2.75rem)] md:grid-cols-2 md:gap-8">
           <div className="h-full">
             <ActiveGoals />
           </div>

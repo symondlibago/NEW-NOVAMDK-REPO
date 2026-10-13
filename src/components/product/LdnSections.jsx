@@ -1,542 +1,403 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Check } from "lucide-react";
-/* Aliased: the project lint rule does not count `motion.span` as a use of the
-   lowercase binding, so the capitalised alias keeps this file clean. */
-import { motion as Motion } from "framer-motion";
+import { ArrowRight, Check, KeyRound, Microscope, Timer, Waves } from "lucide-react";
 import Reveal from "../ui/Reveal";
+import { priceLabel } from "../data/products";
 
-/* Matched to Reveal's own easing and trigger margin so the ladder's rules and
-   the words they lead to are sequenced by one clock rather than two. */
-const EASE = [0.2, 0.7, 0.3, 1];
-const VIEWPORT_MARGIN = "-80px 0px -80px 0px";
-/* One rung per 0.62s: the rule draws, then its word lands, then the next rule
-   starts. */
-const RUNG_MS = 0.62;
-const RULE_DUR = 0.4;
-const WORD_LAG = 0.34;
+/* Low-Dose Naltrexone, rebuilt 2026-10-13 on the NAD+ layout (client: the most
+   important page in the batch). All three rungs (Starter, Mid-Dose,
+   Maintenance) render it. What LDN is on the gold band, low dose against
+   standard naltrexone in words, how it is thought to work, how it is taken, and
+   the dark price card. The old dose cards and mg scale are gone: no amounts
+   appear anywhere on this page. Low-dose use is called off-label wherever it
+   comes up, and nothing says what LDN treats. */
 
-const INK = "#6b511e";
-const INK_DEEP = "#5a4620";
-const BODY = "#7a6d58";
-const CREAM = "#f7e9c9";
-const CREAM_SOFT = "rgba(247,233,201,0.84)";
-const SERIF = "'Playfair Display', Georgia, serif";
-const PANEL = "#f7f1e5";
-const LINE = "#e3d5b8";
-const BRASS = "radial-gradient(circle at 50% 50%, #c1a27a, #9a7843)";
+const BAND = "radial-gradient(circle at 30% 40%, #c1a27a, #9a7843)";
+/* The price card's ground: a light champagne (client, 2026-10-13, in place
+   of the dark brown), with the heading in the page's deep gold. */
+const CHAMPAGNE = "linear-gradient(160deg, #f5ead6 0%, #ecdcbf 55%, #e2cda6 100%)";
+const GOLD_INK = "#725826";
+const CREAM = "#ffe8b1";
+const GROUND = "#fbfaf7";
+const TITLE = "font-display font-extrabold leading-[1.1]";
+const H2 = `${TITLE} text-[clamp(1.7rem,3.4vw,2.5rem)] text-[#725826]`;
+const CARD_R = "rounded-[calc(24px*var(--nv-r-scale,1))]";
 
-/* Measured off the comp as fractions of the copy column and of the ladder's own
-   height. The rules are NOT attached to their labels there — two of the four sit
-   in the gaps between rows entirely — so label and rule carry separate
-   coordinates and neither is derived from the other. */
-const ENDORPHIN_ROWS = [
-  // Canva uses a short elbow under the first item, two straight rules in the
-  // middle, and another elbow above the final item. Keeping the rule geometry
-  // separate from the labels prevents the ladder from looking like a table.
-  /* Evenly stepped at 30% now: the old 0 / 36 / 55 / 90 left gaps of 36, 19 and
-     35, which is what made the cascade look bunched in the middle. The lefts
-     keep the comp's diagonal. */
-  {
-    label: { top: "0%", left: "39.5%" },
-    rule: { top: "13%", left: "53%", width: "30%" },
-    shape: "elbow-down",
-  },
-  {
-    label: { top: "30%", left: "18.5%" },
-    rule: { top: "30%", left: "33.7%", width: "61%" },
-    shape: "straight",
-  },
-  {
-    label: { top: "60%", left: "8.1%" },
-    rule: { top: "60%", left: "43.5%", width: "49%" },
-    shape: "straight",
-  },
-  {
-    label: { top: "90%", left: "34%" },
-    rule: { top: "77%", left: "53%", width: "37%" },
-    shape: "elbow-up",
-  },
-];
-const CARD_R = "rounded-[calc(26px*var(--nv-r-scale,1))]";
-const TILE_R = "rounded-[calc(18px*var(--nv-r-scale,1))]";
-const TITLE = "nv-weight-keep font-display font-extrabold leading-[1.14]";
-const TITLE_SIZE = "text-[clamp(1.6rem,3.4vw,2.5rem)]";
-const BODY_SIZE = "text-[clamp(0.82rem,1.02vw,0.95rem)]";
+const SOURCE = "https://doi.org/10.3390/medsci6040082";
 
-/* The comp ramps its tail words left to right, dark gold into pale tan — the
-   same construction the Sermorelin and Scream Cream blocks use. */
-const TAN_DEEP = "#9c8452";
-const TAN_PALE = "#d0bd99";
-
-function Tail({ children }) {
+function StartLink({ to, light = false, className = "" }) {
   return (
-    <span
-      className="bg-clip-text text-transparent"
-      style={{ backgroundImage: `linear-gradient(90deg, ${TAN_DEEP} 0%, ${TAN_PALE} 100%)` }}
+    <Link
+      to={to}
+      className={`group inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[0.95rem] font-semibold transition-all hover:-translate-y-0.5 ${
+        light ? "bg-[#f6efe0] text-[#6b511e]" : "bg-[#977e43] text-white hover:bg-[#836c39] nv-shadow"
+      } ${className}`}
     >
-      {children}
-    </span>
+      Start your consultation
+      <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+    </Link>
   );
 }
 
-/* ------------------------------ 1. a lower dose ------------------------------ */
+/* 1. WHAT IS LDN: the gold band, with the bottle and a tablet. */
 
-function ALowerDose({ startTo }) {
+function WhatIs({ startTo }) {
   return (
-    <div className="mx-auto max-w-[1180px] px-5 py-[clamp(2.5rem,6vw,4.5rem)] md:px-10">
-      <div className="grid items-center gap-x-12 gap-y-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1fr)]">
+    <section className="relative overflow-hidden" style={{ background: BAND }}>
+      <img
+        src="/products/detail/ldn.avif"
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full scale-110 object-cover opacity-30 mix-blend-soft-light blur-2xl"
+      />
+      <div className="relative mx-auto max-w-[1180px] px-5 py-[clamp(2.5rem,6vw,5.5rem)] md:px-10">
         <Reveal as="div">
-          <h2 className={`${TITLE} ${TITLE_SIZE} max-w-[12ch]`} style={{ color: INK }}>
-            A lower <Tail>dose</Tail>
-          </h2>
-
-          <p className={`mt-5 max-w-[52ch] leading-relaxed ${BODY_SIZE}`} style={{ color: BODY }}>
-            LDN uses a much smaller amount of naltrexone than its standard FDA-approved uses. At low
-            doses, it temporarily interacts with opioid receptors and may influence natural endorphin
-            signaling and inflammatory pathways
-          </p>
-
-          {/* Pale button on the light ground, per the comp — the solid brass CTA
-              belongs to the closing band, not here. */}
-          <Link
-            to={startTo}
-            className="mt-7 inline-flex rounded-full px-9 py-3.5 text-[0.92rem] font-semibold transition-all duration-300 hover:-translate-y-0.5"
-            style={{ background: "#f0e3cb", color: INK }}
+          <div
+            className={`grid gap-8 border border-white/25 bg-white/10 p-6 backdrop-blur-md sm:p-10 lg:grid-cols-[1.25fr_1fr] lg:items-center lg:gap-12 lg:p-14 ${CARD_R}`}
           >
-            Explore LDN
-          </Link>
-
-          <p className="mt-[clamp(2rem,4vw,3.5rem)] max-w-[46ch] text-[0.76rem] italic leading-relaxed text-muted">
-            Prescription required. Eligibility is determined by a licensed healthcare provider.
-            Individual results may vary.
-          </p>
-        </Reveal>
-
-        <Reveal as="div" delay={0.08}>
-          <div className={`relative aspect-[3/2] w-full overflow-hidden ${CARD_R}`}>
-            <img
-              src="/site/sports-medicine/ldn-lower.avif"
-              alt=""
-              aria-hidden="true"
-              loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover object-center"
-            />
-          </div>
-        </Reveal>
-      </div>
-    </div>
-  );
-}
-
-/* --------------------------- 2. why the dose matters --------------------------- */
-
-const DOSE_POINTS = [
-  "Standard naltrexone is used at much higher doses.",
-  "LDN uses a much smaller provider-guided dose.",
-  "That lower amount may support a different response in the body.",
-];
-
-const DOSE_CARDS = [
-  { label: "Standard naltrexone", amount: "50 mg", note: "Standard-dose naltrexone" },
-  { label: "Low-dose naltrexone", amount: "1.5–4.5 mg", note: "Much smaller provider-guided dose" },
-];
-
-function WhyTheDose() {
-  return (
-    <div className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.5rem,6vw,4.5rem)] md:px-10">
-      <Reveal>
-        <div
-          className={`px-5 py-8 sm:px-10 sm:py-16 lg:px-14 lg:py-20 ${CARD_R}`}
-          style={{ background: PANEL }}
-        >
-          <div className="grid gap-8 sm:gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16">
-            {/* -------- left: the claim -------- */}
             <div>
-              <span className="nv-eyebrow">Why the dose matters</span>
-
-              {/* Serif here and nowhere else in the block, as the comp sets it. */}
-              <h2
-                className="nv-weight-keep mt-3 max-w-[14ch] text-[clamp(1.6rem,4.2vw,3.1rem)] font-medium leading-[1.14]"
-                style={{ color: INK_DEEP, fontFamily: SERIF }}
-              >
-                Why does the &ldquo;low dose&rdquo; matter?
+              <span className="text-[0.75rem] font-bold uppercase tracking-[0.16em]" style={{ color: "rgba(255,232,177,0.8)" }}>
+                Prescribed off-label
+              </span>
+              <h2 className={`${TITLE} mt-3 text-[clamp(1.8rem,3.6vw,2.7rem)]`} style={{ color: CREAM }}>
+                What is LDN?
               </h2>
-
-              <span aria-hidden="true" className="mt-5 block h-px w-16 sm:mt-6" style={{ background: LINE }} />
-
-              <ul className="mt-6 flex flex-col gap-3.5 sm:mt-9 sm:gap-5">
-                {DOSE_POINTS.map((p) => (
-                  <li key={p} className="flex items-start gap-3.5">
-                    <span
-                      className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border"
-                      style={{ borderColor: LINE }}
-                    >
-                      <Check size={13} strokeWidth={3} style={{ color: INK }} />
-                    </span>
-                    <span className="text-[clamp(0.92rem,1.15vw,1.05rem)]" style={{ color: BODY }}>
-                      {p}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* -------- right: the comparison -------- */}
-            <div>
-              <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-                {DOSE_CARDS.map((c) => (
-                  <div
-                    key={c.label}
-                    className={`border px-4 py-5 text-center sm:py-8 ${TILE_R}`}
-                    style={{ background: "#fdfaf3", borderColor: LINE }}
-                  >
-                    <span className="block font-mono text-[0.64rem] uppercase tracking-[0.14em] text-muted">
-                      {c.label}
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className="mx-auto mt-4 block h-px w-full"
-                      style={{ background: LINE }}
-                    />
-                    <span
-                      className="mt-4 block whitespace-nowrap text-[clamp(1.45rem,2.5vw,2.2rem)] leading-none sm:mt-6"
-                      style={{ color: "#8a6a2f", fontFamily: SERIF }}
-                    >
-                      {c.amount}
-                    </span>
-                    <span className="mt-3 block text-[0.86rem] leading-snug sm:mt-5" style={{ color: BODY }}>
-                      {c.note}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* The scale. Ticks are a repeating gradient rather than eleven
-                  elements, so the spacing stays even at any width. */}
-              <div className="mt-6 sm:mt-8">
-                <div className="relative flex items-center">
-                  <span
-                    aria-hidden="true"
-                    className="h-px w-full"
-                    style={{
-                      backgroundImage: `linear-gradient(90deg, ${LINE} 0 100%)`,
-                    }}
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-x-0 top-1/2 h-2 -translate-y-1/2"
-                    style={{
-                      backgroundImage: `repeating-linear-gradient(90deg, ${LINE} 0 1px, transparent 1px 10%)`,
-                    }}
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="absolute left-0 h-3 w-3 rounded-full"
-                    style={{ background: "#b1873f" }}
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="absolute right-0 h-3 w-3 rounded-full border-2"
-                    style={{ borderColor: "#b1873f", background: PANEL }}
-                  />
-                </div>
-
-                <div className="mt-4 flex items-center justify-between text-[0.8rem]" style={{ color: BODY }}>
-                  <span>1 mg</span>
-                  <span>Dose (mg)</span>
-                  <span>50 mg</span>
-                </div>
-              </div>
-
-              <span aria-hidden="true" className="mt-6 block h-px w-full sm:mt-8" style={{ background: LINE }} />
-
-              <p
-                className="mt-6 text-center text-[clamp(1.1rem,1.9vw,1.45rem)] sm:mt-8"
-                style={{ color: INK_DEEP, fontFamily: SERIF }}
-              >
-                Same active ingredient. Different dosing approach.
+              <p className="mt-2 text-[0.9rem]" style={{ color: "rgba(255,232,177,0.75)" }}>
+                (low-dose naltrexone)
               </p>
-
-              <span
-                aria-hidden="true"
-                className="mx-auto mt-4 block h-px w-16"
-                style={{ background: LINE }}
-              />
-
-              <p className="mt-5 text-center text-[0.78rem] italic leading-relaxed text-muted">
-                Illustrative comparison. Dosing is individualized by a licensed healthcare provider.
+              <p className="mt-5 max-w-[50ch] text-[1rem] leading-relaxed" style={{ color: CREAM }}>
+                LDN is naltrexone prescribed at a much lower dose than its standard,{" "}
+                <span className="whitespace-nowrap">FDA-approved</span> use. Low-dose use is{" "}
+                <span className="whitespace-nowrap">off-label</span>, and a licensed provider decides if it is
+                appropriate for you.
               </p>
-            </div>
-          </div>
-        </div>
-      </Reveal>
-    </div>
-  );
-}
-
-/* ------------------------------ 3. the mechanism ------------------------------ */
-
-const MECHANISM = [
-  {
-    img: "/site/sports-medicine/ldn-pathways.avif",
-    label: "Broader pathways",
-    body: "Endorphins and related signaling are involved in pain perception, mood, inflammation, and immune activity",
-  },
-  {
-    img: "/site/sports-medicine/ldn-cells.avif",
-    label: "LDN",
-    body: "Briefly interacts with opioid receptors",
-  },
-  {
-    img: "/site/sports-medicine/ldn-blockade.avif",
-    label: "Temporary blockade",
-    body: "Natural endorphins are temporarily displaced",
-  },
-  {
-    img: "/site/sports-medicine/ldn-rebound.avif",
-    label: "Rebound response",
-    body: "The body may increase endorphin signaling",
-  },
-];
-
-const MECH_MS = 5000;
-/* The seats are spaced by their gaps, not by round numbers: the old tops left
-   28px between the top pair and 8px between the bottom pair, which read as the
-   stack drifting. Every gap is 24px now (148 + 24 = 172, 196 + 24 = 392), and
-   the off-stage seat sits one gap above the top one. */
-const MECH_SLOTS = [
-  { top: "392px", height: "148px", width: "78%", left: "11%", opacity: 0.75 },
-  { top: "172px", height: "196px", width: "100%", left: "0%", opacity: 1 },
-  { top: "0px", height: "148px", width: "78%", left: "11%", opacity: 0.75 },
-  { top: "-172px", height: "148px", width: "78%", left: "11%", opacity: 0 },
-];
-
-const MECH_EASE = "cubic-bezier(0.22,1,0.36,1)";
-
-function GlassCard({ item }) {
-  return (
-    <div
-      className={`flex h-full min-h-[7.25rem] items-stretch gap-3 overflow-hidden border border-white/45 p-2.5 backdrop-blur-xl sm:min-h-[9.5rem] sm:gap-4 sm:p-3 md:min-h-0 ${TILE_R}`}
-      style={{
-        background: "rgba(240,227,203,0.28)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 30px rgba(96,74,40,0.07)",
-      }}
-    >
-      <span className={`relative w-[38%] shrink-0 overflow-hidden ${TILE_R}`}>
-        <img
-          src={item.img}
-          alt=""
-          aria-hidden="true"
-          loading="lazy"
-          className="absolute inset-0 h-full w-full object-cover object-center"
-        />
-      </span>
-      <span className="flex min-w-0 flex-col justify-center py-2 pr-2">
-        <span className="block font-mono text-[0.58rem] uppercase tracking-[0.14em]" style={{ color: INK }}>
-          {item.label}
-        </span>
-        <span className="mt-2 block text-[0.78rem] leading-snug" style={{ color: BODY }}>
-          {item.body}
-        </span>
-      </span>
-    </div>
-  );
-}
-
-function Mechanism() {
-  const [step, setStep] = React.useState(0);
-  const [staged, setStaged] = React.useState(false);
-
-  React.useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const sync = () => setStaged(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-
-  React.useEffect(() => {
-    if (!staged) return undefined;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const t = setInterval(() => setStep((v) => v + 1), MECH_MS);
-    return () => clearInterval(t);
-  }, [staged]);
-
-  return (
-    <div className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.5rem,6vw,4.5rem)] md:px-10">
-      <Reveal>
-        <span className="nv-eyebrow">The mechanism</span>
-        <h2 className={`${TITLE} ${TITLE_SIZE} mt-3 max-w-[18ch]`} style={{ color: INK }}>
-          A brief block can trigger a <Tail>bigger response</Tail>
-        </h2>
-      </Reveal>
-      <div className="mt-[clamp(1.75rem,4vw,2.75rem)] flex flex-col gap-4 md:relative md:mx-auto md:block md:h-[34rem] md:max-w-[46rem] md:gap-0 md:overflow-hidden">
-        {MECHANISM.map((m, i) => {
-          const slot = MECH_SLOTS[(i + step) % MECH_SLOTS.length];
-          return (
-            <div
-              key={m.label}
-              className="md:absolute"
-              style={
-                staged
-                  ? {
-                      top: slot.top,
-                      left: slot.left,
-                      width: slot.width,
-                      height: slot.height,
-                      opacity: slot.opacity,
-                      transition: `top 800ms ${MECH_EASE}, left 800ms ${MECH_EASE}, width 800ms ${MECH_EASE}, height 800ms ${MECH_EASE}, opacity 800ms ease`,
-                    }
-                  : undefined
-              }
-            >
-              <GlassCard item={m} />
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* ----------------------------- 4. endorphins band ----------------------------- */
-
-const ENDORPHINS = ["Pain signaling", "Mood", "Immune signaling", "Inflammatory pathways"];
-
-function EndorphinsBand({ startTo }) {
-  return (
-    /* Full bleed (2026-09-19), like the other gold bands across the site. */
-    <div className="w-full pb-[clamp(3rem,6vw,5rem)]">
-      <Reveal>
-        <div
-          className="relative overflow-hidden px-6 pb-0 pt-8 sm:px-10 sm:pt-10 lg:h-[clamp(38rem,46vw,44rem)] lg:px-14"
-          style={{ background: BRASS }}
-        >
-          {/* The band is full bleed; its contents are not (2026-09-19). The
-              figure is positioned against the band itself, so she still runs
-              to its right edge. */}
-          <div className="mx-auto grid w-full max-w-[1180px] items-end gap-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,0.66fr)] lg:gap-10">
-            <div className="pb-8 sm:pb-10 lg:flex lg:h-full lg:flex-col lg:items-start">
-              <h2
-                /* 16ch dropped "good" onto a line of its own. The break is set
-                   where the comp sets it instead of left to the wrap. */
-                className="nv-weight-keep max-w-[24ch] font-display text-[clamp(1.5rem,3.2vw,2.4rem)] font-extrabold leading-[1.14]"
-                style={{ color: CREAM }}
-              >
-                Endorphins do more{" "}
-                <span className="sm:block">than make you feel good</span>
-              </h2>
-
-              <p className={`mt-5 max-w-[56ch] leading-relaxed ${BODY_SIZE}`} style={{ color: CREAM_SOFT }}>
-                Most people know endorphins as the chemicals behind a &ldquo;runner&rsquo;s
-                high.&rdquo; But they also interact with systems{" "}
-                {/* Held together so the colon can never be orphaned onto its own
-                    line at any width. */}
-                <span className="whitespace-nowrap">involved in:</span>
-              </p>
-
-              <Link
-                to={startTo}
-                className="mt-7 inline-flex rounded-full px-9 py-3.5 text-[0.92rem] font-semibold transition-all duration-300 hover:-translate-y-0.5"
-                style={{ background: "#f0e3cb", color: INK }}
-              >
-                Get Started
-              </Link>
-              {/* Follows the button rather than being pushed to the foot of the
-                  card (2026-09-19): full bleed made the card tall enough that
-                  mt-auto dropped the ladder below the fold on a laptop. */}
-              <ul className="mt-[clamp(1.5rem,3vw,2.25rem)] flex flex-col gap-3.5 sm:relative sm:block sm:h-[clamp(10.75rem,12vw,11.5rem)] sm:mt-[clamp(1.75rem,2.4vw,2.25rem)] lg:mt-[clamp(1.75rem,3.5vw,3rem)] lg:mb-10 lg:w-full">
-                {ENDORPHINS.map((e, i) => (
-                  <li key={e} className="contents sm:block">
-                    {/* Each word waits for its own rule to finish drawing, so the
-                        ladder reads rung by rung: line, word, line, word. */}
-                    <Motion.span
-                      className="flex items-center gap-3 sm:absolute sm:whitespace-nowrap"
-                      style={ENDORPHIN_ROWS[i].label}
-                      initial={{ opacity: 0, x: -8 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true, margin: VIEWPORT_MARGIN }}
-                      transition={{ duration: 0.45, ease: EASE, delay: i * RUNG_MS + WORD_LAG }}
-                    >
-                      <span aria-hidden="true" className="relative grid h-3 w-3 shrink-0 place-items-center">
-                        <span
-                          className="absolute inset-0 rounded-full"
-                          style={{ background: "radial-gradient(circle, rgba(253,246,230,0.75) 0%, rgba(253,246,230,0.22) 45%, rgba(253,246,230,0) 100%)" }}
-                        />
-                        <span className="relative h-1.5 w-1.5 rounded-full" style={{ background: "#fdf6e6" }} />
-                      </span>
-                      <span className="text-[0.92rem]" style={{ color: CREAM }}>
-                        {e}
-                      </span>
-                    </Motion.span>
-
-                    {/* Drawn left to right by clipping, not by scaling: the
-                        elbows are borders, and scaling one would thin its
-                        stroke as it grew. */}
-                    <Motion.span
-                      aria-hidden="true"
-                      className="pointer-events-none hidden sm:absolute sm:block"
-                      style={{
-                        ...ENDORPHIN_ROWS[i].rule,
-                        height: ENDORPHIN_ROWS[i].shape === "straight" ? "1px" : "14px",
-                      }}
-                      initial={{ clipPath: "inset(0 100% 0 0)" }}
-                      whileInView={{ clipPath: "inset(0 0% 0 0)" }}
-                      viewport={{ once: true, margin: VIEWPORT_MARGIN }}
-                      transition={{ duration: RULE_DUR, ease: EASE, delay: i * RUNG_MS }}
-                    >
-                      <span
-                        className="absolute inset-0 block"
-                        style={
-                          ENDORPHIN_ROWS[i].shape === "elbow-down"
-                            ? {
-                                borderLeft: "1px solid rgba(247,233,201,0.28)",
-                                borderBottom: "1px solid rgba(247,233,201,0.28)",
-                              }
-                            : ENDORPHIN_ROWS[i].shape === "elbow-up"
-                              ? {
-                                  borderLeft: "1px solid rgba(247,233,201,0.28)",
-                                  borderTop: "1px solid rgba(247,233,201,0.28)",
-                                }
-                              : { background: "rgba(247,233,201,0.28)" }
-                        }
-                      />
-                    </Motion.span>
-                  </li>
-                ))}
-              </ul>
+              <StartLink to={startTo} light className="mt-7" />
             </div>
 
-            {/* The cut-out sits on the brass with no frame, as the comp has it. */}
-            {/* lg:static hands the figure below to the card for positioning.
-                Sizing her through the grid cell could not work: the row is
-                items-end, so the cell is content-sized and h-full on the image
-                had nothing to resolve against — she came out 1186px tall in a
-                662px card and hung out of the bottom (2026-09-19). */}
-            <div className="relative flex items-end justify-center self-end lg:static">
+            <div className="relative mx-auto w-[min(100%,27rem)] lg:-my-10">
               <img
-                src="/site/sports-medicine/ldn-endorphins.avif"
+                src="/site/sports-medicine/tablet-star.avif"
                 alt=""
                 aria-hidden="true"
                 loading="lazy"
-                className="block h-auto w-[62%] max-w-[17rem] object-contain object-bottom sm:w-[42%] lg:absolute lg:bottom-0 lg:right-[clamp(1rem,3vw,4rem)] lg:h-[94%] lg:w-auto lg:max-w-none"
+                className="nv-drift pointer-events-none absolute bottom-[16%] left-[6%] z-10 w-[22%] drop-shadow-[0_10px_18px_rgba(70,50,20,0.3)]"
               />
+              {/* The tilt has its own wrapper: the float animates the image's
+                  transform and would wipe a rotate set on it. */}
+              <span className="block rotate-6">
+                <img
+                  src="/products/ldn.avif"
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                  className="nv-float pointer-events-none block w-full drop-shadow-[0_18px_34px_rgba(70,50,20,0.34)]"
+                />
+              </span>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* 2. LOW DOSE, EXPLAINED: standard naltrexone against LDN in words, as a table.
+   This replaces the old dose cards; the difference is described, never
+   measured. */
+
+const COMPARE = [
+  { label: "Amount", ours: "A much lower dose, set by your provider", theirs: "The standard dose" },
+  { label: "FDA status", ours: "Low-dose use is off-label", theirs: "FDA-approved" },
+  { label: "Receptor block", ours: "Brief, a few hours", theirs: "Long-lasting" },
+  { label: "Made by", ours: "A licensed compounding pharmacy", theirs: "A drug manufacturer" },
+];
+
+function LowDose() {
+  return (
+    <section className="py-[clamp(2.75rem,6vw,5.5rem)]">
+      <div className="mx-auto grid max-w-[1180px] gap-9 px-5 md:px-10 lg:grid-cols-2 lg:items-center lg:gap-14">
+        <Reveal as="div">
+          <span className="nv-eyebrow">Low dose, explained</span>
+          <h2 className={`${H2} mt-3 max-w-[18ch]`}>Same Active Ingredient, a Much Lower Dose</h2>
+          <p className="mt-4 max-w-[48ch] text-[1rem] leading-relaxed text-muted">
+            LDN uses the same active ingredient as standard naltrexone, in a much smaller amount. Prescribing it at a
+            low dose is <span className="whitespace-nowrap">off-label</span>, meaning outside its{" "}
+            <span className="whitespace-nowrap">FDA-approved</span> use.
+          </p>
+
+          <div className={`mt-7 overflow-hidden border border-line bg-surface ${CARD_R}`}>
+            <div className="grid grid-cols-[0.8fr_1fr_1fr] gap-3 bg-surface-2 px-4 py-3 text-[0.78rem] font-bold text-ink sm:px-5">
+              <span />
+              <span>LDN</span>
+              <span className="text-muted">Standard naltrexone</span>
+            </div>
+            {COMPARE.map((r) => (
+              <div key={r.label} className="grid grid-cols-[0.8fr_1fr_1fr] gap-3 border-t border-line px-4 py-3.5 text-[0.86rem] leading-snug sm:px-5">
+                <span className="font-semibold text-ink">{r.label}</span>
+                <span className="text-ink">{r.ours}</span>
+                <span className="text-muted">{r.theirs}</span>
+              </div>
+            ))}
+          </div>
+        </Reveal>
+
+        <Reveal as="div" delay={0.08} className={`relative hidden overflow-hidden sm:block ${CARD_R}`}>
+          <img
+            src="/site/sports-medicine/ldn-pathways.avif"
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            className="aspect-4/3 w-full object-cover object-center lg:aspect-5/6"
+          />
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* 3. HOW IT IS THOUGHT TO WORK: the old mechanism carousel as NAD+'s held
+   heading beside a column of rows. Every row describes the body, hedged where
+   the research is, and the fine print says it is not an expected result. */
+
+const MECHANISM = [
+  {
+    icon: KeyRound,
+    title: "Opioid receptors",
+    text: "LDN attaches to opioid receptors, the same receptors the body's own endorphins use.",
+  },
+  {
+    icon: Timer,
+    title: "A brief block",
+    text: "At a low dose, that block lasts only a few hours before it clears.",
+  },
+  {
+    icon: Waves,
+    title: "Endorphin signaling",
+    text: "Researchers think the body may respond to the short block by increasing its own endorphin signaling.",
+  },
+  {
+    icon: Microscope,
+    title: "Immune cells",
+    text: "LDN is also being studied for how it acts on immune cells involved in inflammation.",
+  },
+];
+
+function Mechanism({ startTo }) {
+  return (
+    <section className="pb-[clamp(2.75rem,6vw,5.5rem)]">
+      <div className="mx-auto grid max-w-[1180px] gap-8 px-5 md:px-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+        <div className="lg:sticky lg:top-28 lg:self-start">
+          <Reveal as="div">
+            <span className="nv-eyebrow">In the body</span>
+            <h2 className={`${H2} mt-3 max-w-[14ch]`}>How LDN Is Thought to Work</h2>
+            <p className="mt-4 max-w-[40ch] text-[1rem] leading-relaxed text-muted">
+              LDN acts on the same receptors as standard naltrexone, but only for a short time.
+            </p>
+            <StartLink to={startTo} className="mt-7 hidden lg:inline-flex" />
+          </Reveal>
+        </div>
+
+        <div>
+          <ul>
+            {MECHANISM.map((r, i) => (
+              <Reveal
+                as="li"
+                key={r.title}
+                delay={(i % 2) * 0.05}
+                className="flex items-center gap-5 border-t border-line py-5 first:border-t-0 first:pt-0 sm:gap-8 sm:py-7"
+              >
+                <span
+                  className="relative grid aspect-3/2 w-28 shrink-0 place-items-center overflow-hidden rounded-[18px] sm:w-48"
+                  style={{ background: BAND }}
+                >
+                  <img
+                    src="/site/ldn/ldn-rings.avif"
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover opacity-70 mix-blend-soft-light"
+                  />
+                  <r.icon size={36} strokeWidth={1.4} className="relative h-7 w-7 sm:h-10 sm:w-10" style={{ color: CREAM }} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="font-display text-[1.1rem] font-bold leading-snug text-ink sm:text-[1.3rem]">{r.title}</h3>
+                  <p className="mt-1.5 max-w-[46ch] text-[0.9rem] leading-relaxed text-muted sm:text-[0.98rem]">{r.text}</p>
+                </div>
+              </Reveal>
+            ))}
+          </ul>
+          <p className="mt-6 border-t border-line pt-5 text-[0.76rem] italic leading-relaxed text-muted">
+            How LDN is thought to work in the body, not an expected result of treatment. Research on low-dose use is
+            ongoing and individual response varies. Source:{" "}
+            <a
+              href={SOURCE}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-line-strong underline-offset-2 hover:text-[#725826]"
+            >
+              Med Sci (Basel), 2018
+            </a>
+            .
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* 4. HOW IT IS TAKEN: plain steps with no amounts or timings. The third step is
+   the Starter, Mid-Dose and Maintenance ladder, told without its numbers. */
+
+const STEPS = [
+  { title: "A tablet, no needles", text: "LDN is a tablet you swallow. There are no injections." },
+  {
+    title: "On the plan your provider sets",
+    text: "Your provider decides how much to take and when. Your prescription label says the same.",
+  },
+  {
+    title: "Reviewed at follow-ups",
+    text: "Plans often begin with a starter supply, and your provider may adjust your plan over time.",
+  },
+];
+
+function Taken() {
+  return (
+    <section className="pb-[clamp(2.75rem,6vw,5.5rem)]">
+      <div className="mx-auto grid max-w-[1180px] gap-9 px-5 md:px-10 lg:grid-cols-2 lg:items-center lg:gap-14">
+        <Reveal
+          as="div"
+          className={`relative hidden aspect-4/3 overflow-hidden sm:block ${CARD_R}`}
+          style={{ background: BAND }}
+        >
+          <img
+            src="/site/ldn/ldn-rings.avif"
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover opacity-60 mix-blend-soft-light"
+          />
+          <div className="absolute inset-0 grid place-items-center">
+            <div className="relative w-[38%]">
+              <img
+                src="/site/sports-medicine/tablet-facet.avif"
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+                className="nv-drift pointer-events-none absolute -right-[42%] -top-[30%] w-[58%] drop-shadow-[0_14px_22px_rgba(70,50,20,0.3)]"
+              />
+              <img
+                src="/site/sports-medicine/tablet-star.avif"
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+                className="nv-float pointer-events-none block w-full drop-shadow-[0_18px_34px_rgba(70,50,20,0.34)]"
+              />
+            </div>
+          </div>
+        </Reveal>
+
+        <Reveal as="div" delay={0.08}>
+          <span className="nv-eyebrow">How it's taken</span>
+          <h2 className={`${H2} mt-3 text-balance`}>Taken by Mouth, at Home</h2>
+          <ol className="mt-7">
+            {STEPS.map((s, i) => (
+              <li key={s.title} className="flex items-start gap-3 border-t border-line py-5 first:border-t-0 first:pt-0">
+                <span className="w-10 shrink-0 font-display text-[1.6rem] font-extrabold leading-none text-[#b39258]">0{i + 1}</span>
+                <div>
+                  <h3 className="font-display text-[1.1rem] font-bold leading-snug text-ink sm:text-[1.2rem]">{s.title}</h3>
+                  <p className="mt-1.5 max-w-[46ch] text-[0.94rem] leading-relaxed text-muted">{s.text}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* 5. WHAT'S INCLUDED: the dark price card, with the rung's own price and supply
+   note, so the Starter, Mid-Dose and Maintenance pages each show their own. */
+
+const INCLUDED = [
+  "An online intake reviewed by a licensed provider",
+  "Low-dose naltrexone tablets, if prescribed",
+  "Compounded by a licensed U.S. pharmacy",
+  "Discreet home delivery",
+  "Follow-up care and guidance throughout your plan",
+];
+
+function Included({ product, startTo }) {
+  return (
+    <section className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.75rem,6vw,5.5rem)] md:px-10">
+      <Reveal as="div">
+        <div className={`relative grid overflow-hidden lg:grid-cols-2 ${CARD_R}`} style={{ background: CHAMPAGNE }}>
+          <div className="relative px-6 pt-9 sm:px-10 sm:pt-12">
+            {/* The warm glow behind her. Desktop only: stacked, the column ends
+                at the price card and would cut the glow off in a hard line. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 hidden lg:block"
+              style={{ background: "radial-gradient(circle at 50% 88%, rgba(255,255,255,0.7), transparent 48%)" }}
+            />
+            <span className="relative flex items-center gap-2 text-[0.9rem] font-semibold" style={{ color: GOLD_INK }}>
+              <span className="h-2 w-2 rounded-full bg-[#977e43]" />
+              Provider-guided care
+            </span>
+            <h2 className={`${TITLE} relative z-10 mt-4 max-w-[20ch] text-[clamp(1.5rem,2.8vw,2.1rem)]`} style={{ color: GOLD_INK }}>
+              LDN, prescribed and followed by a licensed provider.
+            </h2>
+            {/* Cropped at the waist, so she stands on the card's bottom edge.
+                Stacked, that cropped edge fades out under the price card. */}
+            <img
+              src="/site/sports-medicine/ldn-endorphins.avif"
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              className="mx-auto mt-6 block h-72 w-auto object-contain object-bottom [mask-image:linear-gradient(180deg,#000_70%,transparent)] sm:h-80 lg:absolute lg:bottom-0 lg:left-1/2 lg:mt-0 lg:h-[70%] lg:-translate-x-1/2 lg:[mask-image:none]"
+            />
+          </div>
+
+          {/* Stacked, the card rides up over the photo's cropped bottom edge. */}
+          <div className="relative -mt-12 p-4 sm:p-8 lg:mt-0">
+            <div className={`bg-white px-6 py-7 sm:px-9 sm:py-9 ${CARD_R}`}>
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                <span className="font-display text-[clamp(2.4rem,4vw,3rem)] font-extrabold leading-none text-ink">
+                  {priceLabel(product)}
+                </span>
+                {product.priceNote && <span className="text-[1rem] text-muted">{product.priceNote}</span>}
+              </div>
+              <p className="mt-2 text-[0.88rem] text-muted">
+                You pay only if a provider determines that a prescription is appropriate.
+              </p>
+              <h3 className="mt-7 text-[0.95rem] font-bold text-ink">What's included</h3>
+              <ul className="mt-3 grid gap-3">
+                {INCLUDED.map((t) => (
+                  <li key={t} className="flex items-start gap-3 text-[0.94rem] leading-snug text-ink">
+                    <Check size={17} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#977e43]" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <StartLink to={startTo} className="mt-8 w-full justify-center" />
             </div>
           </div>
         </div>
       </Reveal>
-    </div>
+    </section>
   );
 }
 
-export default function LdnSections({ startTo = "/start" }) {
+export default function LdnSections({ product, startTo = "/start" }) {
   return (
-    <section style={{ background: "#faf8f4" }}>
-      <ALowerDose startTo={startTo} />
-      <WhyTheDose />
-      <Mechanism />
-      <EndorphinsBand startTo={startTo} />
-    </section>
+    <>
+      <WhatIs startTo={startTo} />
+      <div style={{ background: GROUND }}>
+        <LowDose />
+        <Mechanism startTo={startTo} />
+        <Taken />
+        <Included product={product} startTo={startTo} />
+      </div>
+    </>
   );
 }

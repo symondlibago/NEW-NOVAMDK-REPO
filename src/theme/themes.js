@@ -449,23 +449,23 @@ export const PALETTES = [
 export const TYPOGRAPHIES = [
   {
     /* Site font. IBM Plex Sans on 2026-10-12, Helvetica Neue on 2026-10-13,
-       both the client's. The id stays so saved choices still land here.
+       Inter later that day, all the client's. The id stays so saved choices
+       still land here.
 
-       Helvetica Neue is not a web font. It is licensed, it is not on Google
-       Fonts, and there is nothing to download, so it only appears for visitors
-       who already have it: macOS and iOS. The stack after it is what everyone
-       else actually sees, in order. Arial is the one that matters, because it
-       is what Windows gets and it shares Helvetica's metrics, so the line
-       lengths and the tracking below hold either way. */
+       Inter replaced Helvetica Neue because the client wanted the type Good
+       Life Meds sets its headlines and menu in, and because Helvetica Neue is
+       not a web font: only Macs have it, so Windows visitors, the client
+       among them, were reading Arial. Inter is loaded from Google Fonts in
+       index.css as a variable font with an optical size axis, so large
+       headlines get its tighter display cut on their own. The rest of the
+       stack is only what shows while it loads. */
     id: "grotesk",
-    name: "Helvetica Neue",
+    name: "Inter",
     sample: "Aa",
-    note: "Helvetica Neue · IBM Plex Mono",
+    note: "Inter · IBM Plex Mono",
     vars: {
-      "--nv-font-display":
-        "'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', system-ui, sans-serif",
-      "--nv-font-body":
-        "'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', system-ui, sans-serif",
+      "--nv-font-display": "'Inter', 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif",
+      "--nv-font-body": "'Inter', 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif",
       "--nv-font-mono": "'IBM Plex Mono', ui-monospace, monospace",
       "--nv-display-tracking": "-0.032em",
     },
@@ -701,6 +701,9 @@ export const RADII = [
 
 /** Heading / body weight presets toggled in the studio (Light · Medium · Bold). */
 export const WEIGHTS = [
+  /* The site default: headings in Inter's regular weight, as Good Life Meds
+     sets theirs (client, 2026-10-13). */
+  { id: "regular", name: "Regular", vars: { "--nv-weight-heading": "400", "--nv-weight-body": "400" } },
   { id: "light", name: "Light", vars: { "--nv-weight-heading": "700", "--nv-weight-body": "400" } },
   { id: "medium", name: "Medium", vars: { "--nv-weight-heading": "800", "--nv-weight-body": "450" } },
   { id: "bold", name: "Bold", vars: { "--nv-weight-heading": "900", "--nv-weight-body": "500" } },
@@ -722,7 +725,7 @@ export const KIOSK_LAYOUTS = [
 export const DEFAULTS = {
   palette: "bronze-gold",
   typography: "grotesk",
-  weight: "medium",
+  weight: "regular",
   italic: false,
   letterSpacing: "normal",
   lineHeight: "normal",
