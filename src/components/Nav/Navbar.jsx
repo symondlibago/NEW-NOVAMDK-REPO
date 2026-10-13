@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion, useScroll, useSpring } from "framer-motion";
 import { ChevronDown, ChevronLeft, ChevronRight, ArrowRight, Menu, X, ClipboardList, LogIn, LifeBuoy, Phone, User } from "lucide-react";
 import { getLenis } from "../../lib/smoothScroll";
 import Marquee from "../ui/Marquee";
@@ -150,40 +150,61 @@ function ProductThumb({ src, tag = "" }) {
 /* ---------------------- desktop category mega-panel ----------------------
    One panel shared by all five categories rather than a dropdown each. The
    shell animates in once and then stays put while the pointer travels along
-   the row, and only the contents cross-fade, so moving Weight Loss → Longevity
-   reads as the panel changing its mind rather than closing and reopening. */
-function TreatmentPanel({ cat, onNavigate }) {
+   the row, and only the contents change, so moving Weight Loss → Longevity
+   reads as the panel changing its mind rather than closing and reopening.
+
+   The products glide in from the side the pointer is travelling towards and
+   come into focus as they land, one after another (client, 2026-10-13, after
+   ReadyRx and the homepage's blur-in headings). `dir` is +1 when the pointer
+   moved right along the row, -1 when it moved left. The outgoing set slips
+   the other way and fades fast, so the new one is never kept waiting. */
+const PANEL_OUT = { duration: 0.16, ease: [0.4, 0, 1, 1] };
+const panelMotion = {
+  enter: { opacity: 1 },
+  leave: (d) => ({ opacity: 0, x: d * -16, filter: "blur(4px)", transition: PANEL_OUT }),
+};
+
+function TreatmentPanel({ cat, dir, onNavigate }) {
   const items = TREATMENTS[cat.goal] || [];
+  const still = useReducedMotion();
+  /* Everything in the panel lands on this curve: a long, soft settle. */
+  const land = (delay, from = 40) => ({
+    initial: still ? { opacity: 0 } : { opacity: 0, x: dir * from, filter: "blur(10px)" },
+    animate: still ? { opacity: 1 } : { opacity: 1, x: 0, filter: "blur(0px)" },
+    transition: { duration: 0.7, ease: EASE, delay },
+  });
+  /* Capped so a six-item category does not run visibly late. */
+  const step = (i) => 0.06 + Math.min(i, 6) * 0.07;
+
   return (
     <motion.div
       key={cat.goal}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      transition={{ duration: 0.22, ease: EASE }}
+      custom={dir}
+      variants={panelMotion}
+      initial={false}
+      animate="enter"
+      exit="leave"
       className="mx-auto max-w-[1340px] px-5 py-7 md:px-10"
     >
       <div className="mb-4 flex items-baseline justify-between gap-4">
-        <h2 className="font-display text-[1.05rem] font-bold text-ink">{cat.label}</h2>
-        <Link
-          to={`/treatments/${cat.goal}`}
-          onClick={onNavigate}
-          className="group inline-flex items-center gap-1.5 text-[0.85rem] font-semibold text-primary transition-colors hover:text-primary-deep"
-        >
-          View all
-          <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5" />
-        </Link>
+        <motion.h2 {...land(0, 20)} className="font-display text-[1.05rem] font-bold text-ink">
+          {cat.label}
+        </motion.h2>
+        <motion.span {...land(0.1, 20)}>
+          <Link
+            to={`/treatments/${cat.goal}`}
+            onClick={onNavigate}
+            className="group inline-flex items-center gap-1.5 text-[0.85rem] font-semibold text-primary transition-colors hover:text-primary-deep"
+          >
+            View all
+            <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5" />
+          </Link>
+        </motion.span>
       </div>
 
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {items.map((p, i) => (
-          <motion.li
-            key={p.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            /* Capped so a six-item category does not run visibly late. */
-            transition={{ duration: 0.34, ease: EASE, delay: Math.min(i, 6) * 0.045 }}
-          >
+          <motion.li key={p.id} {...land(step(i))}>
             <Link
               to={productPath(p)}
               onClick={onNavigate}
@@ -201,13 +222,15 @@ function TreatmentPanel({ cat, onNavigate }) {
         ))}
       </ul>
 
-      <Link
-        to={`/start/${cat.consult}`}
-        onClick={onNavigate}
-        className="mt-4 inline-flex items-center gap-2 rounded-full bg-surface-2 px-5 py-2.5 text-[0.85rem] font-semibold text-ink transition-colors hover:bg-primary hover:text-on-primary"
-      >
-        <ClipboardList size={15} /> Start a {cat.label} consultation
-      </Link>
+      <motion.span {...land(step(items.length), 20)} className="mt-4 inline-block">
+        <Link
+          to={`/start/${cat.consult}`}
+          onClick={onNavigate}
+          className="inline-flex items-center gap-2 rounded-full bg-surface-2 px-5 py-2.5 text-[0.85rem] font-semibold text-ink transition-colors hover:bg-primary hover:text-on-primary"
+        >
+          <ClipboardList size={15} /> Start a {cat.label} consultation
+        </Link>
+      </motion.span>
     </motion.div>
   );
 }
@@ -379,6 +402,8 @@ export default function Navbar() {
   /* Which category's panel is showing on the desktop bar. Kiosk is a touch
      screen with no hover, so there it toggles on tap instead. */
   const [openCat, setOpenCat] = useState(null);
+  // Which way the pointer last moved along the row, for the panel's slide.
+  const [dir, setDir] = useState(1);
   // The category page showing in the phone drawer, null for its first page.
   const [drawerCat, setDrawerCat] = useState(null);
   const isKiosk = useKioskMode();
@@ -390,6 +415,23 @@ export default function Navbar() {
     setMobileOpen(true);
   };
   const closePanel = () => setOpenCat(null);
+  /* Opening from closed counts as moving right, so the first set still comes
+     in from the side. */
+  const openedAt = useRef(0);
+  const showCat = (goal) => {
+    if (goal === openCat) return;
+    const at = (g) => CATEGORIES.findIndex((c) => c.goal === g);
+    setDir(openCat && at(goal) < at(openCat) ? -1 : 1);
+    setOpenCat(goal);
+    openedAt.current = Date.now();
+  };
+  /* A tap on a touch screen fires the hover and focus first, which open the
+     panel, and then the click, which used to close it again straight away. So
+     a click only closes a panel that has been open for a moment. */
+  const toggleCat = (goal) => {
+    if (openCat !== goal) return showCat(goal);
+    if (Date.now() - openedAt.current > 400) closePanel();
+  };
 
   // Horizontal scroll meter pinned to the bottom of the header.
   const { scrollYProgress } = useScroll();
@@ -443,9 +485,9 @@ export default function Navbar() {
                   {i > 0 && <span aria-hidden="true" className="h-5 w-px shrink-0 bg-ink/15" />}
                 <button
                   aria-expanded={on}
-                  onMouseEnter={isKiosk ? undefined : () => setOpenCat(cat.goal)}
-                  onFocus={isKiosk ? undefined : () => setOpenCat(cat.goal)}
-                  onClick={() => setOpenCat((g) => (g === cat.goal ? null : cat.goal))}
+                  onMouseEnter={isKiosk ? undefined : () => showCat(cat.goal)}
+                  onFocus={isKiosk ? undefined : () => showCat(cat.goal)}
+                  onClick={() => toggleCat(cat.goal)}
                   className={`relative whitespace-nowrap rounded-full px-3 py-2 text-[14px] font-medium transition-colors xl:px-3.5 xl:text-[15px] ${
                     on ? "text-ink" : "text-muted hover:text-ink"
                   }`}
@@ -492,7 +534,10 @@ export default function Navbar() {
         />
 
         {/* The panel. Height animates so the bar below it settles rather than
-            jumping when a five-item category follows a three-item one. */}
+            jumping when a five-item category follows a three-item one. Solid
+            rather than see-through: the header's own blur keeps the panel's
+            from working, so the hero's headline showed through it, most of all
+            while the products crossed over. */}
         <AnimatePresence>
           {openCat && (
             <motion.div
@@ -500,12 +545,13 @@ export default function Navbar() {
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.28, ease: EASE }}
-              className="absolute inset-x-0 top-full overflow-hidden border-b border-line bg-bg/95 backdrop-blur-xl nv-shadow-lg"
+              className="absolute inset-x-0 top-full overflow-hidden border-b border-line bg-bg nv-shadow-lg"
             >
-              <AnimatePresence mode="wait">
+              <AnimatePresence mode="wait" custom={dir}>
                 <TreatmentPanel
                   key={openCat}
                   cat={CATEGORIES.find((c) => c.goal === openCat)}
+                  dir={dir}
                   onNavigate={closePanel}
                 />
               </AnimatePresence>
