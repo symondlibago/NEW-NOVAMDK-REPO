@@ -14,6 +14,11 @@ import BlurIn from "../ui/BlurIn";
  * pinned and changes with the step in front, ending on the Nova MDK box, the
  * one part of the old comp the client wanted kept. On a phone each step carries
  * its own photo. Colours are the site's own: ink type, brass rail, cream ground.
+ *
+ * The photos are this band's own, sharper copies (client, 2026-10-13: the
+ * shared journey files were too soft here): the intake photo upscaled 2x from
+ * the client's original, a real clinician in place of the generated doctor,
+ * and the Nova MDK box from the client's full-size file.
  */
 
 const STEPS = [
@@ -21,19 +26,19 @@ const STEPS = [
     tag: "Start online",
     title: "Complete a private assessment",
     body: "Share your goals and health history from wherever you are, on your own time.",
-    img: "/products/journey/intake.avif",
+    img: "/site/home/how-intake.avif",
   },
   {
     tag: "Licensed provider review",
     title: "A provider reviews your information",
     body: "A licensed provider reviews your assessment and determines whether treatment is appropriate for you.",
-    img: "/products/journey/provider.avif",
+    img: "/site/home/how-provider.avif",
   },
   {
     tag: "Discreet delivery",
     title: "Receive your treatment at home",
     body: "If prescribed, a U.S.-licensed pharmacy prepares your treatment and ships it to your door in discreet packaging.",
-    img: "/products/journey/prescription.avif",
+    img: "/site/home/how-delivery.avif",
   },
 ];
 

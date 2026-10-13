@@ -181,6 +181,10 @@ function ActiveGoals() {
       style={GLASS}
     >
       <Rim />
+      {/* On a phone the card sits over her white top rather than her face, so
+          it takes a light brown tint for the white type to read on. backdrop-
+          filter makes the card a stacking context, so -z-10 stays inside it. */}
+      <span aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-[#5c4426]/30 md:hidden" />
 
       {/* ---- the ring ---- */}
       <div className="relative mx-auto h-40 w-40 shrink-0 sm:h-44 sm:w-44">
@@ -230,9 +234,10 @@ function ActiveGoals() {
             <div className="min-w-0 flex-1">
               <span className="block truncate text-[0.9rem] font-medium text-white/90">{g.label}</span>
               <span aria-hidden="true" className="mt-2 block h-0.75 w-full rounded-full bg-white/25">
+                {/* Gold, so the fill reads against the white card (client, 2026-10-13). */}
                 <span
-                  className="nv-mty-bar block h-full rounded-full bg-white"
-                  style={{ "--w": `${g.pct}%`, animationDelay: `${0.62 + i * 0.16}s` }}
+                  className="nv-mty-bar block h-full rounded-full"
+                  style={{ "--w": `${g.pct}%`, animationDelay: `${0.62 + i * 0.16}s`, background: "linear-gradient(90deg, #d9b56a, #b8913f)" }}
                 />
               </span>
             </div>
@@ -538,15 +543,15 @@ export default function MattersToYou() {
             <span className="block">Matters To You</span>
           </h2>
 
-          <p className="mx-auto mt-4 max-w-[46ch] text-[clamp(0.95rem,1.35vw,1.15rem)] leading-relaxed text-white/85">
+          <p className="mx-auto mt-4 hidden max-w-[46ch] text-[clamp(0.95rem,1.35vw,1.15rem)] leading-relaxed text-white/85 md:block">
             Explore treatment options for your health goals and take the next step when you&rsquo;re
             ready
           </p>
 
-          {/* Pill-width and centred on a phone (2026-09-19), matching the hero:
-              at max-w-sm the pair ran the whole screen and, with mx-auto only
-              from sm, sat off the band's centre line. */}
-          <div className="mx-auto mt-7 flex w-full max-w-60 flex-col gap-2.5 sm:max-w-none sm:flex-row sm:justify-center sm:gap-3">
+          {/* The line and the two buttons are desktop only: on a phone the
+              band is just the heading and the goals card, whose own button
+              leads on (client, 2026-10-13). */}
+          <div className="mx-auto mt-7 hidden w-full max-w-60 flex-col gap-2.5 sm:max-w-none sm:flex-row sm:justify-center sm:gap-3 md:flex">
             {/* Solid white in the comp, against the outlined secondary. */}
             <Link
               to="/treatments"
@@ -566,15 +571,17 @@ export default function MattersToYou() {
           </div>
         </Reveal>
 
-        {/* One column on a phone, then the comp's split: the goals card runs the
-            full height beside two stacked cards of matching size. */}
+        {/* The comp's split from md: the goals card runs the full height beside
+            two stacked cards of matching size. A phone gets the goals card
+            alone, set low enough that her face shows above it (client,
+            2026-10-13). */}
         {/* No Reveal on these three (2026-09-19): an ancestor at opacity below 1
             is a backdrop root, which leaves a backdrop-filter with nothing to
             sample. Faded in, the cards spent the whole 0.7s as flat translucent
             panels and the blur snapped in at the end, which read as lag. They
             have plenty of motion of their own: the ring draws, the bars fill,
             the counter rolls and the curve draws. */}
-        <div className="mx-auto mt-[clamp(1.75rem,4vw,2.75rem)] grid max-w-225 gap-5 md:grid-cols-2 md:gap-8">
+        <div className="mx-auto mt-96 grid max-w-225 gap-5 md:mt-[clamp(1.75rem,4vw,2.75rem)] md:grid-cols-2 md:gap-8">
           <div className="h-full">
             <ActiveGoals />
           </div>
@@ -582,7 +589,7 @@ export default function MattersToYou() {
               size. flex-grow was tried first and could not do it: a flex item
               will not shrink under its own content, so the taller card kept
               its content height and the other one came out short. */}
-          <div className="flex h-full flex-col gap-5 md:grid md:grid-rows-2 md:gap-8">
+          <div className="hidden h-full flex-col gap-5 md:grid md:grid-rows-2 md:gap-8">
             <NextCheckIn />
             <YourProgress />
           </div>

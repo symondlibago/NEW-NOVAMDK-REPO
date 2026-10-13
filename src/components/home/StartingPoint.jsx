@@ -253,7 +253,7 @@ function ProductArt({ src }) {
       loading="lazy"
       /* Shorter on a short laptop window (1366x768 and the like), so the
          whole rail still lands inside one screen. */
-      className={`pointer-events-none h-60 w-full object-contain lg:h-68 [@media(max-height:820px)]:lg:h-52 ${
+      className={`pointer-events-none h-40 w-full object-contain sm:h-60 lg:h-68 [@media(max-height:820px)]:lg:h-52 ${
         padded ? "scale-[1.2]" : ""
       }`}
     />
@@ -261,22 +261,24 @@ function ProductArt({ src }) {
 }
 
 /* The rail's lead card, after the client's comp (2026-10-13): the way into the
-   whole catalogue, in the brand's brown, the same size as a product card. */
+   whole catalogue, in the brand's brown, the same size as a product card.
+   Cards are narrower on a phone, so a card and a half show at once, as on
+   Hims (client, 2026-10-13). */
 function ExploreCard() {
   return (
     <div
-      className={`flex w-80 shrink-0 flex-col justify-end p-7 text-white shadow-[0_6px_24px_rgba(90,70,30,0.12)] sm:w-96 lg:w-104 ${CARD_R}`}
+      className={`flex w-56 shrink-0 flex-col justify-end p-5 text-white shadow-[0_6px_24px_rgba(90,70,30,0.12)] sm:w-96 sm:p-7 lg:w-104 ${CARD_R}`}
       style={{ background: "linear-gradient(180deg, #c9b38a 0%, #9c8459 55%, #6f5b3a 100%)" }}
     >
-      <h3 className="nv-weight-keep font-display text-[clamp(1.6rem,2.2vw,2rem)] font-medium leading-tight">
+      <h3 className="nv-weight-keep font-display text-[1.35rem] font-medium leading-tight sm:text-[clamp(1.6rem,2.2vw,2rem)]">
         Explore Treatments
       </h3>
-      <p className="mt-3 max-w-[30ch] text-[0.98rem] leading-relaxed text-white/85">
+      <p className="mt-2 max-w-[30ch] text-[0.88rem] leading-relaxed text-white/85 sm:mt-3 sm:text-[0.98rem]">
         Browse care options across weight management, sexual health, longevity, skin health and more.
       </p>
       <Link
         to="/treatments"
-        className="group mt-7 inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 text-[0.92rem] font-semibold text-ink transition-all duration-300 hover:-translate-y-0.5"
+        className="group mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-[0.84rem] font-semibold text-ink transition-all duration-300 hover:-translate-y-0.5 sm:mt-7 sm:px-6 sm:py-3.5 sm:text-[0.92rem]"
       >
         View All Options
         <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-1" />
@@ -351,15 +353,15 @@ export default function StartingPoint() {
         ref={trackRef}
         /* pt/pb leave the cards' shadow room: an overflow-x container clips
            vertically too. */
-        className="no-scrollbar flex cursor-grab select-none gap-5 overflow-x-auto overscroll-x-contain px-5 pb-6 pt-2 md:px-10"
+        className="no-scrollbar flex cursor-grab select-none gap-4 overflow-x-auto sm:gap-5 overscroll-x-contain px-5 pb-6 pt-2 md:px-10"
       >
         <ExploreCard />
         {CARDS.map((p) => (
           <div
             key={p.id}
-            className={`flex w-80 shrink-0 flex-col border border-[#ece3d3] bg-[#fbf8f2] p-6 shadow-[0_6px_24px_rgba(90,70,30,0.07)] sm:w-96 lg:w-104 ${CARD_R}`}
+            className={`flex w-56 shrink-0 flex-col border border-[#ece3d3] bg-[#fbf8f2] p-4 shadow-[0_6px_24px_rgba(90,70,30,0.07)] sm:w-96 sm:p-6 lg:w-104 ${CARD_R}`}
           >
-            <h3 className="nv-weight-keep font-display text-[clamp(1.3rem,1.8vw,1.55rem)] font-medium leading-tight text-ink">
+            <h3 className="nv-weight-keep font-display text-[1.08rem] font-medium leading-tight text-ink sm:text-[clamp(1.3rem,1.8vw,1.55rem)]">
               {displayTitle(p)}
             </h3>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -375,21 +377,21 @@ export default function StartingPoint() {
             <button
               type="button"
               onClick={() => setSafetyFor(p)}
-              className="mx-auto mb-4 text-[0.86rem] font-medium text-ink underline decoration-[#c9ab7c] underline-offset-4 hover:decoration-ink"
+              className="mx-auto mb-3 text-[0.76rem] font-medium text-ink underline decoration-[#c9ab7c] underline-offset-4 hover:decoration-ink sm:mb-4 sm:text-[0.86rem]"
             >
               Important safety information
             </button>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2 sm:gap-2.5">
               <Link
                 to={`${productPath(p)}?start=1`}
-                className="flex-1 rounded-full bg-[#b39258] px-4 py-3 text-center text-[0.88rem] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#a5854f]"
+                className="flex-1 rounded-full bg-[#b39258] px-2 py-2.5 text-center text-[0.78rem] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#a5854f] sm:px-4 sm:py-3 sm:text-[0.88rem]"
               >
                 Get Started
               </Link>
               <Link
                 to={productPath(p)}
-                className="flex-1 rounded-full border border-[#c9ab7c] bg-white px-4 py-3 text-center text-[0.88rem] font-semibold text-ink transition-colors hover:bg-[#f5efe4]"
+                className="flex-1 rounded-full border border-[#c9ab7c] bg-white px-2 py-2.5 text-center text-[0.78rem] font-semibold text-ink transition-colors hover:bg-[#f5efe4] sm:px-4 sm:py-3 sm:text-[0.88rem]"
               >
                 View Details
               </Link>

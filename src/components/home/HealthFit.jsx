@@ -18,23 +18,26 @@ const GROUND = "linear-gradient(180deg, #ffffff 0%, #fbf5ec 45%, #f8eedf 100%)";
 const BOX = "linear-gradient(180deg, #efe3cf 0%, #dcc7a3 100%)";
 const GOLD = "#b08d57";
 
-/* A woman in the audience's range, 35 to 60 (client, 2026-10-12). The comp's
-   own photo was only in the screenshot, too small to use on a desktop. */
-const FIGURE = "/site/goals/longevity.avif";
+/* A fit woman of 30 to 40 (client, 2026-10-13: the first pick read older).
+   The client may swap in a stock photo; the file was upscaled 2x so it holds
+   up at this size. */
+const FIGURE = "/site/home/healthfit-woman.avif";
 
+/* Lower on a phone, where the box is small and a chip at 18% sat on her
+   face. */
 const CHIPS = [
   {
     label: "Everyday wellness",
     img: "/products/nad-plus.avif",
     fit: "object-contain p-1",
-    at: "left-2 top-[18%] md:left-0 md:-translate-x-[18%]",
+    at: "left-2 top-[44%] md:left-0 md:top-[18%] md:-translate-x-[18%]",
     delay: "0s",
   },
   {
     label: "Made for real life",
     img: "/products/journey/prescription.avif",
     fit: "object-cover",
-    at: "right-2 bottom-[16%] md:right-0 md:translate-x-[14%]",
+    at: "right-2 bottom-[5%] md:right-0 md:bottom-[16%] md:translate-x-[14%]",
     delay: "1.4s",
   },
 ];
