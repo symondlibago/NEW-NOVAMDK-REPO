@@ -7,7 +7,7 @@ const INK = "#544529";
 const TAN = "#b9a179";
 const BODY = "#7a6d58";
 
-const TITLE = "nv-weight-keep font-display font-extrabold leading-[1.14]";
+const TITLE = "nv-weight-keep font-display font-normal leading-[1.14]";
 const TITLE_SIZE = "text-[clamp(1.6rem,3.6vw,2.7rem)]";
 const BODY_SIZE = "text-[clamp(0.9rem,1.2vw,1.05rem)]";
 
@@ -348,7 +348,7 @@ function NotSurfaceLevel() {
             <div className="grid gap-9 lg:grid-cols-2 lg:gap-0">
               <div className="lg:pr-12">
                 <h3
-                  className="nv-weight-keep max-w-[13ch] font-display text-[clamp(1.4rem,3.2vw,2.05rem)] font-extrabold leading-[1.12]"
+                  className="nv-weight-keep max-w-[13ch] font-display text-[clamp(1.4rem,3.2vw,2.05rem)] font-normal leading-[1.12]"
                   style={{ color: INK }}
                 >
                   Glutathione in the body
@@ -391,7 +391,7 @@ function NotSurfaceLevel() {
                   below lg and the two halves ran together. */}
               <div className="border-t border-[#544529]/12 pt-9 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
                 <h3
-                  className="nv-weight-keep max-w-[13ch] font-display text-[clamp(1.4rem,3.2vw,2.05rem)] font-extrabold leading-[1.12]"
+                  className="nv-weight-keep max-w-[13ch] font-display text-[clamp(1.4rem,3.2vw,2.05rem)] font-normal leading-[1.12]"
                   style={{ color: INK }}
                 >
                   Why injectable glutathione?

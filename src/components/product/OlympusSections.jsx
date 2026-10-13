@@ -23,7 +23,7 @@ const BRASS = "radial-gradient(circle at 50% 50%, #c1a27a, #9a7843)";
 
 const CARD_R = "rounded-[calc(26px*var(--nv-r-scale,1))]";
 const TILE_R = "rounded-[calc(18px*var(--nv-r-scale,1))]";
-const TITLE = "nv-weight-keep font-display font-extrabold leading-[1.14]";
+const TITLE = "nv-weight-keep font-display font-normal leading-[1.14]";
 
 /* Floors sized for a phone, not for the desktop comp: 3.4vw does not reach the
    old 1.6rem floor until about 750px, so on a phone the floor IS the size. The

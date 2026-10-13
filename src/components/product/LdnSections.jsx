@@ -60,7 +60,7 @@ const ENDORPHIN_ROWS = [
 ];
 const CARD_R = "rounded-[calc(26px*var(--nv-r-scale,1))]";
 const TILE_R = "rounded-[calc(18px*var(--nv-r-scale,1))]";
-const TITLE = "nv-weight-keep font-display font-extrabold leading-[1.14]";
+const TITLE = "nv-weight-keep font-display font-normal leading-[1.14]";
 const TITLE_SIZE = "text-[clamp(1.6rem,3.4vw,2.5rem)]";
 const BODY_SIZE = "text-[clamp(0.82rem,1.02vw,0.95rem)]";
 
@@ -421,7 +421,7 @@ function EndorphinsBand({ startTo }) {
               <h2
                 /* 16ch dropped "good" onto a line of its own. The break is set
                    where the comp sets it instead of left to the wrap. */
-                className="nv-weight-keep max-w-[24ch] font-display text-[clamp(1.5rem,3.2vw,2.4rem)] font-extrabold leading-[1.14]"
+                className="nv-weight-keep max-w-[24ch] font-display text-[clamp(1.5rem,3.2vw,2.4rem)] font-normal leading-[1.14]"
                 style={{ color: CREAM }}
               >
                 Endorphins do more{" "}

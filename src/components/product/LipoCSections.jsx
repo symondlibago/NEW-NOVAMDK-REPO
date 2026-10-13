@@ -19,7 +19,7 @@ const PALE = "#f3e5ca";
 /* The warm ground the comp's closing band sits on. */
 const SAND = "#f2e9d7";
 const CARD_R = "rounded-[calc(26px*var(--nv-r-scale,1))]";
-const TITLE = "nv-weight-keep font-display font-extrabold leading-[1.08]";
+const TITLE = "nv-weight-keep font-display font-normal leading-[1.08]";
 const TITLE_SIZE = "text-[clamp(1.8rem,4vw,2.9rem)]";
 const SECTION_X = "px-3 sm:px-5 md:px-6";
 const EASE = [0.2, 0.7, 0.3, 1];

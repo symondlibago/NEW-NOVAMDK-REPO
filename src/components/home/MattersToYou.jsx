@@ -533,7 +533,7 @@ export default function MattersToYou() {
 
       <div className="relative mx-auto max-w-310 px-5 py-[clamp(2.75rem,6vw,4.75rem)] md:px-10">
         <Reveal className="text-center">
-          <h2 className="nv-weight-keep font-display text-[clamp(2rem,4.6vw,3.9rem)] font-extrabold leading-[1.1] tracking-tight text-white">
+          <h2 className="nv-weight-keep font-display text-[clamp(2rem,4.6vw,3.9rem)] font-normal leading-[1.1] tracking-tight text-white">
             <span className="block">Starts With What</span>
             <span className="block">Matters To You</span>
           </h2>

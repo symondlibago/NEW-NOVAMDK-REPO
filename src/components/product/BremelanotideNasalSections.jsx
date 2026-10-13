@@ -15,7 +15,7 @@ const BRASS = "radial-gradient(circle at 50% 50%, #c1a27a, #9a7843)";
 const BRASS_FLAT = "#ad8a55";
 const PALE = "#f3e5ca";
 const CARD_R = "rounded-[calc(26px*var(--nv-r-scale,1))]";
-const TITLE = "nv-weight-keep font-display font-extrabold leading-[1.08]";
+const TITLE = "nv-weight-keep font-display font-normal leading-[1.08]";
 /* Matches the sibling page: tighter than the site default so the brass band
    uses more of its width. */
 const SECTION_X = "px-3 sm:px-5 md:px-6";

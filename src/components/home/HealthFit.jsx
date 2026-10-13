@@ -100,7 +100,7 @@ export default function HealthFit() {
           </Reveal>
           <BlurIn
             as="h2"
-            className="nv-weight-keep mt-4 font-display text-[clamp(2.3rem,5vw,4.2rem)] font-light leading-[1.04] tracking-[-0.035em]"
+            className="nv-weight-keep mt-4 font-display text-[clamp(2.3rem,5vw,4.2rem)] font-normal leading-[1.04] tracking-[-0.035em]"
           >
             <span className="block text-ink">Your Health Isn&rsquo;t</span>
             <span className="block" style={{ color: GOLD }}>

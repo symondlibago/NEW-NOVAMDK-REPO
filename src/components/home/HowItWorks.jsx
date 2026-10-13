@@ -163,7 +163,7 @@ export default function HowItWorks() {
           </Reveal>
           <BlurIn
             as="h2"
-            className="nv-weight-keep mt-4 font-display text-[clamp(2.2rem,4.6vw,3.8rem)] font-light leading-[1.04] tracking-[-0.035em]"
+            className="nv-weight-keep mt-4 font-display text-[clamp(2.2rem,4.6vw,3.8rem)] font-normal leading-[1.04] tracking-[-0.035em]"
           >
             <span className="block text-ink">Care in Three</span>
             <span className="block" style={{ color: GOLD }}>

@@ -87,7 +87,7 @@ function Heading({ children }) {
   return (
     <BlurIn
       as="h2"
-      className="nv-weight-keep font-display text-[clamp(2rem,4vw,3.4rem)] font-light leading-[1.06] tracking-[-0.035em] text-ink"
+      className="nv-weight-keep font-display text-[clamp(2rem,4vw,3.4rem)] font-normal leading-[1.06] tracking-[-0.035em] text-ink"
     >
       {children}
     </BlurIn>

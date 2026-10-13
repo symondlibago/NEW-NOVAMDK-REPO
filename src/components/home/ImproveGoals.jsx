@@ -147,7 +147,7 @@ export default function ImproveGoals() {
       <div className="mx-auto w-full max-w-335 px-5 pt-[clamp(1.75rem,3.5vw,2.75rem)] md:flex md:min-h-0 md:flex-1 md:flex-col md:px-10">
         <Reveal>
           <h2
-            className="nv-weight-keep font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-extrabold leading-[1.1] tracking-tight"
+            className="nv-weight-keep font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-normal leading-[1.1] tracking-tight"
             style={{ color: HEADING }}
           >
             <span className="block">What Are You</span>

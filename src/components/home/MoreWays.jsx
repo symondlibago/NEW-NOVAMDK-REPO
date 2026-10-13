@@ -213,7 +213,7 @@ export default function MoreWays() {
           </span>
           {/* 64/62 with 1px of tracking in the file. */}
           <h2
-            className="nv-weight-keep mt-4 font-display text-[clamp(2.2rem,4.8vw,4.4rem)] font-extrabold leading-[0.97] tracking-[0.01em]"
+            className="nv-weight-keep mt-4 font-display text-[clamp(2.2rem,4.8vw,4.4rem)] font-normal leading-[0.97]"
             style={{ color: HEADING, textShadow: SHADE }}
           >
             <span className="block">More Ways To</span>

@@ -61,7 +61,7 @@ export default function FAQ() {
       <div className="relative z-10 mx-auto max-w-215 px-5 md:px-10">
         <Reveal y={26} duration={0.9} className="text-center">
           {/* 64/60 with 1px of tracking in the file. */}
-          <h2 className="nv-weight-keep font-display text-[clamp(2.1rem,4.6vw,4rem)] font-extrabold leading-[0.94] tracking-[0.01em]">
+          <h2 className="nv-weight-keep font-display text-[clamp(2.1rem,4.6vw,4rem)] font-normal leading-[0.94]">
             <span className="block" style={{ color: DARK_GOLD }}>
               Your Care,
             </span>
