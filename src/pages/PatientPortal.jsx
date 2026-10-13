@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import BrandLoader from "../components/transition/BrandLoader";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, CalendarDays, House, Lock, Menu, MessageSquare, Pill, RefreshCw, TrendingUp, UserRound } from "lucide-react";
+import { ArrowLeft, House, Lock, Menu, MessageSquare, Pill, RefreshCw, TrendingUp, UserRound } from "lucide-react";
 import Seo from "../components/Seo";
 import PortalLogin from "../components/portal/PortalLogin";
 import PortalSidebar from "../components/portal/PortalSidebar";
@@ -19,12 +19,12 @@ import { portalAuth, clearPortalCache } from "../lib/portal";
 /* John's five, in his order (2026-10-06): Home, Treatments, Visits, Messages,
    Profile. No separate tab for billing, orders, pharmacy or subscriptions; all
    four of those live inside Treatments. Progress (weekly habits) added after
-   Home, 2026-10-13. */
+   Home, 2026-10-13. Visits folded into Treatments the same day, as the visit
+   history under the plans (client's request, to cut the tab count). */
 const TABS = [
   { key: "home", label: "Home", icon: House },
   { key: "progress", label: "Progress", icon: TrendingUp },
   { key: "treatments", label: "Treatments", icon: Pill },
-  { key: "visits", label: "Visits", icon: CalendarDays },
   { key: "messages", label: "Messages", icon: MessageSquare },
   { key: "profile", label: "Profile", icon: UserRound },
 ];
@@ -86,13 +86,14 @@ export default function PatientPortalPage() {
      navigation, so it can never attach itself to an unrelated message. */
   const [messageAbout, setMessageAbout] = useState(null);
 
-  /* The visit a Home card sent them to, so the Visits tab opens on it rather
-     than on the list. Cleared by any other navigation, so going to Visits from
-     the sidebar afterwards still shows the list. */
+  /* The visit a Home card or the history list sent them to, so Treatments opens
+     on it rather than on the plans. Cleared by any other navigation, so going
+     to Treatments from the sidebar afterwards still shows the plans. */
   const [openVisitId, setOpenVisitId] = useState(null);
 
   const selectTab = useCallback((key) => {
-    setTab(key);
+    // Notifications from the server still name the old Visits tab.
+    setTab(key === "visits" ? "treatments" : key);
     setMessageAbout(null);
     setOpenVisitId(null);
     setDrawerOpen(false); // the drawer overlays the content on mobile
@@ -100,7 +101,7 @@ export default function PatientPortalPage() {
 
   const openVisit = useCallback((caseId) => {
     setOpenVisitId(caseId);
-    setTab("visits");
+    setTab("treatments");
     setDrawerOpen(false);
   }, []);
 
@@ -233,26 +234,28 @@ export default function PatientPortalPage() {
                     onMessageAbout={messageAboutVisit}
                   />
                 )}
-                {tab === "treatments" && (
-                  <PortalTreatments
-                    onUnauthorized={signOut}
-                    onMessage={messageAboutVisit}
-                    onOpenVisit={openVisit}
-                    onNavigate={selectTab}
-                  />
-                )}
+                {tab === "treatments" &&
+                  (openVisitId ? (
+                    <PortalVisits
+                      onUnauthorized={signOut}
+                      onMessageAbout={messageAboutVisit}
+                      initialOpenId={openVisitId}
+                      onBack={() => setOpenVisitId(null)}
+                    />
+                  ) : (
+                    <PortalTreatments
+                      onUnauthorized={signOut}
+                      onMessage={messageAboutVisit}
+                      onOpenVisit={openVisit}
+                    >
+                      <PortalVisits embedded onUnauthorized={signOut} onOpen={openVisit} />
+                    </PortalTreatments>
+                  ))}
                 {tab === "messages" && (
                   <PortalMessages
                     onUnauthorized={signOut}
                     about={messageAbout}
                     onClearAbout={() => setMessageAbout(null)}
-                  />
-                )}
-                {tab === "visits" && (
-                  <PortalVisits
-                    onUnauthorized={signOut}
-                    onMessageAbout={messageAboutVisit}
-                    initialOpenId={openVisitId}
                   />
                 )}
                 {tab === "progress" && <PortalProgress onNavigate={selectTab} />}

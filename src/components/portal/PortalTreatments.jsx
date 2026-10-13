@@ -452,7 +452,9 @@ function Treatment({ plan, visit, order, onChanged, onUnauthorized, onMessage, o
   );
 }
 
-export default function PortalTreatments({ onUnauthorized, onMessage, onOpenVisit, onNavigate }) {
+/* `children` is the visit history, which sits under the plans now that Visits
+   is no longer a tab of its own. */
+export default function PortalTreatments({ onUnauthorized, onMessage, onOpenVisit, children }) {
   const [plans, setPlans] = useState(null);
   const [visits, setVisits] = useState([]);
   /* Parcels, keyed by case id. Fetched after the plans resolve, because which
@@ -561,7 +563,7 @@ const page = "mx-auto w-full max-w-5xl";
         <p className="mt-1 text-[0.9rem] text-muted">
           {plans.length > 1
             ? "Each plan renews, ships and can be switched off on its own."
-            : "Your plan, your renewal and your shipments."}
+            : "Your plan, your shipments and your visits."}
         </p>
 
         {plans.length === 0 ? (
@@ -577,15 +579,6 @@ const page = "mx-auto w-full max-w-5xl";
             >
               Browse treatments <ArrowRight size={15} />
             </Link>
-            {/* Their visits still live on the other tab, which is worth saying
-                to someone who came here looking for one. */}
-            <button
-              type="button"
-              onClick={() => onNavigate?.("visits")}
-              className="mt-4 block w-full text-[0.84rem] font-semibold text-muted underline-offset-4 hover:text-ink hover:underline"
-            >
-              See my visits instead
-            </button>
           </div>
         ) : (
           <div className="mt-8 space-y-5">
@@ -606,6 +599,8 @@ const page = "mx-auto w-full max-w-5xl";
             })}
           </div>
         )}
+
+        {children}
       </div>
     </div>
   );

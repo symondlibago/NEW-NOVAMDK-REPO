@@ -425,7 +425,11 @@ function DraftRow({ draft }) {
   );
 }
 
-export default function PortalVisits({ onUnauthorized, onMessageAbout, initialOpenId = null }) {
+/* Two ways in since Visits stopped being a tab. `embedded` is the history list
+   under the plans on Treatments, where opening a visit is handed up through
+   `onOpen`. Otherwise it is one visit on its own, opened from Home or from
+   that list, and `onBack` returns to Treatments. */
+export default function PortalVisits({ onUnauthorized, onMessageAbout, initialOpenId = null, embedded = false, onOpen, onBack }) {
   const [cases, setCases] = useState(null);
   const [visits, setVisits] = useState([]);
   // Set once the visits land: with no "All" tab, the page has to open on a
@@ -471,6 +475,41 @@ export default function PortalVisits({ onUnauthorized, onMessageAbout, initialOp
 
   const shell = "nv-scroll min-h-0 flex-1 overflow-y-auto px-5 py-8";
 
+  if (embedded) {
+    if (error) {
+      return (
+        <p role="alert" className="mt-12 flex items-center gap-2 text-[0.9rem] text-ink">
+          <AlertCircle size={15} className="text-primary" /> {error}
+        </p>
+      );
+    }
+    // Nothing to list: the plans above already say what to do next.
+    if (cases !== null && !visits.length) return null;
+    return (
+      <section className="mt-12" aria-busy={cases === null}>
+        <h2 className="text-[1.15rem] leading-tight text-ink">Visit history</h2>
+        {cases === null ? (
+          <ul className="mt-5 space-y-3">
+            {[0, 1].map((i) => (
+              <li key={i} className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-4 sm:p-5">
+                <span className="h-11 w-11 shrink-0 animate-pulse rounded-full bg-line" />
+                <span className="min-w-0 flex-1">
+                  <Bar className="h-3.5 w-28" />
+                  <Bar className="mt-2 h-3 w-64 max-w-full" />
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <>
+            <VisitFilter visits={visits} value={filter} onChange={setFilter} />
+            <VisitList visits={visits.filter((v) => v.bucket === filter)} filter={filter} onOpen={onOpen} />
+          </>
+        )}
+      </section>
+    );
+  }
+
   if (error) {
     return (
       <div className={shell} data-lenis-prevent>
@@ -512,10 +551,10 @@ export default function PortalVisits({ onUnauthorized, onMessageAbout, initialOp
       <div className={shell} data-lenis-prevent>
         <div className="mx-auto max-w-3xl">
           <button
-            onClick={() => setOpenId(null)}
+            onClick={onBack || (() => setOpenId(null))}
             className="mb-5 flex items-center gap-1 text-[0.88rem] font-medium text-muted transition-colors hover:text-ink"
           >
-            <ChevronLeft size={16} /> All visits
+            <ChevronLeft size={16} /> {onBack ? "Back to treatments" : "All visits"}
           </button>
 
           <div className="rounded-2xl border border-line bg-surface p-6 nv-shadow sm:p-8">

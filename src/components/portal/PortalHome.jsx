@@ -53,7 +53,7 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit, on
   const openVisit = (c) => () => {
     const id = c.case_id || c.id;
     if (onOpenVisit && id) onOpenVisit(id);
-    else onNavigate("visits");
+    else onNavigate("treatments");
   };
 
   const [visits, setVisits] = useState(null);
@@ -413,7 +413,7 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit, on
             <div className="flex items-baseline justify-between gap-4">
               <Label>Active</Label>
               <button
-                onClick={() => onNavigate("visits")}
+                onClick={() => onNavigate("treatments")}
                 className="text-[0.84rem] font-semibold text-primary underline-offset-4 transition-opacity hover:opacity-70 hover:underline"
               >
                 See all
