@@ -567,6 +567,240 @@ export const productsData = [
     ],
     safety: "Dual GIP/GLP-1 receptor agonist; glycine helps support muscle retention. Contraindicated in anyone with a personal or family history of medullary thyroid carcinoma (MTC) or MEN 2. Rotate injection sites with each dose. Maximum 15.3 mg per week.",
   },
+
+  /* ---- Triple blends: the molecule with glycine AND B12 together ----
+   *
+   * Sold as Initial then Refill rather than the Starter / Mid-Dose /
+   * Maintenance ladder the other blends use, so both rungs stay visible: a
+   * patient picks Initial, and the plan moves to Refill from month two.
+   *
+   * `name` is the MD Integrations offering name, dates included, because that
+   * string is what rides to the intake in the `product=` parameter and has to
+   * match the offering on their side. `slug` and `heroTitle` carry the readable
+   * version, so neither the URL nor the page heading shows a version date.
+   *
+   * These ran on a separate `page: "subscription"` layout until 2026-10-12, when
+   * the client asked for them to read like the rest of the weight loss shelf.
+   * They use the standard product page now, which also means `heroTitle` is the
+   * molecule alone and the blend is named in `tagline` underneath it, the way
+   * every other compounded record here is set. SubscriptionProductPage is left
+   * in the tree unused rather than deleted.
+   *
+   * CONFIRM BEFORE LAUNCH: questionnaireId on all four (Symond is filling
+   * these), and whether vial size and days supply match the offering. The
+   * concentrations are deliberately not stated here, since nothing in this file
+   * knows them and a made up mg figure on a public page is worse than none.
+   */
+  {
+    id: 45,
+    categorySlug: "weight-loss",
+    categoryName: "Weight Loss",
+    name: "Semaglutide + Glycine + B12 Initial",
+    slug: "semaglutide-glycine-b12-initial",
+    heroTitle: "Semaglutide",
+    tagline: "Compounded Semaglutide with Glycine and Vitamin B12",
+    audience: "Subscription",
+    size: "1 mL vial",
+    qrImg: "/qr/Semaglutide.png",
+    subtitle:
+      "Semaglutide is a GLP-1 receptor agonist that acts on pathways involved in appetite and food intake. This compounded formulation also contains glycine and cyanocobalamin, a form of vitamin B12. If prescribed, your healthcare provider will determine your dose and treatment schedule.",
+    /* Combination-specific FDA statement. Names both added ingredients, since
+       this blend carries both and the B12 only wording would understate it. */
+    fdaDisclaimer:
+      "FDA has stated that the safety and effectiveness of combining semaglutide with additional ingredients such as glycine and cyanocobalamin (vitamin B12) have not been established.",
+    /* The client's 2026-10-10 table, the same figures this molecule carries
+       on its other blends: the table is flat per molecule, not per blend.
+       price3 is the whole 3 month term, set outright rather than worked out
+       from the month. Mirrored to api/_prices.js and only read on the server. */
+    price: "$250",
+    price3: "$587",
+    shipping: "Shipped discreetly by a licensed pharmacy.",
+    dosageForm: "Weekly Subcutaneous Injection",
+    icon: <Syringe size={16} />,
+    img: "/products/semaglutide.avif",
+    imgDetail: "/products/detail/semaglutide-b12.avif",
+    imgGallery: [
+      "/products/detail/semaglutide-b12-2.avif",
+      "/products/detail/semaglutide-b12-3.avif",
+    ],
+    questionnaireId: "8695e2a0-7b25-4ef9-838b-0bbf7ffafbca",
+    /* Month 1 of a plan is this product; every month after it is the refill,
+       whose questionnaire the patient answers in the portal rather than this
+       one again. Safe to set now that rung 46 has its own questionnaire id:
+       generate-prices fails the build on a rung that points at a form nothing
+       can open. */
+    nextRung: 46,
+    highlights: [
+      { text: "Weekly GLP-1 Dosing" },
+      { text: "Glycine Helps Support Muscle Retention" },
+      { text: "Added B12 Support" },
+    ],
+    specs: [
+      { label: "Active Compound", value: "Semaglutide with glycine and cyanocobalamin (vitamin B12)" },
+      { label: "Vial Size", value: "1 mL vial" },
+      { label: "Days Supply", value: "28 days per fill" },
+      { label: "Dosing Schedule", value: "Use only as directed by your healthcare provider and prescription label." },
+      { label: "Formulation", value: "Injection" },
+      { label: "Pharmacy", value: "MediVera Compounding Pharmacy™, 5225 Crooks Rd, Troy, MI 48098" },
+    ],
+    safety:
+      "This compounded formulation contains semaglutide, glycine and cyanocobalamin (vitamin B12). Contraindicated in anyone with a personal or family history of medullary thyroid carcinoma (MTC) or MEN 2. Rotate injection sites with each dose.",
+    mechanism: SEMAGLUTIDE_MECHANISM,
+  },
+  {
+    id: 46,
+    categorySlug: "weight-loss",
+    categoryName: "Weight Loss",
+    hidden: true,
+    name: "Semaglutide + Glycine + B12 Refill",
+    slug: "semaglutide-glycine-b12-refill",
+    heroTitle: "Semaglutide",
+    tagline: "Compounded Semaglutide with Glycine and Vitamin B12",
+    audience: "Subscription",
+    size: "1 mL vial",
+    qrImg: "/qr/Semaglutide.png",
+    subtitle:
+      "The continuing fill of the compounded semaglutide protocol with glycine and cyanocobalamin (vitamin B12). Your provider reviews a short check-in before each refill and sets the dose.",
+    fdaDisclaimer:
+      "FDA has stated that the safety and effectiveness of combining semaglutide with additional ingredients such as glycine and cyanocobalamin (vitamin B12) have not been established.",
+    /* The client's 2026-10-10 table, the same figures this molecule carries
+       on its other blends: the table is flat per molecule, not per blend.
+       price3 is the whole 3 month term, set outright rather than worked out
+       from the month. Mirrored to api/_prices.js and only read on the server. */
+    price: "$250",
+    price3: "$587",
+    shipping: "Shipped discreetly by a licensed pharmacy.",
+    dosageForm: "Weekly Subcutaneous Injection",
+    icon: <Syringe size={16} />,
+    img: "/products/semaglutide.avif",
+    imgDetail: "/products/detail/semaglutide-b12.avif",
+    imgGallery: [
+      "/products/detail/semaglutide-b12-2.avif",
+      "/products/detail/semaglutide-b12-3.avif",
+    ],
+    questionnaireId: "ffde211d-2d05-4b91-bffc-816e77262845",
+    /* Last rung, so it repeats itself. No nextRung on purpose. */
+    highlights: [
+      { text: "Continuation Fill" },
+      { text: "Glycine Helps Support Muscle Retention" },
+      { text: "Provider-Set Dosing" },
+    ],
+    specs: [
+      { label: "Active Compound", value: "Semaglutide with glycine and cyanocobalamin (vitamin B12)" },
+      { label: "Vial Size", value: "1 mL vial" },
+      { label: "Days Supply", value: "28 days per fill" },
+      { label: "Dosing Schedule", value: "Use only as directed by your healthcare provider and prescription label." },
+      { label: "Formulation", value: "Injection" },
+      { label: "Pharmacy", value: "MediVera Compounding Pharmacy™, 5225 Crooks Rd, Troy, MI 48098" },
+    ],
+    safety:
+      "This compounded formulation contains semaglutide, glycine and cyanocobalamin (vitamin B12). Contraindicated in anyone with a personal or family history of medullary thyroid carcinoma (MTC) or MEN 2. Rotate injection sites with each dose.",
+    mechanism: SEMAGLUTIDE_MECHANISM,
+  },
+  {
+    id: 47,
+    categorySlug: "weight-loss",
+    categoryName: "Weight Loss",
+    name: "Tirzepatide + Glycine + B12 Initial",
+    slug: "tirzepatide-glycine-b12-initial",
+    heroTitle: "Tirzepatide",
+    tagline: "Compounded Tirzepatide with Glycine and Vitamin B12",
+    audience: "Subscription",
+    size: "2.5 mL vial",
+    qrImg: "/qr/Tirzepatide.png",
+    subtitle:
+      "Tirzepatide acts on both the GIP and GLP-1 receptor pathways, which are involved in appetite and food intake. This compounded formulation also contains glycine and cyanocobalamin, a form of vitamin B12. If prescribed, your healthcare provider will determine your dose and treatment schedule.",
+    fdaDisclaimer:
+      "FDA has stated that the safety and effectiveness of combining tirzepatide with additional ingredients such as glycine and cyanocobalamin (vitamin B12) have not been established.",
+    /* The client's 2026-10-10 table, the same figures this molecule carries
+       on its other blends: the table is flat per molecule, not per blend.
+       price3 is the whole 3 month term, set outright rather than worked out
+       from the month. Mirrored to api/_prices.js and only read on the server. */
+    price: "$320",
+    price3: "$765",
+    shipping: "Shipped discreetly by a licensed pharmacy.",
+    dosageForm: "Weekly Subcutaneous Injection",
+    icon: <Syringe size={16} />,
+    img: "/products/tirzepatide.avif",
+    imgDetail: "/products/detail/tirzepatide-glycine.avif",
+    imgGallery: [
+      "/products/detail/tirzepatide-window.avif",
+      "/products/detail/tirzepatide-studio.avif",
+    ],
+    questionnaireId: "354936d8-b208-45de-b04e-7e34bd540f41",
+    /* Month 1 of a plan is this product; every month after it is the refill.
+       See the note on product 45. */
+    nextRung: 48,
+    highlights: [
+      { text: "Dual GIP / GLP-1" },
+      { text: "Glycine Helps Support Muscle Retention" },
+      { text: "Added B12 Support" },
+    ],
+    specs: [
+      { label: "Active Compound", value: "Tirzepatide with glycine and cyanocobalamin (vitamin B12)" },
+      { label: "Vial Size", value: "2.5 mL vial" },
+      { label: "Days Supply", value: "28 days per fill" },
+      { label: "Dosing Schedule", value: "Use only as directed by your healthcare provider and prescription label." },
+      { label: "Formulation", value: "Injection" },
+      { label: "Pharmacy", value: "MediVera Compounding Pharmacy™, 5225 Crooks Rd, Troy, MI 48098" },
+    ],
+    safety:
+      "This compounded formulation contains tirzepatide, glycine and cyanocobalamin (vitamin B12). Contraindicated in anyone with a personal or family history of medullary thyroid carcinoma (MTC) or MEN 2. Rotate injection sites with each dose.",
+    mechanism: TIRZEPATIDE_MECHANISM,
+  },
+  {
+    id: 48,
+    categorySlug: "weight-loss",
+    categoryName: "Weight Loss",
+    /* A later fill of a plan, not something to buy on its own, so it stays
+       out of every listing the same way the other continuation rungs do. It is
+       still a real priced product: the plan moves on to it from month two. */
+    hidden: true,
+    name: "Tirzepatide + Glycine + B12 Refill",
+    slug: "tirzepatide-glycine-b12-refill",
+    heroTitle: "Tirzepatide",
+    tagline: "Compounded Tirzepatide with Glycine and Vitamin B12",
+    audience: "Subscription",
+    size: "2.5 mL vial",
+    qrImg: "/qr/Tirzepatide.png",
+    subtitle:
+      "The continuing fill of the compounded tirzepatide protocol with glycine and cyanocobalamin (vitamin B12). Your provider reviews a short check-in before each refill and sets the dose.",
+    fdaDisclaimer:
+      "FDA has stated that the safety and effectiveness of combining tirzepatide with additional ingredients such as glycine and cyanocobalamin (vitamin B12) have not been established.",
+    /* The client's 2026-10-10 table, the same figures this molecule carries
+       on its other blends: the table is flat per molecule, not per blend.
+       price3 is the whole 3 month term, set outright rather than worked out
+       from the month. Mirrored to api/_prices.js and only read on the server. */
+    price: "$320",
+    price3: "$765",
+    shipping: "Shipped discreetly by a licensed pharmacy.",
+    dosageForm: "Weekly Subcutaneous Injection",
+    icon: <Syringe size={16} />,
+    img: "/products/tirzepatide.avif",
+    imgDetail: "/products/detail/tirzepatide-glycine.avif",
+    imgGallery: [
+      "/products/detail/tirzepatide-window.avif",
+      "/products/detail/tirzepatide-studio.avif",
+    ],
+    questionnaireId: "98224a99-286d-4753-8c71-9a1feb839317",
+    /* Last rung, so it repeats itself. No nextRung on purpose. */
+    highlights: [
+      { text: "Continuation Fill" },
+      { text: "Glycine Helps Support Muscle Retention" },
+      { text: "Provider-Set Dosing" },
+    ],
+    specs: [
+      { label: "Active Compound", value: "Tirzepatide with glycine and cyanocobalamin (vitamin B12)" },
+      { label: "Vial Size", value: "2.5 mL vial" },
+      { label: "Days Supply", value: "28 days per fill" },
+      { label: "Dosing Schedule", value: "Use only as directed by your healthcare provider and prescription label." },
+      { label: "Formulation", value: "Injection" },
+      { label: "Pharmacy", value: "MediVera Compounding Pharmacy™, 5225 Crooks Rd, Troy, MI 48098" },
+    ],
+    safety:
+      "This compounded formulation contains tirzepatide, glycine and cyanocobalamin (vitamin B12). Contraindicated in anyone with a personal or family history of medullary thyroid carcinoma (MTC) or MEN 2. Rotate injection sites with each dose.",
+    mechanism: TIRZEPATIDE_MECHANISM,
+  },
   {
     id: 11,
     /* Moved out of weight-loss and un-hidden on 2026-09-01. The GH pathway this

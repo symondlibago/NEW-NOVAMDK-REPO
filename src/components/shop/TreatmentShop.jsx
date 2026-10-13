@@ -134,15 +134,26 @@ export default function TreatmentShop({ category, showBack = false }) {
           </p>
         </div>
 
-        {/* Up to 4-up per the comp, stepping down to 1-up on phones. */}
+        {/* Swipeable on phones, a grid from sm up (client, 2026-10-13).
+            Stacking one card per row meant six treatments was six screens of
+            scrolling before the next section, and the cards are tall. Across
+            instead: snap so a swipe lands on a card rather than between two,
+            and the negative margin with matching padding lets the row bleed to
+            both edges while the first card still lines up with the heading. The
+            peek on the right is what says there is more.
+            Up to 4-up per the comp from sm. */}
         <div
-          className={`mx-auto grid grid-cols-1 gap-[clamp(0.9rem,1.6vw,1.35rem)] ${
+          className={`-mx-4 flex snap-x snap-mandatory gap-[clamp(0.9rem,1.6vw,1.35rem)] overflow-x-auto scroll-px-4 px-4 pb-2 [scrollbar-width:none] sm:mx-auto sm:grid sm:grid-cols-1 sm:overflow-visible sm:px-0 sm:pb-0 ${
             GRID[Math.min(cards.length, 4)] || GRID[4]
           }`}
         >
           {cards.map((c, i) => (
             <TreatmentCard
               key={c.key}
+              /* The phone row needs a fixed width because a flex item sized by
+                 its content collapses to nothing here; the grid from sm up
+                 ignores it. */
+              className="w-[78vw] max-w-[310px] shrink-0 snap-start sm:w-auto sm:max-w-none"
               item={c}
               delay={(i % 4) * 0.05}
               floatDelay={-(i % 4) * 0.9}

@@ -48,17 +48,20 @@ export function fdaDisclaimer(product) {
 export function FdaDisclaimer({ product, className = "" }) {
   const text = fdaDisclaimer(product);
   if (!text) return null;
-  return <p className={`text-[0.82rem] italic leading-relaxed text-muted ${className}`}>{text}</p>;
+  /* Upright, not italic (client, 2026-10-13: no italics anywhere). The slant
+     was how the 2026-09-07 comp set a legal footnote apart from body copy; the
+     smaller size and the muted colour already do that, and a whole paragraph of
+     italic regulatory text is the harder thing to read of the two. */
+  return <p className={`text-[0.82rem] leading-relaxed text-muted ${className}`}>{text}</p>;
 }
 
 export function CompoundedDisclaimer({ className = "", tone = "muted", plain = false }) {
   const color = tone === "panel" ? "text-on-panel/55" : "text-muted";
   /* `plain` sets it as body copy, for the Important Safety Information block
-     where it sits among other paragraphs rather than under a card. */
-  const type = plain ? "" : "text-[0.78rem] italic";
+     where it sits among other paragraphs rather than under a card.
+     No italic either way, same reason as FdaDisclaimer above. */
+  const type = plain ? "" : "text-[0.78rem]";
   return (
-    /* Italic and tighter (2026-09-07): the comp sets the legal footnote apart
-       from body copy by its slant rather than by a rule or a size drop. */
     <div className={`space-y-1.5 leading-relaxed ${type} ${color} ${className}`}>
       <p>
         Compounded drug products are not approved or evaluated for safety, effectiveness, or quality by

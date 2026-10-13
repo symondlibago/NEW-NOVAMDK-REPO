@@ -10,10 +10,13 @@ const EASE = [0.16, 1, 0.3, 1];
    grade over the clip. */
 const CTA = "#CDA560";
 
-/* The grade is the mock's, measured rather than guessed: sampling the same
-   pixels in the clean clip and in the mock fits mock = 0.573 x clip + 23, i.e.
-   one flat wash of this colour at this alpha. */
-const GRADE = "rgba(59, 47, 35, 0.43)";
+/* The mock's colour grade, removed from the hero on 2026-10-13 at the client's
+   request because it read too dark on the running scene. Kept as a record of
+   what the 2026-10-07 mock actually was, measured rather than guessed: sampling
+   the same pixels in the clean clip and in the mock fits
+   mock = 0.573 x clip + 23, i.e. one flat wash of this colour at this alpha.
+   Putting the grade back is this one line applied over the video again.
+   const GRADE = "rgba(59, 47, 35, 0.43)"; */
 
 /* Three verbs over one constant "Better". They rotate on a timer rather than
    with the footage: the mock changes the word mid-scene, so there is nothing
@@ -83,7 +86,14 @@ export default function HeroVideo() {
       {/* =========================================================
           VIDEO OVERLAY
       ========================================================== */}
-      <div aria-hidden="true" className="absolute inset-0" style={{ background: GRADE }} />
+      {/* The colour grade is gone (client, 2026-10-13: the runner reads too
+          dark, take the overlay off). It was one flat wash of
+          rgba(59,47,35,0.43) matched to the 2026-10-07 mock, and at that alpha
+          it was most of the darkness on the clip.
+          The shade under the copy below stays: it is a fraction of the weight
+          and it is the only thing keeping white text legible when the clip cuts
+          to a bright frame. Remove that too and the headline disappears on
+          roughly half the scenes. */}
 
       {/* The clip cuts between scenes that are bright bottom left as often as
           they are dark, so the copy gets its own shade rather than relying on

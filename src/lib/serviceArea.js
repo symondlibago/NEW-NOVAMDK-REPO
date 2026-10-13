@@ -53,6 +53,8 @@ export const STATE_PRODUCTS = {
   California: [
     1, 2, // Semaglutide, both doses
     5, 6, 7, // Tirzepatide, all three doses
+    45, 46, // Semaglutide + Glycine + B12, initial and refill
+    47, 48, // Tirzepatide + Glycine + B12, initial and refill
     11, // Sermorelin
     23, // NAD+ Sublingual Tablet — the sublingual only, not the injections
     26, 27, 28, // Low-Dose Naltrexone, all three doses

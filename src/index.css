@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,100..700;1,100..700&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,500;1,9..144,700&family=Inter:wght@400;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
@@ -74,12 +74,18 @@
   --nv-on-primary: #F4F4EF;
   --nv-on-panel: #E7ECF0;
 
-  --nv-font-display: 'IBM Plex Sans', system-ui, sans-serif;
-  --nv-font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  /* Must match the "grotesk" entry in theme/themes.js. These are the runtime
+     defaults, used before JS applies the saved theme, so a mismatch shows as
+     the type reflowing on first paint. */
+  --nv-font-display: 'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', system-ui, sans-serif;
+  --nv-font-body: 'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', system-ui, sans-serif;
   --nv-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
   --nv-display-tracking: -0.032em;
   --nv-weight-heading: 700;
-  --nv-weight-body: 450;
+  /* 450 was an IBM Plex Sans weight. Helvetica Neue and Arial are not variable
+     fonts, so a request for 450 is rounded to 400 by the browser anyway; this
+     says 400 rather than pretending the half step exists. */
+  --nv-weight-body: 400;
 
   --nv-r: 22px;
   --nv-shadow: 0 1px 2px rgba(20, 24, 28, 0.04), 0 24px 50px -32px rgba(20, 24, 28, 0.34);
@@ -285,6 +291,33 @@
   @keyframes nv-float {
     0%, 100% { transform: translateY(0); }
     50%      { transform: translateY(-8px); }
+  }
+
+  /* Skeleton block for the checkout's loading state.
+     A sweep across a tinted block, not a pulse: a pulse blinks the whole page
+     at once and reads as something broken, where a sweep reads as work in
+     progress. The gradient is 200% wide and travels one half, so the highlight
+     crosses the block exactly once per cycle.
+     The sweep carries no information, so it stops for prefers-reduced-motion
+     and the blocks simply sit there. */
+  .nv-skeleton {
+    background-color: var(--color-co-tint, #F5EDDD);
+    background-image: linear-gradient(
+      100deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.75) 50%,
+      transparent 80%
+    );
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: nv-skeleton 1.5s ease-in-out infinite;
+  }
+  @keyframes nv-skeleton {
+    from { background-position: 150% 0; }
+    to   { background-position: -50% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .nv-skeleton { animation: none; background-image: none; }
   }
 
   /* Carousel frame swap — keyed on src, so React remounts the img and this

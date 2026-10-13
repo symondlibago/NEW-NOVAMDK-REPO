@@ -15,9 +15,13 @@ const MARQUEE_ITEMS = [
 export default function Marquee({ speed = 42 }) {
   return (
     <div
-      /* py-1.5, not py-2.5: the hero below is sized to fill what is left of the
-         viewport, so every pixel this strip takes is a pixel off the hero. */
-      className="relative flex w-full overflow-hidden border-y border-ink/10 py-1.5 text-ink"
+      /* py-1, down from py-1.5 (client, 2026-10-13: thinner), which was already
+         down from py-2.5. The hero below is sized to fill what is left of the
+         viewport, so every pixel this strip gives up is a pixel the hero gets.
+         The icon is the floor here, not the padding: at 14px it sets the row
+         height once the padding is this small, so going below py-1 would buy
+         nothing without shrinking the icon too. */
+      className="relative flex w-full overflow-hidden border-y border-ink/10 py-1 text-ink"
       style={{ background: "color-mix(in oklab, var(--nv-accent) 72%, var(--nv-surface))" }}
     >
       <motion.div

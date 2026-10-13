@@ -37,6 +37,9 @@ for (const p of extractProducts({ includeHidden: true })) {
     amount: Math.round(amount * 100) / 100,
     amount3: amount3 === null ? null : Math.round(amount3 * 100) / 100,
     singleMonth: p.singleMonth,
+    /* Set below, once every rung is known: a plan's later rungs have to carry
+       it too, or a renewal of a 3 month plan would be clamped to one month. */
+    subscription: p.audience === "Subscription",
     name: p.name,
     /* So the server can name a card the same way the browser does, which is
        "{category} - {product}". A later month of a plan opens its visit from
@@ -68,6 +71,27 @@ for (const p of priced) {
   }
 }
 
+/* The subscription flag down every ladder.
+ *
+ * Only the first rung of a plan carries `audience: "Subscription"`, because
+ * that field is the card's tag and the later rungs have no card. The 3 month
+ * rule is decided from this flag, and `checkoutMonths` clamps a request to the
+ * terms the product offers, so without this a renewal landing on month two of
+ * a 3 month plan would be clamped to one month and held for a third of the
+ * money while the plan still said three. Walked rather than hand listed, so
+ * adding a rung cannot forget it. */
+for (const p of priced.filter((x) => x.subscription)) {
+  let at = p;
+  const seen = new Set([at.id]);
+  while (at.nextRung) {
+    const next = byId.get(at.nextRung);
+    if (!next || seen.has(next.id)) break;
+    next.subscription = true;
+    seen.add(next.id);
+    at = next;
+  }
+}
+
 const body = priced
   .sort((a, b) => a.id - b.id)
   .map(
@@ -78,6 +102,7 @@ const body = priced
       (p.nextRung ? `, nextRung: ${p.nextRung}` : "") +
       (p.amount3 ? `, amount3: ${p.amount3.toFixed(2)}` : "") +
       (p.singleMonth ? `, singleMonth: true` : "") +
+      (p.subscription ? `, subscription: true` : "") +
       ` },`
   )
   .join("\n");

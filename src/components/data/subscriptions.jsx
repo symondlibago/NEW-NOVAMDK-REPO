@@ -9,6 +9,14 @@ export const PROGRAMS = [
     blends: [
       { slug: "niacinamide", name: "With Niacinamide", note: "Supports metabolic function", ids: [5, 6, 7] },
       { slug: "glycine", name: "With Glycine", note: "Helps support muscle retention", ids: [8, 9, 10] },
+      /* Initial then Refill, not the three rung ladder: both ids are visible,
+         so resolveBlend keeps them both and the card shows the pair. */
+      {
+        slug: "glycine-b12",
+        name: "With Glycine and B12",
+        note: "Muscle retention support plus vitamin B12",
+        ids: [47, 48],
+      },
     ],
   },
   {
@@ -20,6 +28,12 @@ export const PROGRAMS = [
     blends: [
       { slug: "b12", name: "With B12", note: "Contains vitamin B12", ids: [1, 2] },
       { slug: "glycine", name: "With Glycine", note: "Helps support muscle retention", ids: [3, 4] },
+      {
+        slug: "glycine-b12",
+        name: "With Glycine and B12",
+        note: "Muscle retention support plus vitamin B12",
+        ids: [45, 46],
+      },
       { slug: "sublingual", name: "Sublingual Drops", note: "No needles required", ids: [13, 14, 15] },
     ],
   },
@@ -36,8 +50,14 @@ export const priceValue = (product) => {
 
 /** The dose step shown on the ladder, taken from the trailing name suffix. */
 export const doseStage = (product) => {
-  const m = String(product?.name || "").match(/—\s*(Starter|Mid-Dose|Maintenance)\s*$/);
-  return m ? m[1] : "Standard";
+  const name = String(product?.name || "");
+  const laddered = name.match(/—\s*(Starter|Mid-Dose|Maintenance)\s*$/);
+  if (laddered) return laddered[1];
+  /* The triple blends are named after the MD Integrations offering, so their
+     rung sits mid string with a version date trailing it rather than at the
+     end. Without this both rungs of those pairs read "Standard". */
+  const paired = name.match(/\b(Initial|Refill)\b/);
+  return paired ? paired[1] : "Standard";
 };
 
 export const doseSize = (product) => product?.size || "";

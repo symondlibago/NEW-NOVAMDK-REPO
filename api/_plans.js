@@ -156,7 +156,17 @@ export function monthsFrom(value) {
 export function termsOffered(pid) {
   const item = PRICES[String(pid)];
   if (!item) return [];
-  return planAllowed(item.amount) && !item.singleMonth ? PLAN_TERMS : PLAN_TERMS.slice(0, 1);
+  /* Opt in, not opt out. This used to offer every term to every product unless
+     someone remembered to set singleMonth, which put a 3 month subscription on
+     a face cream, a nasal spray and six supplements (noticed by the designer,
+     2026-10-12). Only a product the catalogue tags `audience: "Subscription"`
+     is sold as a plan, and generate-prices walks that flag down each ladder so
+     the later rungs carry it too.
+
+     singleMonth stays as an override on top, so a subscription product can
+     still be pulled back to one month without untagging the card. */
+  const plan = item.subscription && !item.singleMonth && planAllowed(item.amount);
+  return plan ? PLAN_TERMS : PLAN_TERMS.slice(0, 1);
 }
 
 /** monthsFrom, narrowed to the terms this product is sold on at checkout. */

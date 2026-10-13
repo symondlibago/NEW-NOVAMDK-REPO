@@ -18,7 +18,7 @@ import {
   priceUnit,
   priceLabel,
 } from "../components/data/products";
-import { productSlug, productPath } from "../lib/slug";
+import { productSlug, productPath, matchesProduct } from "../lib/slug";
 import { syncToGhl, treatmentLabel } from "../lib/ghl";
 import {
   readKioskLocation, scanUrl, captureScanSource, readScanSource, sourceLabel, SCAN_PARAM,
@@ -32,6 +32,7 @@ import Turnstile, { turnstileOn } from "../components/Turnstile";
 import DatePicker from "../components/ui/DatePicker";
 import { baseName, stageOf, displayTitle } from "../lib/catalog";
 import ProductGallery from "../components/product/ProductGallery";
+import SubscriptionProductPage from "../components/product/SubscriptionProductPage";
 import ProductMechanism from "../components/product/ProductMechanism";
 import ProductFaq from "../components/product/ProductFaq";
 import ProductJourney from "../components/product/ProductJourney";
@@ -99,16 +100,10 @@ function isAdult(iso) {
 
 export default function ProductPage() {
   const { id } = useParams();
-  // URLs use keyword slugs (/product/semaglutide-…); legacy numeric ids still
-  // resolve and 301-style redirect to the slug so old links and QR codes work.
-  /* slugAliases carries a product's previous slug, so a rename never 404s a
-     link that is already printed, indexed or bookmarked. */
-  const product = productsData.find(
-    (p) =>
-      String(p.id) === String(id) ||
-      productSlug(p) === id ||
-      (p.slugAliases || []).includes(id),
-  );
+  /* The matching rule moved to lib/slug.js when this route gained a second page
+     layout: both this and the layout it picks have to resolve the same product
+     from the same URL segment, and two copies of that rule would drift. */
+  const product = productsData.find((p) => matchesProduct(p, id));
 
   const isKiosk = useKioskMode();
   const [search, setSearch] = useSearchParams();
@@ -353,6 +348,38 @@ export default function ProductPage() {
     }
   };
 
+  /* The triple blends get their own mobile first layout.
+   *
+   * Placed here, below every hook, so the branch cannot change hook order when
+   * the route moves between a classic product and one of these. It is
+   * presentation only: `startVisit`, the Turnstile pass, the state rule and the
+   * patient modal all stay in this file, and the new page opens the same modal
+   * through onStart. The disclaimer is passed down rather than imported there,
+   * so the regulatory sentence lives in one place. */
+  if (product.page === "subscription") {
+    return (
+      <SubscriptionProductPage
+        product={product}
+        categoryLabel={categoryLabel}
+        backLink={backLink}
+        onStart={() => setShowInfo(true)}
+        disclaimer={<ClosingDisclaimer product={active} />}
+      >
+        {showInfo && (
+          <PatientInfoModal
+            loading={loading}
+            err={err}
+            productId={active.id}
+            productName={active.name}
+            categorySlug={active.categorySlug}
+            onClose={() => setShowInfo(false)}
+            onSubmit={startVisit}
+          />
+        )}
+      </SubscriptionProductPage>
+    );
+  }
+
   return (
     <main className="min-h-screen w-full bg-bg text-ink">
       <Seo
@@ -379,7 +406,12 @@ export default function ProductPage() {
           {/* Same pill treatment as the shared BackButton on every other page. These
               stay plain Links rather than that component: back here means "up to the
               category", not browser history. */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Desktop only, from 2026-10-13 (client). On a phone these two pills
+              cost a row of vertical space above the fold and duplicate controls
+              the browser and the nav already give: the back gesture goes back,
+              and the logo goes home. The sticky Start button is what that space
+              is for. */}
+          <div className="hidden flex-wrap items-center gap-2 md:flex">
             <Link
               to={backLink}
               className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-2 text-[0.88rem] font-medium text-muted transition-all hover:-translate-x-0.5 hover:border-line-strong hover:text-ink"

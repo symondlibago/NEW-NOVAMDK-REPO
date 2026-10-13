@@ -31,7 +31,24 @@ export const baseName = (product) => String(product?.name || "").replace(STAGE_R
  * where they are. Callers that list rungs side by side (the category grid) need
  * the suffix to tell them apart and use `product.name` instead.
  */
-export const displayTitle = (product) => baseName(product).replace(/\s*\/\s*/g, " + ");
+/* What an MD Integrations offering name carries on the end that a patient must
+   not read: the revision and effective dates, and the fill word.
+   "Semaglutide + Glycine + B12 Initial 6.2.26 09.28.26" is the offering, and
+   the patient is shown "Semaglutide + Glycine + B12".
+
+   Stripped for display only. The stored name has to match the offering exactly,
+   because that string travels to the intake in the `product=` parameter, which
+   is the same reason the "/" and the stage suffix stay in the data too.
+   Dates first, then the fill word they sat behind. */
+const VERSION_RE = /(?:\s+\d{1,2}\.\d{1,2}\.\d{2,4})+\s*$/;
+const FILL_RE = /\s+(Initial|Refill)\s*$/i;
+
+export const displayTitle = (product) =>
+  baseName(product)
+    .replace(VERSION_RE, "")
+    .replace(FILL_RE, "")
+    .replace(/\s*\/\s*/g, " + ")
+    .trim();
 
 /**
  * The dose ladder a product belongs to, in Starter -> Maintenance order.

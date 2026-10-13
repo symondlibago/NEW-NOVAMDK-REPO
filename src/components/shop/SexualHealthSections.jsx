@@ -70,7 +70,10 @@ function ConfidenceStage({ startTo }) {
           style={{ background: "radial-gradient(circle at 50% 50%, #c1a27a 0%, #9a7843 100%)" }}
         >
           <h2 className="nv-weight-keep mx-auto max-w-[18ch] text-center font-display text-[clamp(1.7rem,5.4vw,3rem)] font-extrabold leading-[1.12] text-white">
-            Confidence <em className="italic">Starts</em> With Feeling Like Yourself
+            {/* The emphasis stays semantic, the slant does not (client,
+                2026-10-13: no italics). not-italic rather than dropping the
+                <em>, so a screen reader still hears the stress. */}
+            Confidence <em className="not-italic">Starts</em> With Feeling Like Yourself
           </h2>
           <p className="mx-auto mt-4 max-w-[44ch] text-center text-[0.85rem] leading-relaxed text-white/85">
             Discreet, provider-guided care for sexual health and intimacy concerns

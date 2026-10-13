@@ -412,7 +412,7 @@ function Guided() {
         </div>
 
         <p
-          className="mt-9 max-w-[52ch] text-[clamp(0.68rem,2vw,0.76rem)] italic leading-relaxed"
+          className="mt-9 max-w-[52ch] text-[clamp(0.68rem,2vw,0.76rem)] leading-relaxed"
           style={{ color: MUTED }}
         >
           Prescription treatment is available only when medically appropriate and prescribed by a
