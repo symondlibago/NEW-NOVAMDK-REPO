@@ -70,6 +70,9 @@
   --color-ks-gold-hi: #D3B46A;
   --color-ks-gold: #B08B34;
   --color-ks-gold-lo: #6B511E;
+  /* The product pages' champagne price card, for the kiosk's QR panel. */
+  --color-ks-champagne: #F5EAD6;
+  --color-ks-champagne-deep: #E2CDA6;
 }
 
 /* ---- Runtime defaults (Slate & Stone · Grotesk · Medium). JS overrides these. ---- */

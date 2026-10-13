@@ -4,17 +4,20 @@ import KioskTopBar, { GoldTitle } from "./KioskTopBar";
 import { GOALS, startingPrice } from "./kioskCatalog";
 
 /* A goal card: the treatments page's tan card and cut-out, with dark type
-   because cream on the lighter tans is too faint to read at a distance. */
-function GoalCard({ goal, hero = false, onPick }) {
+   because cream on the lighter tans is too faint to read at a distance. Its
+   height comes from the screen (className), so the whole page fits on one
+   screen whatever the display's height. No small label over the name: on four
+   of the five it repeated the name (client, 2026-10-13). */
+function GoalCard({ goal, hero = false, onPick, className = "" }) {
   const art = goal.art;
   const price = hero ? startingPrice(goal.slug) : "";
   return (
     <button
       type="button"
       onClick={() => onPick(goal.slug)}
-      className={`nv-goal flex flex-col justify-between rounded-3xl text-left ${art.bg || ""} ${
-        hero ? "min-h-80 p-8 lg:min-h-112 lg:p-12" : "min-h-64 p-6 lg:min-h-88 lg:p-9"
-      }`}
+      className={`nv-goal flex min-h-0 flex-col justify-between rounded-3xl text-left ${art.bg || ""} ${
+        hero ? "p-8 lg:p-12" : "p-6 lg:p-9"
+      } ${className}`}
     >
       <img
         src={art.hero || art.cutout}
@@ -25,7 +28,6 @@ function GoalCard({ goal, hero = false, onPick }) {
         }`}
       />
       <span className={`nv-goal__content flex flex-col gap-2 ${hero ? "max-w-1/2" : "max-w-3/5"}`}>
-        <span className="font-mono text-xs uppercase tracking-widest text-ks-heading lg:text-base">{goal.tag}</span>
         <span className={`font-display font-extrabold leading-none tracking-tight text-ink ${hero ? "text-5xl lg:text-7xl" : "text-3xl lg:text-5xl"}`}>
           {goal.name}
         </span>
@@ -49,14 +51,18 @@ export default function KioskGoals({ onPick, onQuiz, onStartOver }) {
   return (
     <div className="flex h-full flex-col">
       <KioskTopBar onStartOver={onStartOver} />
-      <main data-lenis-prevent className="flex flex-1 flex-col gap-5 overflow-y-auto px-8 pb-8 lg:gap-7 lg:px-16 lg:pb-12">
-        <div className="pt-2 lg:pt-4">
+      {/* One screen, no scrolling (client, 2026-10-13): the cards split
+          whatever height is left after the title, the quiz and the fine print,
+          so a shorter display squeezes the cards rather than pushing the quiz
+          off the bottom. */}
+      <main className="flex min-h-0 flex-1 flex-col gap-5 px-8 pb-8 lg:gap-7 lg:px-16 lg:pb-10">
+        <div className="flex-none">
           <GoldTitle className="text-5xl lg:text-8xl">What&rsquo;s your goal?</GoldTitle>
-          <p className="mt-3 text-xl text-muted lg:text-3xl">Tap one to see your treatment options.</p>
+          <p className="mt-2 text-xl text-muted lg:text-3xl">Tap one to see your treatment options.</p>
         </div>
 
-        <GoalCard goal={hero} hero onPick={onPick} />
-        <div className="grid grid-cols-2 gap-5 lg:gap-7">
+        <GoalCard goal={hero} hero onPick={onPick} className="flex-1" />
+        <div className="grid min-h-0 flex-2 grid-cols-2 grid-rows-2 gap-5 lg:gap-7">
           {rest.map((g) => (
             <GoalCard key={g.slug} goal={g} onPick={onPick} />
           ))}
@@ -65,7 +71,7 @@ export default function KioskGoals({ onPick, onQuiz, onStartOver }) {
         <button
           type="button"
           onClick={onQuiz}
-          className="flex items-center gap-6 rounded-3xl bg-panel p-7 text-left text-on-panel lg:gap-8 lg:p-10"
+          className="flex flex-none items-center gap-6 rounded-3xl bg-panel p-6 text-left text-on-panel lg:gap-8 lg:p-8"
         >
           <span className="grid size-16 flex-none place-items-center rounded-full bg-ks-brass text-white lg:size-24">
             <Sparkles className="size-8 lg:size-12" />
@@ -78,7 +84,7 @@ export default function KioskGoals({ onPick, onQuiz, onStartOver }) {
           <ArrowRight className="size-8 flex-none text-ks-cream lg:size-12" strokeWidth={2.4} />
         </button>
 
-        <p className="mt-auto text-center text-base text-muted lg:text-xl">
+        <p className="flex-none text-center text-base text-muted lg:text-lg">
           Prescription treatments require evaluation by a licensed healthcare provider and are prescribed only when medically appropriate.
         </p>
       </main>

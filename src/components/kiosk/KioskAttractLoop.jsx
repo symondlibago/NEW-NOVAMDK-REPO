@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
-import useKioskMode from "../../lib/useKioskMode";
+import useKioskMode, { useKioskApp } from "../../lib/useKioskMode";
 
 const KIOSK_AD_SRC = "/video/golden.mp4";
 const DEFAULT_IDLE_MS = 2 * 60 * 1000; // 2 minutes of inactivity
@@ -21,9 +21,13 @@ export default function KioskAttractLoop() {
   const navigate = useNavigate();
   // Suspend on the intake and portal pages: both run in a cross-origin iframe,
   // whose touches never reach our window — the ad would fire mid-visit. The
-  // kiosk app under /kiosk/ runs its own standby film instead.
+  // kiosk app runs its own standby film instead, under /kiosk/ and on the home
+  // route, where a kiosk-sized screen boots into it. Without the second check
+  // this old ad played over the app after two idle minutes (client, 2026-10-13).
   const { pathname } = useLocation();
-  const suspended = pathname === "/intake" || pathname === "/portal" || pathname.startsWith("/kiosk/");
+  const kioskApp = useKioskApp();
+  const suspended =
+    pathname === "/intake" || pathname === "/portal" || pathname.startsWith("/kiosk/") || (pathname === "/" && kioskApp);
   const [active, setActive] = useState(false);
   const activeRef = useRef(false);
   const timerRef = useRef(null);

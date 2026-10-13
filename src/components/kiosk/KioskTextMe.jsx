@@ -106,20 +106,9 @@ export default function KioskTextMe({ card, locId, onBack, onDone, onStartOver }
           </span>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 lg:gap-5">
-          {KEYS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => press(key)}
-              aria-label={key === "back" ? "Delete" : key === "clear" ? "Clear number" : key}
-              className="grid h-20 place-items-center rounded-3xl border-2 border-line bg-surface text-4xl font-bold text-ink active:bg-surface-2 lg:h-28 lg:text-5xl"
-            >
-              {key === "back" ? <Delete className="size-9 lg:size-12" /> : key === "clear" ? <span className="text-2xl lg:text-3xl">Clear</span> : key}
-            </button>
-          ))}
-        </div>
-
+        {/* Agree and send sit right under the number, where the eye already
+            is, rather than at the foot of the screen (client, 2026-10-13). The
+            keypad follows. */}
         <button type="button" onClick={() => setAgreed((a) => !a)} className="flex items-start gap-5 text-left">
           <span
             className={`mt-1 grid size-10 flex-none place-items-center rounded-lg border-2 lg:size-12 ${
@@ -143,10 +132,24 @@ export default function KioskTextMe({ card, locId, onBack, onDone, onStartOver }
           type="button"
           onClick={send}
           disabled={!ready}
-          className="mt-auto flex h-24 items-center justify-center gap-3 rounded-full bg-ks-brass text-3xl font-bold text-white disabled:opacity-40 lg:h-32 lg:text-5xl"
+          className="flex h-24 items-center justify-center gap-3 rounded-full bg-ks-brass text-3xl font-bold text-white disabled:opacity-40 lg:h-32 lg:text-5xl"
         >
           {status === "sending" ? <Loader2 className="size-9 animate-spin" /> : "Send me the link"}
         </button>
+
+        <div className="grid grid-cols-3 gap-4 lg:gap-5">
+          {KEYS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => press(key)}
+              aria-label={key === "back" ? "Delete" : key === "clear" ? "Clear number" : key}
+              className="grid h-20 place-items-center rounded-3xl border-2 border-line bg-surface text-4xl font-bold text-ink active:bg-surface-2 lg:h-28 lg:text-5xl"
+            >
+              {key === "back" ? <Delete className="size-9 lg:size-12" /> : key === "clear" ? <span className="text-2xl lg:text-3xl">Clear</span> : key}
+            </button>
+          ))}
+        </div>
       </main>
     </div>
   );
