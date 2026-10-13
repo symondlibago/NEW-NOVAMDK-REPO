@@ -1,16 +1,14 @@
 import { useState, useEffect } from "react";
+import { readKioskLocation } from "./kioskLocations";
 
 // Portrait + at least tablet-width covers both the portrait tablets and the
 // physical 32" kiosk (1080×1920). Phones stay under the 600px floor.
 export const KIOSK_MQ = "(min-width: 600px) and (orientation: portrait)";
 
-/* A tighter test: is this display an actual kiosk, as opposed to merely
- * portrait and roomy? KIOSK_MQ above only decides styling tweaks, so a portrait
- * iPad matching it is harmless. This one swaps the whole home screen for the
- * in-store app, so a patient on an iPad must not match it.
- *
- * 1080px is the 32" kiosk's own width (the "kiosk" device in theme/themes.js).
- * The widest portrait tablet, a 12.9" iPad Pro, is 1024, so it stays out.
+/* A true 1080 wide portrait panel, which no tablet reaches. Kept only as a
+ * fallback for a kiosk nobody has placed yet: the real hardware reports
+ * tablet-ish CSS pixels, not 1080, because the panel is scaled. So size alone
+ * cannot tell a kiosk from an iPad, and the placement flag below decides it.
  */
 export const KIOSK_APP_MQ = "(min-width: 1080px) and (orientation: portrait)";
 
@@ -54,6 +52,11 @@ export function useKioskApp() {
     if (typeof window === "undefined") return false;
     if (new URLSearchParams(window.location.search).get("site") === "1") stickySite = true;
     if (stickySite) return false;
+    /* A placed kiosk announces itself. It is booted once at /?kiosk=<id> and
+       the id is remembered in localStorage, so every boot after that knows it
+       is a kiosk without a URL. A patient's tablet never has one, which is what
+       makes this safe where a width test was not. */
+    if (readKioskLocation() && window.matchMedia(KIOSK_MQ).matches) return true;
     return window.matchMedia(KIOSK_APP_MQ).matches;
   };
 
