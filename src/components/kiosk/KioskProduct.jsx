@@ -9,7 +9,6 @@ import { STEPS } from "../product/ProductJourney";
 import { closingLine } from "../product/ProductSafety";
 import { isCompounded, priceUnit } from "../data/products";
 import { scanUrl } from "../../lib/kioskLocations";
-import { unavailableStates } from "../../lib/serviceArea";
 import { track, EVENTS } from "../../lib/analytics";
 
 /* The product page's assurance tiles, same wording. */
@@ -65,8 +64,8 @@ function QrDock({ card, locId, onTextMe, flash }) {
 
 function Hero({ card }) {
   const p = card.product;
-  // The same list as the product page's state line and the intake's check.
-  const noShip = unavailableStates(p.id);
+  /* No "Currently unavailable in" line here, unlike the product page: the
+     kiosk only lists what its own state allows (client, 2026-10-13). */
   return (
     <section className="grid grid-cols-5 items-start gap-6 lg:gap-10">
       <div className="relative col-span-2 aspect-square overflow-hidden rounded-3xl bg-surface-2">
@@ -78,9 +77,6 @@ function Hero({ card }) {
       <div className="col-span-3">
         <h2 className="font-display text-5xl font-extrabold leading-none tracking-tight text-ks-heading lg:text-6xl">{card.title}</h2>
         <p className="mt-4 text-lg leading-relaxed text-muted lg:text-2xl">{p.subtitle}</p>
-        {noShip.length > 0 && (
-          <p className="mt-3 text-lg font-semibold text-ink lg:text-2xl">Currently unavailable in: {noShip.join(", ")}</p>
-        )}
         <ComplianceBadges compounded={isCompounded(p)} rx={!p.otc} size="lg" className="mt-5" />
         <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-line pt-5">
           {!p.exactPrice && <span className="text-lg uppercase tracking-wider text-ink lg:text-2xl">Starts at</span>}

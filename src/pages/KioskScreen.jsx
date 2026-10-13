@@ -8,7 +8,7 @@ import KioskCategory from "../components/kiosk/KioskCategory";
 import KioskProduct from "../components/kiosk/KioskProduct";
 import KioskTextMe from "../components/kiosk/KioskTextMe";
 import { shelf } from "../components/kiosk/kioskCatalog";
-import { readKioskLocation } from "../lib/kioskLocations";
+import { kioskState, readKioskLocation } from "../lib/kioskLocations";
 
 /* The kiosk's own app at /kiosk/home: standby film, goals, quiz, category,
    product with its code, and text-me. Boot a kiosk at /kiosk/home?kiosk=<id>
@@ -36,6 +36,8 @@ export default function KioskScreen() {
   /* undefined until read, so a code is never drawn untagged first. */
   const [locId, setLocId] = useState(undefined);
   useEffect(() => setLocId(readKioskLocation()), []);
+  // Where the kiosk stands decides which products it shows.
+  const state = kioskState(locId);
 
   /* Back to the film after two minutes untouched, so the next person never
      lands on someone else's screen. Start over only goes back to the goals:
@@ -57,7 +59,7 @@ export default function KioskScreen() {
     };
   }, [view.screen, reset]);
 
-  const cards = useMemo(() => (view.category ? shelf(view.category) : []), [view.category]);
+  const cards = useMemo(() => (view.category ? shelf(view.category, state) : []), [view.category, state]);
   const card = cards.find((c) => c.key === view.card) || cards[0];
 
   const toGoals = () => go({ screen: "goals" });
@@ -67,10 +69,10 @@ export default function KioskScreen() {
   let screen;
   switch (view.screen) {
     case "goals":
-      screen = <KioskGoals onPick={(slug) => toCategory(slug)} onQuiz={() => go({ screen: "quiz" })} />;
+      screen = <KioskGoals state={state} onPick={(slug) => toCategory(slug)} onQuiz={() => go({ screen: "quiz" })} />;
       break;
     case "quiz":
-      screen = <KioskQuiz onDone={toCategory} onBack={toGoals} onStartOver={toGoals} />;
+      screen = <KioskQuiz state={state} onDone={toCategory} onBack={toGoals} onStartOver={toGoals} />;
       break;
     case "category":
       screen = (

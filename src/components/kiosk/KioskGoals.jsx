@@ -3,28 +3,40 @@ import { ArrowRight, Sparkles } from "lucide-react";
 import KioskTopBar, { GoldTitle } from "./KioskTopBar";
 import { GOALS, startingPrice } from "./kioskCatalog";
 
-/* A goal card: the treatments page's tan card and cut-out, with dark type
-   because cream on the lighter tans is too faint to read at a distance. Its
-   height comes from the screen (className), so the whole page fits on one
-   screen whatever the display's height. No small label over the name: on four
-   of the five it repeated the name (client, 2026-10-13). */
-function GoalCard({ goal, hero = false, onPick, className = "" }) {
+/* The kiosk's own tile colors and photos: light golds and rose golds rather
+   than the treatments page's tans, and women in place of the pills and the
+   man (client, 2026-10-13). The site's GOAL_ART is left as it is. */
+const TILES = {
+  "weight-loss": { bg: "from-ks-tile-gold to-ks-tile-gold-deep" },
+  "longevity": { bg: "from-ks-tile-rose to-ks-tile-rose-deep", img: "/site/anti-aging/nad-supported.avif" },
+  "skin-health": { bg: "from-ks-tile-pearl to-ks-tile-pearl-deep", img: "/site/skin-health/luminance-guidance.avif" },
+  "sexual-health": { bg: "from-ks-tile-blush to-ks-tile-blush-deep", img: "/site/sexual-health/hero-couple.avif" },
+  // Shorter, so her face clears the two-line name.
+  "recovery-wellness": { bg: "from-ks-tile-honey to-ks-tile-honey-deep", img: "/site/anti-aging/benefit-vitality.avif", size: "h-3/4" },
+};
+
+/* A goal card, with dark type for reading at a distance. Its height comes
+   from the screen (className), so the whole page fits on one screen whatever
+   the display's height. No small label over the name: on four of the five it
+   repeated the name (client, 2026-10-13). */
+function GoalCard({ goal, state, hero = false, onPick, className = "" }) {
   const art = goal.art;
-  const price = hero ? startingPrice(goal.slug) : "";
+  const tile = TILES[goal.slug] || {};
+  const price = hero ? startingPrice(goal.slug, state) : "";
   return (
     <button
       type="button"
       onClick={() => onPick(goal.slug)}
-      className={`nv-goal flex min-h-0 flex-col justify-between rounded-3xl text-left ${art.bg || ""} ${
+      className={`nv-goal flex min-h-0 flex-col justify-between rounded-3xl border-2 border-white/70 bg-linear-to-br text-left ${tile.bg || ""} ${
         hero ? "p-8 lg:p-12" : "p-6 lg:p-9"
       } ${className}`}
     >
       <img
-        src={art.hero || art.cutout}
+        src={tile.img || art.hero || art.cutout}
         alt=""
         aria-hidden="true"
         className={`nv-goal__figure pointer-events-none absolute bottom-0 right-0 w-auto max-w-none object-contain ${
-          hero ? "h-full" : "h-5/6"
+          hero ? "h-full" : tile.size || "h-5/6"
         }`}
       />
       <span className={`nv-goal__content flex flex-col gap-2 ${hero ? "max-w-1/2" : "max-w-3/5"}`}>
@@ -34,11 +46,15 @@ function GoalCard({ goal, hero = false, onPick, className = "" }) {
         {hero && <span className="mt-2 text-lg font-medium leading-snug text-ink/75 lg:text-2xl">{goal.blurb}</span>}
       </span>
       <span className="nv-goal__content flex flex-wrap items-center gap-3">
+        {/* White on the gold tile stands out more than the black did, and
+            stays light (client, 2026-10-13). */}
         {hero && (
-          <span className="rounded-full bg-ink px-4 py-2 text-base font-semibold text-surface lg:px-5 lg:text-xl">Most popular</span>
+          <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-base font-bold text-ks-heading shadow-md lg:px-5 lg:text-xl">
+            <Sparkles className="size-5 text-ks-gold lg:size-6" /> Most popular
+          </span>
         )}
         {price && <span className="text-xl font-bold text-ink lg:text-3xl">{price}</span>}
-        <span className={`ml-auto grid place-items-center rounded-full bg-surface text-ink ${hero ? "size-16 lg:size-20" : "size-12 lg:size-16"}`}>
+        <span className={`ml-auto grid place-items-center rounded-full bg-white text-ks-heading shadow-md ${hero ? "size-16 lg:size-20" : "size-12 lg:size-16"}`}>
           <ArrowRight className="size-6 lg:size-8" strokeWidth={2.4} />
         </span>
       </span>
@@ -46,7 +62,7 @@ function GoalCard({ goal, hero = false, onPick, className = "" }) {
   );
 }
 
-export default function KioskGoals({ onPick, onQuiz, onStartOver }) {
+export default function KioskGoals({ state, onPick, onQuiz, onStartOver }) {
   const [hero, ...rest] = GOALS;
   return (
     <div className="flex h-full flex-col">
@@ -61,27 +77,28 @@ export default function KioskGoals({ onPick, onQuiz, onStartOver }) {
           <p className="mt-2 text-xl text-muted lg:text-3xl">Tap one to see your treatment options.</p>
         </div>
 
-        <GoalCard goal={hero} hero onPick={onPick} className="flex-1" />
+        <GoalCard goal={hero} state={state} hero onPick={onPick} className="flex-1" />
         <div className="grid min-h-0 flex-2 grid-cols-2 grid-rows-2 gap-5 lg:gap-7">
           {rest.map((g) => (
             <GoalCard key={g.slug} goal={g} onPick={onPick} />
           ))}
         </div>
 
+        {/* Tan, not black (client, 2026-10-13). */}
         <button
           type="button"
           onClick={onQuiz}
-          className="flex flex-none items-center gap-6 rounded-3xl bg-panel p-6 text-left text-on-panel lg:gap-8 lg:p-8"
+          className="flex flex-none items-center gap-6 rounded-3xl border-2 border-white/70 bg-linear-to-br from-ks-champagne to-ks-champagne-deep p-6 text-left text-ks-heading shadow-md lg:gap-8 lg:p-8"
         >
           <span className="grid size-16 flex-none place-items-center rounded-full bg-ks-brass text-white lg:size-24">
             <Sparkles className="size-8 lg:size-12" />
           </span>
           <span className="flex flex-1 flex-col gap-1">
-            <span className="text-lg text-on-panel/70 lg:text-2xl">Not sure where to start?</span>
-            <span className="font-display text-3xl font-extrabold text-white lg:text-5xl">Take the quick quiz</span>
-            <span className="text-lg text-on-panel/70 lg:text-2xl">Two taps, then we&rsquo;ll show you options to explore.</span>
+            <span className="text-lg text-ks-heading/80 lg:text-2xl">Not sure where to start?</span>
+            <span className="font-display text-3xl font-extrabold text-ink lg:text-5xl">Take the quick quiz</span>
+            <span className="text-lg text-ks-heading/80 lg:text-2xl">Two taps, then we&rsquo;ll show you options to explore.</span>
           </span>
-          <ArrowRight className="size-8 flex-none text-ks-cream lg:size-12" strokeWidth={2.4} />
+          <ArrowRight className="size-8 flex-none text-ks-brass lg:size-12" strokeWidth={2.4} />
         </button>
 
         <p className="flex-none text-center text-base text-muted lg:text-lg">

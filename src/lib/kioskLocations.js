@@ -2,16 +2,16 @@ import { productPath } from "./slug";
 import { SITE_URL } from "./absoluteUrl";
 
 export const KIOSK_LOCATIONS = [
-  { id: "costa-mesa", label: "Costa Mesa, CA" },
-  { id: "irvine", label: "Irvine, CA" },
-  { id: "newport-beach", label: "Newport Beach, CA" },
-  { id: "huntington-beach", label: "Huntington Beach, CA" },
-  { id: "santa-ana", label: "Santa Ana, CA" },
-  { id: "anaheim", label: "Anaheim, CA" },
-  { id: "tustin", label: "Tustin, CA" },
-  { id: "fullerton", label: "Fullerton, CA" },
-  { id: "long-beach", label: "Long Beach, CA" },
-  { id: "mission-viejo", label: "Mission Viejo, CA" },
+  { id: "costa-mesa", state: "California", label: "Costa Mesa, CA" },
+  { id: "irvine", state: "California", label: "Irvine, CA" },
+  { id: "newport-beach", state: "California", label: "Newport Beach, CA" },
+  { id: "huntington-beach", state: "California", label: "Huntington Beach, CA" },
+  { id: "santa-ana", state: "California", label: "Santa Ana, CA" },
+  { id: "anaheim", state: "California", label: "Anaheim, CA" },
+  { id: "tustin", state: "California", label: "Tustin, CA" },
+  { id: "fullerton", state: "California", label: "Fullerton, CA" },
+  { id: "long-beach", state: "California", label: "Long Beach, CA" },
+  { id: "mission-viejo", state: "California", label: "Mission Viejo, CA" },
 ];
 
 const STORAGE_KEY = "nv-kiosk-location";
@@ -22,6 +22,12 @@ const STORAGE_KEY = "nv-kiosk-location";
 export const SCAN_PARAM = "from";
 
 export const locationById = (id) => KIOSK_LOCATIONS.find((l) => l.id === id) || null;
+
+/* The state a kiosk stands in, which decides the products it may show. An
+   unplaced kiosk counts as California: every kiosk is there at launch, and it
+   is the shorter list, so a missing placement never shows a product that can't
+   be shipped to the person reading it. */
+export const kioskState = (id) => locationById(id)?.state || "California";
 
 // Derived from the id rather than the label so that relabelling a site (new
 // suite number, mall renamed) can never quietly change what GHL already holds.

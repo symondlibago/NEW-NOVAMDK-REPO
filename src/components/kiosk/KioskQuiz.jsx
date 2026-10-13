@@ -11,11 +11,11 @@ const FORM_ANSWERS = [
 
 /* Two taps at most: the goal, then needle or not, and only where that
    category actually offers both. Nothing answered here leaves the kiosk. */
-export default function KioskQuiz({ onDone, onBack, onStartOver }) {
+export default function KioskQuiz({ state, onDone, onBack, onStartOver }) {
   const [goal, setGoal] = useState(null);
 
   const pickGoal = (slug) => {
-    if (hasFormChoice(slug)) setGoal(slug);
+    if (hasFormChoice(slug, state)) setGoal(slug);
     else onDone(slug, null);
   };
 
