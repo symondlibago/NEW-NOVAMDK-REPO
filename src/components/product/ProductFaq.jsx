@@ -4,7 +4,7 @@ import { faqsFor } from "../data/products";
 const spec = (product, label) =>
   product?.specs?.find((s) => s.label === label)?.value || "";
 
-function buildFaqs(product, { otc }) {
+export function buildFaqs(product, { otc }) {
   const items = [];
 
   /* The treatment's own Q&A leads: it is written for this medication, where

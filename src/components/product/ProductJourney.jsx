@@ -6,7 +6,7 @@ import Reveal from "../ui/Reveal";
    top, step number, title and its line under it. Four across on a desktop; a
    swipe row with arrows on a phone and tablet. The photos are the client's,
    graded to the site's cream so the four read as one set. */
-const STEPS = [
+export const STEPS = [
   {
     title: "Complete your medical intake",
     text: "Tell us about your health history, medications, and treatment goals.",

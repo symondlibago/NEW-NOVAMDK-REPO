@@ -15,6 +15,7 @@ const TreatmentsPage = lazy(() => import("./pages/Treatments"));
 const SupplementsPage = lazy(() => import("./pages/Supplements"));
 const ContactPage = lazy(() => import("./pages/Contact"));
 const KioskPage = lazy(() => import("./pages/Kiosk"));
+const KioskScreen = lazy(() => import("./pages/KioskScreen"));
 const Consult = lazy(() => import("./pages/Consult"));
 const ProductPage = lazy(() => import("./pages/ProductPage"));
 const IntakePage = lazy(() => import("./pages/Intake"));
@@ -104,6 +105,8 @@ function App() {
               live, just unlinked and noindexed. Same treatment as the kiosk. */}
           <Route path="/supplements" element={<SupplementsPage />} />
           <Route path="/kiosk" element={<KioskPage />} />
+          {/* The in-store kiosk app. Unlinked and noindexed; kiosks boot here. */}
+          <Route path="/kiosk/home" element={<KioskScreen />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/start" element={<Consult />} />
           <Route path="/start/:slug" element={<Consult />} />

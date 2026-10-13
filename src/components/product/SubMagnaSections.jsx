@@ -14,6 +14,7 @@ import Reveal from "../ui/Reveal";
 import BlurIn from "../ui/BlurIn";
 import { priceLabel, productsData } from "../data/products";
 import { productPath } from "../../lib/slug";
+import { useScrollRoot } from "../../lib/scrollRoot";
 
 /* Semaglutide Sublingual Drops (SubMagna), redesigned phone first on
  * 2026-10-13 at the client's ask: shorter copy, one idea per screen, and
@@ -80,7 +81,8 @@ const CHIPS = [
 function NeedleFree({ startTo }) {
   const ref = useRef(null);
   const reduced = useReducedMotion();
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  const container = useScrollRoot();
+  const { scrollYProgress } = useScroll({ container, target: ref, offset: ["start end", "end start"] });
   const drift = useTransform(scrollYProgress, [0, 1], reduced ? [0, 0] : [36, -36]);
   const tilt = useTransform(scrollYProgress, [0, 1], reduced ? [0, 0] : [-2.5, 2.5]);
 
@@ -167,7 +169,8 @@ function HowTaken() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const { scrollYProgress } = useScroll({ target: listRef, offset: ["start 75%", "end 55%"] });
+  const container = useScrollRoot();
+  const { scrollYProgress } = useScroll({ container, target: listRef, offset: ["start 75%", "end 55%"] });
   const fill = useSpring(scrollYProgress, { stiffness: 140, damping: 26, mass: 0.4 });
 
   useMotionValueEvent(scrollYProgress, "change", (v) => {

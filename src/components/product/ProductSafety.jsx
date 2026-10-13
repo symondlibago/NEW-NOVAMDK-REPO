@@ -19,7 +19,7 @@ const shortName = (product) => product.name.split("—")[0].split("(")[0].split(
  * line is not a prescription at all. The compounded case is verbatim from the
  * comp; the other two reuse wording already on the site. Legal to confirm the
  * two it did not supply. */
-function closingLine(product) {
+export function closingLine(product) {
   const name = shortName(product);
   if (isOtc(product)) {
     return `${name} is a dietary supplement, not a prescription medication. These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease. Individual outcomes may vary.`;
