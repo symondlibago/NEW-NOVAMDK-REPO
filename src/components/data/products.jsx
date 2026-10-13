@@ -858,7 +858,7 @@ export const productsData = [
     qrImg: "/qr/LIPO-C.png",
     tagline: "Compounded Lipotropic Injection",
     size: "10 mL vial",
-    subtitle: "Lipo-C combines several nutrients involved in fat metabolism and energy production. It's a provider-guided injection that can complement a broader weight-management plan",
+    subtitle: "Lipo-C combines four nutrients involved in how the body processes fats and makes energy. It is a provider-guided injection that can complement the rest of your care.",
     price: "$150",
     /* Sold one month at a time (client's pricing table, 2026-10-10): checkout
        offers no 3 month term. Enforced on the server through api/_prices.js. */
@@ -876,7 +876,7 @@ export const productsData = [
     highlights: [
       { text: "Lipotropic Blend" },
       { text: "With L-Carnitine" },
-      { text: "1–3× Weekly" },
+      { text: "Provider-Directed" },
     ],
     specs: [
       { label: "Active Compound", value: "Methionine 15 mg / Choline 50 mg / Carnitine 50 mg / Dexpanthenol 5 mg per mL" },
@@ -887,7 +887,7 @@ export const productsData = [
       { label: "Formulation", value: "Injection" },
       { label: "Pharmacy", value: "MediVera Compounding Pharmacy™, 5225 Crooks Rd, Troy, MI 48098" },
     ],
-    safety: "Lipotropic injection that supports fat mobilization and energy metabolism: choline and methionine aid hepatic fat processing while carnitine enhances fatty-acid oxidation. Generally well tolerated; mild redness at the injection site may occur.",
+    safety: "Lipo-C is a compounded injection containing methionine, choline, L-carnitine and dexpanthenol. Mild redness or discomfort at the injection site may occur.",
   },
   {
     id: 13,
@@ -2180,7 +2180,7 @@ const FAQ_SETS = [
     { q: "How will my treatment be monitored?", a: "Your provider may check in on your response, tolerance, and overall treatment plan and make adjustments when appropriate." },
   ]],
   [/lipo-c/i, [
-    { q: "What is Lipo-C Injection?", a: "Lipo-C is a compounded injectable treatment. Its ingredients and strength depend on the prescribed formulation." },
+    { q: "What is Lipo-C Injection?", a: "Lipo-C is a compounded prescription injection that combines methionine, choline, L-carnitine and dexpanthenol, a form of vitamin B5. A licensed provider decides if it is appropriate for you." },
     { q: "How is it used?", a: "It is given by injection on a schedule determined by your healthcare provider." },
     { q: "Who might consider Lipo-C?", a: "Your provider will review your health history, medications, and treatment goals to determine whether it may be appropriate for you." },
     { q: "What should I know before starting?", a: "Injection-site discomfort and other side effects can occur. Your provider can explain what to expect and what to watch for during treatment." },
