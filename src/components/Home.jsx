@@ -3,13 +3,12 @@ import React, { Suspense, lazy } from "react";
 import Navbar from "./Nav/Navbar";
 import Footer from "./Nav/Footer";
 import HeroVideo from "./home/HeroVideo";
-import ImproveGoals from "./home/ImproveGoals";
+import HealthFit from "./home/HealthFit";
+import ModernCare from "./home/ModernCare";
 import StartingPoint from "./home/StartingPoint";
 import MattersToYou from "./home/MattersToYou";
 import HowItWorks from "./home/HowItWorks";
-import MoreWays from "./home/MoreWays";
 import Articles from "./home/Articles";
-import GoalGrid from "./shop/GoalGrid";
 
 /* useKioskVariant and the HeroStage card grid it drove went with the
    2026-09-11 hero redesign. The new hero is one full-bleed clip and reads the
@@ -27,17 +26,15 @@ export default function Home() {
     <main className="min-h-screen w-full bg-bg text-ink">
       <Navbar />
       <HeroVideo />
-      {/* Phone only: the six goal tiles, all on one screen (client, 2026-10-12).
-          From md the orbiting goals band under it does this job. */}
-      <section className="px-4 pb-8 pt-4 md:hidden">
-        <GoalGrid source="home" />
-      </section>
-      <ImproveGoals />
+      {/* The client's 2026-10-13 outline, in its order. HealthFit takes over
+          from the orbiting goals band and, on a phone, from the six goal
+          tiles; MoreWays is not in the outline. ImproveGoals.jsx and
+          MoreWays.jsx stay in the tree in case either is wanted back. */}
+      <HealthFit />
+      <ModernCare />
       <StartingPoint />
       <MattersToYou />
-
       <HowItWorks />
-      <MoreWays />
       <Articles />
 
       {/* ===== FAQ ===== */}
