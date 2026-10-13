@@ -7,6 +7,7 @@ import { treatmentFor } from "../../lib/portalCatalog";
 import { planStatus, currentVisitForPlan } from "../../lib/planStatus";
 import ResumeIntakeButton from "./ResumeIntakeButton";
 import NextFillButton from "./NextFillButton";
+import HabitsHomeCard from "./habits/HabitsHomeCard";
 
 /* The same pill tones the Treatments tab uses, so one status cannot look
    reassuring on one screen and alarming on the next. */
@@ -400,6 +401,9 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit, on
             </ul>
           </section>
         )}
+
+        {/* Weekly habits: after anything with a deadline, before the visits. */}
+        <HabitsHomeCard onNavigate={onNavigate} />
 
         {/* The one place a photo earns its space. Laid out side by side from md
             up so the card fills the width instead of stacking into a tall
