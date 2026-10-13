@@ -1,386 +1,323 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Check } from "lucide-react";
+import { ArrowRight, Brain, Check, Droplet, Waves } from "lucide-react";
 import Reveal from "../ui/Reveal";
+import { priceLabel } from "../data/products";
 
-/* Olympus Peak editorial. Same contract as the Sermorelin, LDN and Luminance
-   blocks: gated on the product name in ProductPage, CTAs land on this page's
-   own intake rather than a second entry point. */
+/* Olympus Peak, rebuilt 2026-10-13 on the NAD+ layout (client: one layout for
+   every product page): what it is on the gold band, the three ingredients and
+   how each works in the body, how the tablet is taken, and the dark price
+   card. Facts (form, ingredients, who it is for) checked against the
+   compounding pharmacy's own listing; none of its claims are used. The old
+   desire / performance / arousal tiles read as outcomes, so they are gone. The
+   compounded notice lives in Important Safety Information, not here. */
 
-const INK = "#6b511e";
-const BODY = "#7a6d58";
-const CREAM = "#f7e9c9";
-const CREAM_SOFT = "rgba(247,233,201,0.84)";
-const CREAM_FAINT = "rgba(247,233,201,0.6)";
-const RAIL = "rgba(247,233,201,0.28)";
-const PALE_BTN = "#f0e3cb";
-const BRASS_BTN = "#9a7843";
-const TILE = "#f2ead9";
-const TILE_HI = "#e2d0b2";
+const BAND = "radial-gradient(circle at 30% 40%, #c1a27a, #9a7843)";
+/* The price card's ground: a light champagne (client, 2026-10-13, in place
+   of the dark brown), with the heading in the page's deep gold. */
+const CHAMPAGNE = "linear-gradient(160deg, #f5ead6 0%, #ecdcbf 55%, #e2cda6 100%)";
+const GOLD_INK = "#725826";
+const CREAM = "#ffe8b1";
+const GROUND = "#fbfaf7";
+const TITLE = "font-display font-extrabold leading-[1.1]";
+const H2 = `${TITLE} text-[clamp(1.7rem,3.4vw,2.5rem)] text-[#725826]`;
+const CARD_R = "rounded-[calc(24px*var(--nv-r-scale,1))]";
 
-/* The same circular gradient the other brass panels carry. */
-const BRASS = "radial-gradient(circle at 50% 50%, #c1a27a, #9a7843)";
-
-const CARD_R = "rounded-[calc(26px*var(--nv-r-scale,1))]";
-const TILE_R = "rounded-[calc(18px*var(--nv-r-scale,1))]";
-const TITLE = "nv-weight-keep font-display font-normal leading-[1.14]";
-
-/* Floors sized for a phone, not for the desktop comp: 3.4vw does not reach the
-   old 1.6rem floor until about 750px, so on a phone the floor IS the size. The
-   vw term and the ceiling carry the comp's own scale from sm up. */
-const TITLE_SIZE = "text-[clamp(1.3rem,3.4vw,2.5rem)]";
-const BODY_SIZE = "text-[clamp(0.8rem,1.02vw,0.95rem)]";
-
-/* One shared block rhythm so the three parts cannot drift apart. */
-const PART_PAD = "px-4 sm:px-10";
-const PART_TOP = "py-7 sm:py-[clamp(2.5rem,6vw,4.5rem)]";
-const PART_REST = "pb-7 sm:pb-[clamp(2.5rem,6vw,4.5rem)]";
-
-/* Unlike the Luminance comp, this one sets every heading in one flat colour,
-   cream on the brass and dark brass on the light ground. No ramp. */
-
-/* The comp stands the bottle off vertical, cap leaning right. Set through the
-   standalone `rotate` property rather than a transform: nv-drift animates
-   `transform`, and an animated transform would replace an inline one outright.
-   The two compose. */
-const BOTTLE_TILT = { rotate: "8deg" };
-
-function Glow() {
+function StartLink({ to, light = false, className = "" }) {
   return (
-    <span aria-hidden="true" className="relative grid h-3 w-3 shrink-0 place-items-center">
-      <span
-        className="absolute inset-0 rounded-full"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(253,246,230,0.78) 0%, rgba(253,246,230,0.22) 45%, rgba(253,246,230,0) 100%)",
-        }}
-      />
-      <span className="relative h-1.5 w-1.5 rounded-full" style={{ background: "#fdf6e6" }} />
-    </span>
+    <Link
+      to={to}
+      className={`group inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[0.95rem] font-semibold transition-all hover:-translate-y-0.5 ${
+        light ? "bg-[#f6efe0] text-[#6b511e]" : "bg-[#977e43] text-white hover:bg-[#836c39] nv-shadow"
+      } ${className}`}
+    >
+      Start your consultation
+      <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+    </Link>
   );
 }
 
-/* ---------------------------- 1. the brass formula ---------------------------- */
+/* 1. WHAT IS OLYMPUS PEAK: the gold band, with the light glass bottle. */
 
-/* Drug class only, per the 2026-09-08 compliance pass: each active is named for
-   what it is, not for the response it is meant to produce. The `role` line the
-   ladder used to carry above the description was that claim, so it is gone. */
-const ACTIVES = [
-  { name: "Tadalafil", body: "A PDE5 inhibitor" },
-  { name: "Bremelanotide (PT-141)", body: "A melanocortin receptor agonist" },
-  { name: "Oxytocin", body: "A peptide hormone included in this compounded formulation" },
-];
-
-function FormulaPanel({ startTo }) {
+function WhatIs({ startTo }) {
   return (
-    <div className={`w-full ${PART_TOP}`}>
-      <Reveal>
-        <div
-          className="relative overflow-hidden px-4 pb-6 pt-7 sm:px-9 sm:pb-8 sm:pt-12 md:px-12 md:pb-0 md:pt-14 lg:px-16"
-          style={{ background: BRASS }}
-        >
-          {/* The band is full bleed; its contents are not. Without this the
-              copy sat hard against the left edge of the page with a void down
-              the middle (2026-09-19). */}
-          <div className="relative mx-auto w-full max-w-[1180px]">
-            {/* -------- the claim -------- */}
-            <h2
-              className={`${TITLE} max-w-[22ch] text-[clamp(1.3rem,3.6vw,2.7rem)] md:max-w-[26ch]`}
-              style={{ color: CREAM }}
-            >
-              Sexual response is more{" "}
-              <span className="md:block">than blood flow</span>
-            </h2>
+    <section className="relative overflow-hidden" style={{ background: BAND }}>
+      <img
+        src="/products/detail/olympus-peak-hero.avif"
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full scale-110 object-cover opacity-30 mix-blend-soft-light blur-2xl"
+      />
+      <div className="relative mx-auto max-w-[1180px] px-5 py-[clamp(2.5rem,6vw,5.5rem)] md:px-10">
+        <Reveal as="div">
+          <div
+            className={`grid gap-8 border border-white/25 bg-white/10 p-6 backdrop-blur-md sm:p-10 lg:grid-cols-[1.25fr_1fr] lg:items-center lg:gap-12 lg:p-14 ${CARD_R}`}
+          >
+            <div>
+              <span className="text-[0.75rem] font-bold uppercase tracking-[0.16em]" style={{ color: "rgba(255,232,177,0.8)" }}>
+                A compounded sublingual tablet
+              </span>
+              <h2 className={`${TITLE} mt-3 text-[clamp(1.8rem,3.6vw,2.7rem)]`} style={{ color: CREAM }}>
+                What is Olympus Peak?
+              </h2>
+              <p className="mt-5 max-w-[50ch] text-[1rem] leading-relaxed" style={{ color: CREAM }}>
+                Olympus Peak is a compounded prescription tablet for men. It combines tadalafil, bremelanotide and
+                oxytocin in one formula, and it dissolves under the tongue.
+              </p>
+              <StartLink to={startTo} light className="mt-7" />
+            </div>
 
-            {/* The standfirst is gone per the update, so the button rises to sit
-                directly under the heading. */}
-            <Link
-              to={startTo}
-              className="mt-5 inline-flex rounded-full px-8 py-3 text-[0.88rem] font-semibold transition-all duration-300 hover:-translate-y-0.5 sm:mt-6 sm:px-9 sm:py-3.5 sm:text-[0.92rem]"
-              style={{ background: PALE_BTN, color: INK }}
-            >
-              Get Started
-            </Link>
-
-            {/* The bottle stands out of the flow at every width now
-                (2026-09-19): centred under the button on a phone it cost the
-                panel a whole band of height and left the formula heading
-                stranded below it. Here it sits beside the copy, as it does on
-                the stage. */}
-            <img
-              src="/site/sexual-health/olympus-bottle.avif"
-              alt=""
-              aria-hidden="true"
-              loading="lazy"
-              className="nv-drift pointer-events-none absolute right-0 top-2 w-16 sm:w-24 md:hidden"
-              style={BOTTLE_TILT}
-            />
-            <img
-              src="/site/sexual-health/olympus-bottle.avif"
-              alt=""
-              aria-hidden="true"
-              loading="lazy"
-              /* Raised, and a touch narrower: dropping the standfirst shortened
-                 the copy above it, so the formula heading rose to meet the
-                 bottle's lower half. */
-              className="nv-drift pointer-events-none absolute right-[4%] top-[-3%] hidden w-[13%] max-w-[8.5rem] md:block lg:right-[8%]"
-              style={BOTTLE_TILT}
-            />
-
-            {/* -------- the three actives --------
-                On a phone this is one column: eyebrow, heading, ladder, figure.
-                From md the ladder takes the left and the heading sits above the
-                cut-out on the right, as the comp has it. */}
-            <div className="mt-7 sm:mt-10 md:mt-[clamp(4rem,8vw,7rem)] md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,0.92fr)] md:gap-10">
-              <div className="md:order-2 md:flex md:flex-col">
-                <span
-                  className="font-mono text-[0.58rem] font-semibold uppercase tracking-[0.16em] sm:text-[0.62rem]"
-                  style={{ color: CREAM_SOFT }}
-                >
-                  The formula
-                </span>
-                {/* A floor under the gap to the cut-out: mt-auto alone can
-                    resolve to zero when the ladder beside it is short. */}
-                <h3 className={`${TITLE} ${TITLE_SIZE} mt-2 max-w-[20ch] md:mb-7`} style={{ color: CREAM }}>
-                  Three actives
-                  <span className="block">Three distinct roles</span>
-                </h3>
-
-                {/* In the column's flow rather than absolutely placed, so the
-                    browser guarantees she starts below the heading no matter how
-                    the ladder beside her resolves. mt-auto drops her onto the
-                    card's bottom edge (the card runs md:pb-0) and the translate
-                    carries her through the side padding to be cropped by the
-                    card, as the comp crops her. */}
+            {/* The cut-out is a square with the bottle in its middle third, so
+                the box runs wider than the bottle it shows. */}
+            <div className="mx-auto w-[min(78%,19rem)] lg:w-[min(96%,24rem)]">
+              {/* The tilt has its own wrapper: the float animates the image's
+                  transform and would wipe a rotate set on it. */}
+              <span className="block rotate-6">
                 <img
-                  src="/site/sexual-health/olympus-couple.avif"
+                  src="/products/olympus-peak.avif"
                   alt=""
                   aria-hidden="true"
                   loading="lazy"
-                  className="mt-auto hidden w-[104%] max-w-none translate-x-12 self-end md:block lg:translate-x-16"
+                  className="nv-float pointer-events-none block w-full drop-shadow-[0_18px_34px_rgba(70,50,20,0.34)]"
                 />
-              </div>
-
-              {/* The bottom clearance lives on the wrapper, never on the list:
-                  the rail is absolutely positioned against the list's padding
-                  box, so padding there would run it well past the last dot. */}
-              <div className="md:order-1 md:pb-16">
-              <ol className="relative mt-6 flex flex-col gap-6 sm:mt-8 sm:gap-8 md:mt-0 md:gap-11">
-                <span
-                  aria-hidden="true"
-                  className="absolute bottom-2 left-[5px] top-2 w-px"
-                  style={{ background: RAIL }}
-                />
-                {ACTIVES.map((a, i) => (
-                  <Reveal as="li" key={a.name} delay={0.1 + i * 0.12} y={14} className="relative flex gap-3.5">
-                    <span className="relative z-10 mt-1 flex">
-                      <Glow />
-                    </span>
-                    <span className="min-w-0">
-                      {/* Stepped up a notch across the board: the update asks
-                          for this ladder to read easily, not compactly. */}
-                      <span className="block text-[0.98rem] font-bold sm:text-[1.1rem]" style={{ color: CREAM }}>
-                        {a.name}
-                      </span>
-                      <span
-                        className="mt-1.5 block max-w-[40ch] text-[0.88rem] leading-relaxed sm:text-[0.97rem]"
-                        style={{ color: CREAM_SOFT }}
-                      >
-                        {a.body}
-                      </span>
-                    </span>
-                  </Reveal>
-                ))}
-              </ol>
-              </div>
+              </span>
             </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
 
-            {/* The cut-out is nested in the right column so the browser can
-                guarantee it clears the heading, which means on a phone it would
-                land between the heading and its own list. Rendering it again
-                here (same URL, one request) puts it after the ladder where it
-                belongs in a single column. */}
-            {/* The file is cropped through their torsos, which the stage hides
-                by running her off the card's bottom edge. In the flow there is
-                no edge to hide behind, so the crop is faded out instead
-                (2026-09-19). */}
+/* 2. INSIDE THE FORMULA: the three ingredients, held heading beside a column
+   of rows as NAD+ has it. Drug class and how each acts in the body, never
+   what the tablet will do for you. */
+
+const INGREDIENTS = [
+  {
+    icon: Waves,
+    name: "Tadalafil",
+    kind: "PDE5 inhibitor",
+    text: "Blocks PDE5, an enzyme in blood vessel walls, which lets the smooth muscle there relax.",
+  },
+  {
+    icon: Brain,
+    name: "Bremelanotide (PT-141)",
+    kind: "Melanocortin receptor agonist",
+    text: "Acts on melanocortin receptors in the brain.",
+  },
+  {
+    icon: Droplet,
+    name: "Oxytocin",
+    kind: "Peptide hormone",
+    text: "A hormone the body also makes. It acts on oxytocin receptors in the brain and other tissues.",
+  },
+];
+
+function Formula({ startTo }) {
+  return (
+    <section className="py-[clamp(2.75rem,6vw,5.5rem)]">
+      <div className="mx-auto grid max-w-[1180px] gap-8 px-5 md:px-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+        <div className="lg:sticky lg:top-28 lg:self-start">
+          <Reveal as="div">
+            <span className="nv-eyebrow">Inside the formula</span>
+            <h2 className={`${H2} mt-3 max-w-[14ch]`}>Three Ingredients in One Tablet</h2>
+            <p className="mt-4 max-w-[40ch] text-[1rem] leading-relaxed text-muted">
+              Each ingredient comes from a different drug class and acts in its own way.
+            </p>
+            <StartLink to={startTo} className="mt-7 hidden lg:inline-flex" />
+          </Reveal>
+        </div>
+
+        <div>
+          <ul>
+            {INGREDIENTS.map((r, i) => (
+              <Reveal
+                as="li"
+                key={r.name}
+                delay={(i % 2) * 0.05}
+                className="flex items-center gap-5 border-t border-line py-5 first:border-t-0 first:pt-0 sm:gap-8 sm:py-7"
+              >
+                <span
+                  className="relative grid aspect-3/2 w-28 shrink-0 place-items-center overflow-hidden rounded-[18px] sm:w-48"
+                  style={{ background: BAND }}
+                >
+                  <img
+                    src="/site/sports-medicine/ldn-cells.avif"
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover opacity-70 mix-blend-soft-light"
+                  />
+                  <r.icon size={36} strokeWidth={1.4} className="relative h-7 w-7 sm:h-10 sm:w-10" style={{ color: CREAM }} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="font-display text-[1.1rem] font-bold leading-snug text-ink sm:text-[1.3rem]">{r.name}</h3>
+                  <span className="mt-2 inline-block rounded-full border border-[#e3d3b0] bg-[#f6efe0] px-2.5 py-0.5 text-[0.76rem] font-semibold text-[#6b511e]">
+                    {r.kind}
+                  </span>
+                  <p className="mt-2 max-w-[46ch] text-[0.9rem] leading-relaxed text-muted sm:text-[0.98rem]">{r.text}</p>
+                </div>
+              </Reveal>
+            ))}
+          </ul>
+          <p className="mt-6 border-t border-line pt-5 text-[0.76rem] italic leading-relaxed text-muted">
+            How each ingredient works in the body, not an expected result of treatment. Individual response varies.
+            Prescribing these ingredients together in one tablet is off-label.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* 3. HOW IT'S TAKEN: plain terms only. The amount and timing are the
+   provider's call and stay on the prescription label, never on the page. */
+
+const TAKEN = [
+  { title: "Under the tongue", text: "The tablet is placed under the tongue and left to dissolve. There is no needle." },
+  { title: "As your provider directs", text: "Your provider sets the amount and timing on your prescription label." },
+  { title: "10 tablets per prescription", text: "Shipped to your door in discreet packaging." },
+];
+
+function Taken() {
+  return (
+    <section className="pb-[clamp(2.75rem,6vw,5.5rem)]">
+      <div className="mx-auto grid max-w-[1180px] gap-9 px-5 md:px-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:gap-14">
+        <Reveal as="div">
+          <span className="nv-eyebrow">Sublingual</span>
+          <h2 className={`${H2} mt-3 max-w-[18ch]`}>How It's Taken</h2>
+          <ul className="mt-7">
+            {TAKEN.map((t) => (
+              <li key={t.title} className="flex items-start gap-4 border-t border-line py-4 first:border-t-0 first:pt-0">
+                <Check size={18} strokeWidth={2.4} className="mt-1 shrink-0 text-[#977e43]" />
+                <div>
+                  <h3 className="font-display text-[1.1rem] font-bold leading-snug text-ink">{t.title}</h3>
+                  <p className="mt-1 text-[0.94rem] leading-relaxed text-muted">{t.text}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Reveal>
+
+        {/* A single tablet on the gold, in place of a photo. */}
+        <Reveal
+          as="div"
+          delay={0.08}
+          className={`relative grid aspect-4/3 place-items-center overflow-hidden lg:aspect-square ${CARD_R}`}
+          style={{ background: BAND }}
+        >
+          <img
+            src="/products/detail/olympus-peak-2.avif"
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            className="absolute inset-0 h-full w-full scale-110 object-cover opacity-30 mix-blend-soft-light blur-2xl"
+          />
+          <span className="relative -mt-8 block w-[40%] -rotate-12 sm:w-[44%] lg:mt-0">
             <img
-              src="/site/sexual-health/olympus-couple.avif"
+              src="/site/pill.avif"
               alt=""
               aria-hidden="true"
               loading="lazy"
-              className="mx-auto mt-6 block w-[82%] max-w-[18rem] md:hidden"
-              style={{
-                WebkitMaskImage: "linear-gradient(180deg, #000 0%, #000 78%, transparent 99%)",
-                maskImage: "linear-gradient(180deg, #000 0%, #000 78%, transparent 99%)",
-              }}
+              className="nv-float pointer-events-none block w-full drop-shadow-[0_22px_30px_rgba(70,50,20,0.36)]"
             />
+          </span>
+          <span
+            className="absolute bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/30 bg-white/15 px-4 py-1.5 text-[0.8rem] font-semibold backdrop-blur-md"
+            style={{ color: CREAM }}
+          >
+            Dissolves under the tongue
+          </span>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
 
-            <p
-              className="mt-6 text-[0.72rem] italic leading-relaxed sm:text-[0.76rem] md:absolute md:bottom-8 md:left-0 md:mt-0"
-              style={{ color: CREAM_FAINT }}
-            >
-              Prescription required. Eligibility determined by a licensed provider
-            </p>
+/* 4. WHAT'S INCLUDED: the dark price card, with the record's own price. One
+   fill, not a plan, so there is nothing to cancel. */
+
+const INCLUDED = [
+  "An online intake reviewed by a licensed provider",
+  "Olympus Peak, 10 sublingual tablets, if prescribed",
+  "Compounded by a licensed U.S. pharmacy",
+  "Discreet home delivery",
+  "Follow-up care and guidance from your provider",
+];
+
+function Included({ product, startTo }) {
+  return (
+    <section className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.75rem,6vw,5.5rem)] md:px-10">
+      <Reveal as="div">
+        <div className={`relative grid overflow-hidden lg:grid-cols-2 ${CARD_R}`} style={{ background: CHAMPAGNE }}>
+          {/* The warm glow behind them, laid over the whole card so it cannot
+              stop in a hard line at the column edge. Desktop only: stacked, it
+              would end at the price card the same way. */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 hidden lg:block"
+            style={{ background: "radial-gradient(circle at 27% 92%, rgba(193,162,122,0.36), transparent 42%)" }}
+          />
+          <div className="relative px-6 pt-9 sm:px-10 sm:pt-12">
+            <span className="relative flex items-center gap-2 text-[0.9rem] font-semibold" style={{ color: GOLD_INK }}>
+              <span className="h-2 w-2 rounded-full bg-[#977e43]" />
+              Provider-guided care
+            </span>
+            <h2 className={`${TITLE} relative z-10 mt-4 max-w-[20ch] text-[clamp(1.5rem,2.8vw,2.1rem)]`} style={{ color: GOLD_INK }}>
+              Olympus Peak, prescribed and followed by a licensed provider.
+            </h2>
+            {/* A couple, dressed and close, kept discreet. The cut-out is
+                cropped at the hips, so it stands on the card's bottom edge;
+                stacked, that crop fades out under the price card. */}
+            <img
+              src="/site/sexual-health/hero-couple.avif"
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              className="mx-auto mt-6 block h-72 w-auto object-contain object-bottom [mask-image:linear-gradient(180deg,#000_70%,transparent)] sm:h-96 lg:absolute lg:bottom-0 lg:left-[54%] lg:mt-0 lg:h-[62%] lg:-translate-x-1/2 lg:[mask-image:none]"
+            />
+          </div>
+
+          {/* Stacked, the card rides up over the photo's cropped bottom edge. */}
+          <div className="relative -mt-12 p-4 sm:p-8 lg:mt-0">
+            <div className={`bg-white px-6 py-7 sm:px-9 sm:py-9 ${CARD_R}`}>
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                <span className="font-display text-[clamp(2.4rem,4vw,3rem)] font-extrabold leading-none text-ink">
+                  {priceLabel(product)}
+                </span>
+                {product.priceNote && <span className="text-[1rem] text-muted">{product.priceNote}</span>}
+              </div>
+              <p className="mt-2 text-[0.88rem] text-muted">
+                You pay only if a provider determines that a prescription is appropriate.
+              </p>
+              <h3 className="mt-7 text-[0.95rem] font-bold text-ink">What's included</h3>
+              <ul className="mt-3 grid gap-3">
+                {INCLUDED.map((t) => (
+                  <li key={t} className="flex items-start gap-3 text-[0.94rem] leading-snug text-ink">
+                    <Check size={17} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#977e43]" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <StartLink to={startTo} className="mt-8 w-full justify-center" />
+            </div>
           </div>
         </div>
       </Reveal>
-    </div>
-  );
-}
-
-/* ----------------------------- 2. more than one side ----------------------------- */
-
-const SIDES = [
-  {
-    label: "Desire",
-    active: "Bremelanotide",
-    img: "/site/sexual-health/olympus-tile-desire.avif",
-  },
-  {
-    label: "Physical performance",
-    active: "Tadalafil",
-    img: "/site/sexual-health/olympus-tile-performance.avif",
-    lead: true,
-  },
-  {
-    label: "Arousal & response",
-    active: "Oxytocin",
-    img: "/site/sexual-health/olympus-tile-arousal.avif",
-  },
-];
-
-/* The "What it may support / Designed for a more complete sexual response"
-   panel that used to close this section was removed on 2026-09-08 with the
-   compliance pass, along with its four-item support list. */
-
-function MoreThanOneSide() {
-  return (
-    <div className={`mx-auto max-w-[1180px] ${PART_PAD} ${PART_REST}`}>
-      <Reveal>
-        <h2 className={`${TITLE} ${TITLE_SIZE} max-w-[22ch]`} style={{ color: INK }}>
-          Because intimacy has
-          <span className="block">more than one side</span>
-        </h2>
-        <p className={`mt-3 max-w-[62ch] leading-relaxed sm:mt-4 ${BODY_SIZE}`} style={{ color: BODY }}>
-          Olympus Peak brings all three into one compounded prescription formula
-        </p>
-      </Reveal>
-
-      {/* The middle tile is the emphasised one in the comp: deeper fill, larger
-          thumbnail, larger label. It keeps that weight at every width. The
-          middle column is widened and the lead tile's padding + thumbnail are
-          bumped so it reads clearly bigger than the two beside it. */}
-      <div className="mt-6 grid gap-3 sm:mt-10 sm:gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)_minmax(0,1fr)] md:items-center">
-        {SIDES.map((s, i) => (
-          <Reveal as="div" key={s.label} delay={i * 0.1}>
-            <div
-              className={`flex items-center gap-3.5 p-3 transition-transform duration-300 hover:-translate-y-0.5 sm:gap-4 ${
-                s.lead ? "sm:p-5" : ""
-              } ${TILE_R}`}
-              style={{ background: s.lead ? TILE_HI : TILE }}
-            >
-              <span
-                className={`relative shrink-0 overflow-hidden rounded-[calc(12px*var(--nv-r-scale,1))] ${
-                  s.lead ? "h-16 w-16 sm:h-20 sm:w-20" : "h-12 w-12 sm:h-14 sm:w-14"
-                }`}
-              >
-                <img
-                  src={s.img}
-                  alt=""
-                  aria-hidden="true"
-                  loading="lazy"
-                  className="absolute inset-0 h-full w-full object-cover object-center"
-                />
-              </span>
-              <span className="min-w-0">
-                <span
-                  className={`block font-mono font-bold uppercase leading-tight tracking-[0.08em] ${
-                    s.lead ? "text-[0.78rem] sm:text-[0.88rem]" : "text-[0.72rem] sm:text-[0.8rem]"
-                  }`}
-                  style={{ color: s.lead ? "#8a6a2f" : "#a1834c" }}
-                >
-                  {s.label}
-                </span>
-                <span
-                  className={`mt-1 block ${s.lead ? "text-[0.84rem] font-semibold" : "text-[0.8rem]"}`}
-                  style={{ color: BODY }}
-                >
-                  {s.active}
-                </span>
-              </span>
-            </div>
-          </Reveal>
-        ))}
-      </div>
-
-    </div>
-  );
-}
-
-/* ------------------------------ 3. desire is different ------------------------------ */
-
-function DesireIsDifferent({ startTo }) {
-  return (
-    <div className={`mx-auto max-w-[1180px] ${PART_PAD} pb-8 sm:pb-[clamp(3rem,6vw,5rem)]`}>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.86fr)] lg:items-center lg:gap-14">
-        <Reveal as="div">
-          <h2 className={`${TITLE} ${TITLE_SIZE} max-w-[24ch]`} style={{ color: INK }}>
-            Performance can be physical
-            <span className="block">Desire can be different</span>
-          </h2>
-
-          {/* Bumped a step up from the shared BODY_SIZE (which also drives the
-              MoreThanOneSide standfirst) so only this paragraph grows. */}
-          <p className="mt-3 max-w-[52ch] leading-relaxed sm:mt-5 text-[clamp(0.92rem,1.25vw,1.1rem)]" style={{ color: BODY }}>
-            Blood flow may be only one part of the experience. Changes in desire, arousal,
-            responsiveness, or physical performance can each affect intimacy differently
-          </p>
-
-          <Link
-            to={startTo}
-            className="mt-5 inline-flex max-w-[13rem] rounded-full px-6 py-2.5 text-center text-[0.84rem] font-semibold leading-snug transition-all duration-300 hover:-translate-y-0.5 sm:mt-7 sm:px-7 sm:py-3 sm:text-[0.88rem]"
-            style={{ background: BRASS_BTN, color: CREAM }}
-          >
-            See if Olympus Peak is right for you
-          </Link>
-
-          <p className="mt-5 max-w-[54ch] text-[0.78rem] italic leading-relaxed text-muted sm:mt-[clamp(2rem,4vw,3.5rem)] sm:text-[0.82rem]">
-            Olympus Peak is a compounded prescription medication and is not FDA-approved.
-            Compounded medications are not reviewed by the FDA for safety, effectiveness, or quality
-          </p>
-        </Reveal>
-
-        <Reveal as="div" delay={0.08}>
-          {/* The figure is bottom-anchored inside the brass so she is cropped by
-              the card, and the readout overhangs its top-left corner rather than
-              sitting inside the padding. */}
-          <div
-            className={`relative aspect-[4/3] overflow-hidden sm:aspect-[3/2] lg:aspect-[10/11] ${CARD_R}`}
-            style={{ background: BRASS }}
-          >
-            {/* The 21% arousal readout that used to sit behind her was removed on
-                2026-09-08 with the compliance pass. */}
-            <img
-              src="/site/sexual-health/olympus-figure.avif"
-              alt=""
-              aria-hidden="true"
-              loading="lazy"
-              className="absolute bottom-0 right-0 z-10 h-[86%] w-auto max-w-none object-contain object-bottom sm:h-[92%] lg:h-[78%]"
-            />
-          </div>
-        </Reveal>
-      </div>
-    </div>
-  );
-}
-
-export default function OlympusSections({ startTo = "/start" }) {
-  return (
-    <section style={{ background: "#faf8f4" }}>
-      <FormulaPanel startTo={startTo} />
-      <MoreThanOneSide />
-      <DesireIsDifferent startTo={startTo} />
     </section>
+  );
+}
+
+export default function OlympusSections({ product, startTo = "/start" }) {
+  return (
+    <>
+      <WhatIs startTo={startTo} />
+      <div style={{ background: GROUND }}>
+        <Formula startTo={startTo} />
+        <Taken />
+        <Included product={product} startTo={startTo} />
+      </div>
+    </>
   );
 }
