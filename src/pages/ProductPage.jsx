@@ -1083,13 +1083,11 @@ function PatientInfoModal({
   });
 
   const emailValid = /^\S+@\S+\.\S+$/.test(form.email.trim());
-  /* consent.fee is part of this step now that its box sits under the mobile
-     number, so Continue stays disabled until it is ticked. */
+  /* The fee box sits under the name (client, 2026-10-14), so the name screen
+     needs it ticked before moving on, and step 1 as a whole still does. */
   const namesValid = form.first_name.trim().length > 0 && form.last_name.trim().length > 0;
-  const step1Valid =
-    namesValid &&
-    form.phone_number.replace(/\D/g, "").length >= 10 &&
-    consent.fee;
+  const nameScreenValid = namesValid && consent.fee;
+  const step1Valid = nameScreenValid && form.phone_number.replace(/\D/g, "").length >= 10;
 
   /* The Terms already require 18, so catching it here saves a minor from filling
      in an address and being turned away by the questionnaire afterwards. */
@@ -1151,7 +1149,7 @@ function PatientInfoModal({
       return;
     }
     if (step === 1) {
-      if (part === 0 ? !namesValid : !step1Valid) return setNudgeAt(`1.${part}`);
+      if (part === 0 ? !nameScreenValid : !step1Valid) return setNudgeAt(`1.${part}`);
       if (part === 0) setPart(1);
       else go(2);
       return;
@@ -1223,11 +1221,10 @@ function PatientInfoModal({
     step === 0
       ? emailValid && consentValid && humanValid
       : step === 1
-        ? part === 0 ? namesValid : step1Valid
+        ? part === 0 ? nameScreenValid : step1Valid
         : step === 2
           ? part === 0 ? dobValid : step2Valid
           : step3Valid;
-  const phoneDigits = form.phone_number.replace(/\D/g, "").length;
   const missing =
     nudgeAt !== screen || screenValid
       ? ""
@@ -1238,11 +1235,11 @@ function PatientInfoModal({
             ? "Please tick the box to agree to the Privacy Policy, Terms and Telehealth Consent."
             : "One moment, we're still securing your visit."
         : screen === "1.0"
-          ? "Please enter your first and last name."
+          ? !namesValid
+            ? "Please enter your first and last name."
+            : "Please tick the box to agree to the consultation and its fee."
           : screen === "1.1"
-            ? phoneDigits < 10
-              ? "Please enter your 10 digit mobile number."
-              : "Please tick the box to agree to the consultation and its fee."
+            ? "Please enter your 10 digit mobile number."
             : screen === "2.0"
               ? tooYoung
                 ? ""
@@ -1256,7 +1253,7 @@ function PatientInfoModal({
                     : "Please choose your state.";
   /* Which box the hint is about, so that one can be ringed. */
   const flagRequired = Boolean(missing) && screen === "0.0" && emailValid && !consentValid;
-  const flagFee = Boolean(missing) && screen === "1.1" && phoneDigits >= 10 && !consent.fee;
+  const flagFee = Boolean(missing) && screen === "1.0" && namesValid && !consent.fee;
   const back = () => {
     if (part > 0) setPart(part - 1);
     else if (step > 1) go(step - 1, 1);
@@ -1446,20 +1443,31 @@ function PatientInfoModal({
                   )}
 
                   {screen === "1.0" && (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <FadeIn delay={reveal}>
-                        <label className={labelCls}>
-                          First name
-                          <input value={form.first_name} onChange={set("first_name")} autoComplete="given-name" autoFocus className={inputCls} />
-                        </label>
+                    <>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FadeIn delay={reveal}>
+                          <label className={labelCls}>
+                            First name
+                            <input value={form.first_name} onChange={set("first_name")} autoComplete="given-name" autoFocus className={inputCls} />
+                          </label>
+                        </FadeIn>
+                        <FadeIn delay={reveal + 0.06}>
+                          <label className={labelCls}>
+                            Last name
+                            <input value={form.last_name} onChange={set("last_name")} autoComplete="family-name" className={inputCls} />
+                          </label>
+                        </FadeIn>
+                      </div>
+                      {/* Under the name (client, 2026-10-14), so the text opt-in has
+                          the mobile screen to itself. Still required: it discloses a
+                          fee, so it has to be an explicit tick rather than something
+                          buried in the documents. */}
+                      <FadeIn delay={reveal + 0.12}>
+                        <ConsentCheck checked={consent.fee} onToggle={toggleConsent("fee")} flagged={flagFee}>
+                          {FEE_CONSENT_COPY}
+                        </ConsentCheck>
                       </FadeIn>
-                      <FadeIn delay={reveal + 0.06}>
-                        <label className={labelCls}>
-                          Last name
-                          <input value={form.last_name} onChange={set("last_name")} autoComplete="family-name" className={inputCls} />
-                        </label>
-                      </FadeIn>
-                    </div>
+                    </>
                   )}
 
                   {screen === "1.1" && (
@@ -1478,14 +1486,8 @@ function PatientInfoModal({
                           />
                         </label>
                       </FadeIn>
-                      {/* Moved here from the email step (client request, 2026-10-01).
-                          Still required: it discloses a fee, so it has to be an explicit
-                          tick rather than something buried in the documents. */}
-                      <FadeIn delay={reveal + 0.08} className="flex flex-col gap-3">
-                        <ConsentCheck checked={consent.fee} onToggle={toggleConsent("fee")} flagged={flagFee}>
-                          {FEE_CONSENT_COPY}
-                        </ConsentCheck>
-                        {/* Optional, unticked by default, and never gates Continue. */}
+                      {/* Optional, unticked by default, and never gates Continue. */}
+                      <FadeIn delay={reveal + 0.08}>
                         <ConsentCheck checked={consent.sms} onToggle={toggleConsent("sms")}>
                           {SMS_CONSENT_COPY}
                         </ConsentCheck>
