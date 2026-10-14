@@ -1163,7 +1163,7 @@ function PatientInfoModal({
     0: ["What's your email address?", ""],
     1: ["First, a few details", "So your care team can reach you about your visit."],
     2: ["About you", "These go on your private patient file, so your intake won't ask again."],
-    3: ["Where should we deliver?", "A street address, please. We can't ship to PO boxes."],
+    3: ["Where should we deliver?", ""], // no PO box line (client, 2026-10-14)
   };
 
   /* Takes over the modal rather than sitting inside the form: once we know we
