@@ -2,6 +2,7 @@ import {
   ghlConfigured,
   updateContactFields,
   updateOpportunityFields,
+  clearOpportunityFields,
   createVisitOpportunity,
   moveOpportunityForward,
   STAGE,
@@ -9,6 +10,8 @@ import {
   clinicStamp,
   INTAKE_STAGE,
   FIELD,
+  OPP_FIELD,
+  SITE,
 } from "./_ghl.js";
 import { blocked, verifyReleaseToken } from "./_guard.js";
 
@@ -28,6 +31,45 @@ const idOf = (result) => result?.opportunity?.id || result?.id || null;
    This one means they reached the end and MDI created the encounter, so the
    two together give the drop-off between starting and finishing. */
 const SUBMITTED_TAG = "intake-submitted";
+
+/* Where an unpaid submission is sent to finish paying.
+ *
+ * The portal's front door, with nothing in the link but the instruction to pick
+ * up where they left off. They sign in with their own one-time code and the
+ * portal finds the unfinished intake from their own record, so the link grants
+ * nothing on its own: forwarded, leaked or sitting in a CRM export, it is a
+ * sign-in page. A link carrying a voucher token would have been a bearer
+ * credential to someone's chart, which is why John asked for it this way.
+ *
+ * It is the same string for every visit, since it names none of them. What
+ * makes it per-visit is the card it is written on, which is the field being
+ * SET that marks that card as an unpaid intake. */
+const CHECKOUT_LINK = `${SITE}/portal?resume=1`;
+
+/* Set on an unpaid visit, emptied on a paid one.
+ *
+ * Emptied rather than left alone because most patients pay at the ID screen and
+ * arrive here already paid: a card must not keep a "finish paying" link from an
+ * earlier attempt on the same visit.
+ *
+ * Never fatal. This is the one field here that may not exist in the location
+ * yet, and GoHighLevel rejects a PUT naming a key it does not know; a failure
+ * must not cost this card its stage move. The log line names the field to go
+ * and create. */
+const writeCheckoutLink = (opportunityId, paid) => {
+  if (!opportunityId) return Promise.resolve(null);
+  const write = paid
+    ? clearOpportunityFields(opportunityId, [OPP_FIELD.CHECKOUT_LINK])
+    : updateOpportunityFields(opportunityId, { [OPP_FIELD.CHECKOUT_LINK]: CHECKOUT_LINK });
+  return write.catch((e) => {
+    console.error(
+      `GHL checkout_link ${paid ? "clear" : "write"} failed for opportunity ${opportunityId}:`,
+      e.message,
+      e.details ?? ""
+    );
+    return null;
+  });
+};
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -97,6 +139,10 @@ export default async function handler(req, res) {
             return null;
           })
           .then(async (r) => {
+            /* Before the stage move, deliberately. Intake Submitted is what a
+               recovery workflow triggers on, so the link has to be on the card
+               by the time it arrives there. */
+            await writeCheckoutLink(opportunityId, paid);
             await moveOpportunityForward(opportunityId, STAGE.INTAKE_SUBMITTED);
             return r;
           })
@@ -110,6 +156,7 @@ export default async function handler(req, res) {
           intakeStage: paid ? INTAKE_STAGE.COMPLETE : INTAKE_STAGE.STARTED,
           mdiEncounterId: encounterId,
         }).then(async (r) => {
+          await writeCheckoutLink(idOf(r), paid);
           await moveOpportunityForward(idOf(r), STAGE.INTAKE_SUBMITTED);
           return r;
         }),

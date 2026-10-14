@@ -44,6 +44,10 @@ async function call(url, body) {
 const CACHE_MS = 60_000;
 const CACHEABLE = new Set([
   "cases", "plan", "profile", "notifications", "messages",
+  /* Costs an MDI call per unassigned case, so it is worth holding onto for the
+     minute. Nothing about it changes except by paying, which clears the cache
+     on its way through anyway. */
+  "unpaid",
   /* Both keyed by case id, which is part of the body and so part of the key.
      Reopening a visit, or coming back to Treatments, was re-fetching a timeline
      and a parcel that had not moved. */

@@ -204,10 +204,23 @@ async function recordEncounter({ encounterId, status, additional, paid, treatmen
 export default function IntakePage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+
+  /* Resumed from the portal with the questionnaire already submitted and only
+     the payment outstanding (see src/lib/resumeIntake.js).
+   *
+   * MDI's case is held and nothing releases it until someone pays, but its
+   * questionnaire is finished, so reopening the iframe answers "you already
+   * completed your intake form" and never emits the event the checkout waits
+   * for. Both facts the checkout needs therefore arrive in the link instead:
+   * open on payment, and the case id to release once the card clears. Read
+   * before the state below because both seed it. */
+  const payNow = params.get("pay") === "1";
+  const resumedCase = payNow ? params.get("case") : null;
+
   const [loaded, setLoaded] = useState(false);
-  const [payOpen, setPayOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(payNow);
   const [paid, setPaid] = useState(false);
-  const [caseId, setCaseId] = useState(null);
+  const [caseId, setCaseId] = useState(resumedCase);
   const [thanksClosed, setThanksClosed] = useState(false);
   const intakeTagged = useRef(false);
   /* Holds the last encounter id sent rather than a boolean: MDI re-emits
@@ -223,6 +236,7 @@ export default function IntakePage() {
   const productName = params.get("product") || "";
   const urlPid = params.get("pid");
   const payDemo = params.get("paydemo") === "1";
+
 
   /* A portal-resumed intake arrives with ?qid= instead of ?pid= when its
      questionnaire is shared by products at different prices. The checkout then
@@ -366,24 +380,73 @@ export default function IntakePage() {
         </button>
       </header>
 
-      {/* intake iframe fills the rest of the viewport */}
-      <div className="relative flex-1">
-        {!loaded && (
-          <div className="absolute inset-0 z-10 grid place-items-center bg-bg">
-            <div className="flex flex-col items-center gap-3 text-muted">
-              <Loader2 size={28} className="animate-spin text-primary" />
-              <span className="text-[0.9rem] font-medium">Connecting you to your provider…</span>
+      {/* intake iframe fills the rest of the viewport.
+
+          Not mounted at all on a payment-only resume: there is nothing left to
+          answer, and MDI would fill the page with "you already completed your
+          intake form" behind the checkout. What sits here instead is just the
+          ground under the modal, and what the patient reads once they close
+          it. */}
+      {payNow ? (
+        <div className="grid flex-1 place-items-center px-6">
+          {/* What the checkout sits on, and what is left once it closes.
+              Two states, because a paid visit must not still be offered a
+              payment button: closing the confirmation used to reveal
+              "Continue to payment" again under a visit that was already paid
+              for, and pressing it opened nothing (the modal is suppressed once
+              paid), so it read as a dead end. */}
+          {paid ? (
+            <div className="max-w-md text-center">
+              <h1 className="text-xl font-semibold text-ink sm:text-2xl">Request submitted</h1>
+              <p className="mt-3 text-[0.95rem] leading-relaxed text-muted">
+                A licensed provider will review your visit. Your card is only charged if
+                your treatment is approved.
+              </p>
+              <Link
+                to="/portal"
+                className="mt-6 inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-[0.9rem] font-semibold text-white transition-opacity hover:opacity-90"
+              >
+                Back to your portal
+              </Link>
             </div>
-          </div>
-        )}
-        <iframe
-          src={intakeSrc}
-          title="Medical intake questionnaire"
-          onLoad={() => setLoaded(true)}
-          allow="camera; microphone; payment; geolocation; clipboard-write"
-          className="h-full w-full border-0"
-        />
-      </div>
+          ) : (
+            <div className="max-w-md text-center">
+              <h1 className="text-xl font-semibold text-ink sm:text-2xl">Your answers are saved</h1>
+              <p className="mt-3 text-[0.95rem] leading-relaxed text-muted">
+                There is nothing left to fill in. Add your payment details and a licensed
+                provider will review your visit.
+              </p>
+              {!payOpen && (
+                <button
+                  type="button"
+                  onClick={() => setPayOpen(true)}
+                  className="mt-6 inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-[0.9rem] font-semibold text-white transition-opacity hover:opacity-90"
+                >
+                  Continue to payment
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="relative flex-1">
+          {!loaded && (
+            <div className="absolute inset-0 z-10 grid place-items-center bg-bg">
+              <div className="flex flex-col items-center gap-3 text-muted">
+                <Loader2 size={28} className="animate-spin text-primary" />
+                <span className="text-[0.9rem] font-medium">Connecting you to your provider…</span>
+              </div>
+            </div>
+          )}
+          <iframe
+            src={intakeSrc}
+            title="Medical intake questionnaire"
+            onLoad={() => setLoaded(true)}
+            allow="camera; microphone; payment; geolocation; clipboard-write"
+            className="h-full w-full border-0"
+          />
+        </div>
+      )}
 
       {payOpen && !paid && (
         <PaymentGateModal
@@ -883,7 +946,17 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
      so that is what is about to appear, and sizing the sheet narrow first would
      make it jump wider a moment later. A checkout that does land on Kurv or
      PayTechTrust shrinks instead, which is the rare case. */
-  const fullScreen = processor === "stripe" || processor === null;
+
+  /* Nothing picked yet, so there is nothing to quote: two or three prices to
+     choose between and no card form. */
+  const choosing = choices.length > 1 && !pid;
+
+  /* The chooser is the exception to "no quote yet means full screen". It is a
+     prompt, not a page, and at full width its rows ran the whole viewport with
+     the names clipped off the left edge. It keeps the centred dialog, and when
+     a plan is picked the quote starts and the sheet opens out into the Stripe
+     page, which is the same widening every other route takes. */
+  const fullScreen = (processor === "stripe" || processor === null) && !choosing;
 
   /* The Stripe step takes the whole screen; every other state stays a centred
      dialog over the dimmed questionnaire.
@@ -942,6 +1015,44 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
               </p>
             </div>
           </div>
+        ) : choosing ? (
+          /* Nothing picked yet, so there is nothing to quote and no processor
+             to pick: the plan chooser is the only thing to show.
+           *
+             AHEAD of the skeleton below, which is the bug this branch was built
+             for and then lost to. A portal resume arrives with ?qid= and no
+             ?pid=, so no quote is ever requested, so `processor` stays null for
+             good and the skeleton sat there pulsing forever with the chooser
+             unreachable underneath it (found 2026-10-14, resuming an unpaid
+             NAD+ Injection visit). The chooser also appears further down for
+             the same state arrived at differently, and the two must agree. */
+          <div
+            data-lenis-prevent
+            className="nv-scroll-brand flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-surface-2/30"
+          >
+            <div className="mx-auto w-full max-w-md p-5 md:p-6">
+              <img src="/logo-2026.png" alt="NovaMDK" className="mx-auto h-7 w-auto" />
+              <p className="mt-5 text-center text-[0.95rem] font-semibold">Choose your plan</p>
+              <p className="mt-1.5 text-center text-[0.85rem] leading-relaxed text-muted">
+                Your answers are saved. Pick a plan to finish checking out.
+              </p>
+              <div role="radiogroup" aria-label="Choose your plan" className="mt-4 space-y-2.5">
+                {choices.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={false}
+                    onClick={() => onChoose?.(String(p.id))}
+                    className="flex w-full items-center justify-between gap-4 rounded-2xl border-2 border-line bg-surface px-4 py-3.5 text-left transition-colors hover:border-primary/50"
+                  >
+                    <span className="min-w-0 text-[0.95rem] font-semibold leading-snug">{p.name}</span>
+                    <span className="shrink-0 text-[1.05rem] font-bold">{p.price}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         ) : processor === null ? (
           /* The quote is still in flight, so which processor takes this order
              is not known yet. Ahead of every processor branch: showing one of
@@ -992,7 +1103,7 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
             data-lenis-prevent
             className="nv-scroll-brand flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-surface-2/30"
           >
-            {choices.length > 1 && !pid ? (
+            {choosing ? (
               /* A portal-resumed intake can arrive without a plan chosen. Same
                  radio cards as the older layout, so the patient sees every
                  price before picking; the amount charged still comes from the

@@ -7,6 +7,16 @@ const LOCATION_ID = process.env.GHL_LOCATION_ID;
 const VERSION = process.env.GHL_API_VERSION || "2021-07-28";
 
 export const ghlConfigured = () => Boolean(TOKEN && LOCATION_ID);
+
+/* The live site, for any link written into a CRM record.
+ *
+ * Deliberately not the request's Origin. These links go out in texts and emails
+ * sent from the clinic, so a forged Origin must not be able to put another
+ * domain's address into one. A preview deployment therefore writes production
+ * links, which is the right way round: a patient must never be sent to a
+ * preview. */
+export const SITE = "https://www.novamdk.com";
+
 export const FIELD = {
   TREATMENT: "treatment",
   SEX_AT_BIRTH: "sex_at_birth",
@@ -280,6 +290,7 @@ export async function updateContactFields(contactId, fields = {}) {
   return customFields;
 }
 
+
 /* `name` rides along because GHL treats it as required on an opportunity PUT.
  * Callers pass the same treatment the record was created with, so it reads as a
  * no-op rather than a rename. */
@@ -289,6 +300,26 @@ export async function updateOpportunityFields(opportunityId, fields = {}, { name
   const data = await ghlFetch(`/opportunities/${opportunityId}`, {
     method: "PUT",
     body: { customFields, ...(clean(name) && { name: clean(name) }) },
+  });
+  return data?.opportunity || null;
+}
+
+/**
+ * Empties custom fields on an opportunity.
+ *
+ * Separate from updateOpportunityFields because that one DROPS empty values,
+ * which is what stops a missing optional from wiping a good one. Emptying is a
+ * different intention, so it says so.
+ *
+ * @param {string} opportunityId
+ * @param {string[]} keys bare field keys, as in OPP_FIELD
+ */
+export async function clearOpportunityFields(opportunityId, keys = []) {
+  const customFields = keys.filter(Boolean).map((key) => ({ key, field_value: "" }));
+  if (!opportunityId || !customFields.length) return null;
+  const data = await ghlFetch(`/opportunities/${opportunityId}`, {
+    method: "PUT",
+    body: { customFields },
   });
   return data?.opportunity || null;
 }
@@ -663,7 +694,15 @@ export async function opportunityForEncounter(caseId) {
       console.warn(`No card carries encounter ${caseId} in the newest ${opps.length} scanned`);
       return null;
     }
-    return { id: hit.id, contactId: hit.contact?.id || hit.contactId || null };
+    /* The name travels because it is the only record of WHICH product this
+       visit was for. Built as "Category - Product" from the catalogue at intake
+       (treatmentLabel in src/lib/ghl.js), so it reverses to a product id
+       exactly rather than by guesswork. */
+    return {
+      id: hit.id,
+      contactId: hit.contact?.id || hit.contactId || null,
+      name: hit.name || null,
+    };
   } catch (e) {
     console.warn(`GHL opportunity scan for ${caseId} failed:`, e.message);
     return null;
@@ -704,6 +743,23 @@ export async function opportunitiesForContact(contactId) {
    fields they replace, because they mean the same thing; GHL scopes custom
    fields per object, so there is no clash. */
 export const OPP_FIELD = {
+  /* Where to send someone who finished this visit's questionnaire and never
+   * paid for it. Set when MDI reports the encounter unpaid, cleared when that
+   * visit's payment clears, so a card carrying it IS an unpaid intake.
+   *
+   * PER VISIT, not per contact, and that is the whole point (Symond, 2026-10-14).
+   * A patient can leave treatment A unpaid, come back and buy treatment B, and
+   * on the contact a single field would have been wiped by B's payment: A would
+   * silently drop out of the recovery audience and nobody would ever chase it.
+   * One per card keeps each visit's answer to itself, which is also how the
+   * board already reads, A holding in Intake Submitted while B moves to Paid.
+   *
+   * The value is the portal's front door and carries no token and no product.
+   * The patient signs in with their own code and the portal finds their own
+   * unfinished checkout, so the link grants nothing to anyone else holding it.
+   * That matters because a custom field is readable by every user of the
+   * location and travels in every export. */
+  CHECKOUT_LINK: "checkout_link",
   PLAN_MONTHS: "plan_months",
   PLAN_PRODUCT: "plan_product",
   FILLS_CLAIMED: "fills_claimed",

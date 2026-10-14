@@ -14,7 +14,8 @@ import PortalVisits from "../components/portal/PortalVisits";
 import PortalProfile from "../components/portal/PortalProfile";
 import PortalProgress from "../components/portal/PortalProgress";
 import { getLenis } from "../lib/smoothScroll";
-import { portalAuth, clearPortalCache } from "../lib/portal";
+import { portalAuth, portalData, clearPortalCache } from "../lib/portal";
+import { resumeIntakeUrl } from "../lib/resumeIntake";
 
 /* John's five, in his order (2026-10-06): Home, Treatments, Visits, Messages,
    Profile. No separate tab for billing, orders, pharmacy or subscriptions; all
@@ -60,6 +61,75 @@ export default function PatientPortalPage() {
       .then(({ authenticated }) => setState(authenticated ? "in" : "out"))
       .catch(() => setState("down"));
   }, []);
+
+  /* Asked for the moment they are signed in, not when the Treatments tab opens.
+   *
+   * `unpaid` is the portal's slowest read by a distance: MDI only reports a
+   * case's hold from /cases/:id, so it costs a call per unassigned case at two
+   * to three seconds each, about six in all. Asked for on arrival at the tab,
+   * that is six seconds of a row sitting there looking settled before its
+   * Finish paying button appears, which is exactly how long the client watched
+   * it for (2026-10-15).
+   *
+   * Nothing is done with the answer here. It goes into the read cache, and the
+   * tab, the row and the ?resume=1 link all find it already there. Fire and
+   * forget: it is a prefetch, and a failure costs the tab one real attempt. */
+  useEffect(() => {
+    if (state !== "in") return;
+    portalData({ resource: "unpaid" }).catch(() => {});
+  }, [state]);
+
+  /* ?resume=1, the checkout_link written on the CRM card of a visit that was
+   * submitted and never paid for.
+   *
+   * The link carries nothing else on purpose: it is the portal's front door,
+   * and WHICH visit is unpaid is read from the patient's own record after they
+   * have signed in. So it waits for "in" and then goes looking.
+   *
+   * Two kinds of unfinished intake, asked for together because the link cannot
+   * know which kind it was written for:
+   *   - `unpaid`, a questionnaire finished with the checkout closed. MDI holds
+   *     the case and nothing releases it until someone pays. This is what the
+   *     checkout_link is actually for.
+   *   - a DRAFT, abandoned part-way through the questionnaire. Older, rarer,
+   *     and resumed the same way once found.
+   *
+   * Exactly one between them and it goes straight there, which is the point of
+   * the link. More than one and it cannot choose for them, so it opens the list
+   * where each has its own button. None and it says nothing: they paid in the
+   * meantime, or it expired, and the portal they landed on is the right answer.
+   *
+   * Runs once. The parameter comes off immediately so a refresh, or Back out of
+   * the checkout, does not fire it again. */
+  const [resumed, setResumed] = useState(false);
+  useEffect(() => {
+    if (state !== "in" || resumed) return;
+    if (new URLSearchParams(window.location.search).get("resume") !== "1") return;
+    setResumed(true);
+    window.history.replaceState({}, "", "/portal");
+
+    let alive = true;
+    Promise.all([
+      portalData({ resource: "unpaid" }).catch(() => null),
+      portalData({ resource: "cases" }).catch(() => null),
+    ])
+      .then(async ([owed, seen]) => {
+        if (!alive) return;
+        const held = (owed?.unpaid || []).map((u) => u.voucher_id);
+        const drafts = (seen?.visits || [])
+          .filter((v) => v.kind === "draft" && v.bucket === "incomplete")
+          .map((v) => v.id);
+        const resumable = [...held, ...drafts];
+        if (resumable.length === 1) navigate(await resumeIntakeUrl(resumable[0]));
+        else if (resumable.length > 1) setTab("treatments");
+      })
+      /* A failure here leaves them signed in and looking at their portal, which
+         is a worse link than it should have been and not a broken one. */
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [state, resumed, navigate]);
 
   useEffect(() => {
     const lenis = getLenis();
