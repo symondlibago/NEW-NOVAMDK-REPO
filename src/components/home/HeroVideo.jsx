@@ -10,6 +10,11 @@ const EASE = [0.16, 1, 0.3, 1];
    grade over the clip. */
 const CTA = "#CDA560";
 
+/* Eased rather than a straight ramp: a linear fade to white turns grey in the
+   middle over darker frames. */
+const FADE =
+  "linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.08) 22%, rgba(255,255,255,0.3) 48%, rgba(255,255,255,0.68) 74%, #ffffff 100%)";
+
 /* The mock's colour grade, removed from the hero on 2026-10-13 at the client's
    request because it read too dark on the running scene. Kept as a record of
    what the 2026-10-07 mock actually was, measured rather than guessed: sampling
@@ -116,6 +121,11 @@ export default function HeroVideo() {
           `,
         }}
       />
+
+      {/* The foot of the clip melts into the white the next band opens on, so
+          the page reads as one piece rather than a video with a hard edge
+          (client, 2026-10-14). Below the copy at every width. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-24 md:h-40" style={{ background: FADE }} />
 
       {/* =========================================================
           HERO CONTENT

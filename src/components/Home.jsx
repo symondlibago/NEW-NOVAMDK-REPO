@@ -21,6 +21,8 @@ import Articles from "./home/Articles";
    copy; the per-step links became one "Get Started" per the comp. */
 const FAQ = lazy(() => import("./FAQ"));
 
+const FOOTER_FADE = "linear-gradient(180deg, var(--nv-surface) 0%, var(--nv-surface-2) 100%)";
+
 export default function Home() {
   return (
     <main className="min-h-screen w-full bg-bg text-ink">
@@ -42,7 +44,10 @@ export default function Home() {
         <div id="faq" className="scroll-mt-24"><FAQ /></div>
       </Suspense>
 
-      <Footer />
+      {/* The white FAQ settles into the footer's cream instead of meeting it
+          at a rule, the last of the homepage's fades (client, 2026-10-14). */}
+      <div aria-hidden="true" className="h-16 md:h-24" style={{ background: FOOTER_FADE }} />
+      <Footer seamless />
     </main>
   );
 }

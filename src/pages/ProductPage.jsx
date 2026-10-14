@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams, Navigate, Link } from "react-r
 import { track, EVENTS } from "../lib/analytics";
 import {
   ArrowRight, ArrowLeft, Check, ShieldCheck, Truck, Stethoscope, Lock, Loader2,
-  QrCode, X, UserRound, ChevronDown, MapPin, Home, Info,
+  QrCode, X, ChevronDown, MapPin, Home, Info,
 } from "lucide-react";
 import Seo from "../components/Seo";
 import Navbar from "../components/Nav/Navbar";
@@ -29,8 +29,14 @@ import { ComplianceBadges } from "../components/Compliance";
 import useKioskMode from "../lib/useKioskMode";
 import useLockBodyScroll from "../lib/useLockBodyScroll";
 import Turnstile, { turnstileOn } from "../components/Turnstile";
-import DatePicker from "../components/ui/DatePicker";
 import { baseName, stageOf, displayTitle } from "../lib/catalog";
+import {
+  productSeoName,
+  productSeoTitle,
+  productSeoDescription,
+  canonicalProduct,
+  breadcrumbs,
+} from "../lib/seoMeta";
 import ProductGallery from "../components/product/ProductGallery";
 import SubscriptionProductPage from "../components/product/SubscriptionProductPage";
 import ProductMechanism from "../components/product/ProductMechanism";
@@ -255,9 +261,9 @@ export default function ProductPage() {
       if (res.status === 409) {
         const why = await res.json().catch(() => ({}));
         if (why.state) return { blockedState: why.state, served: why.error !== "state_not_served" };
-        throw new Error("We couldn't start your visit just now — please try again.");
+        throw new Error("We couldn't start your visit just now. Please try again.");
       }
-      if (!res.ok) throw new Error("We couldn't start your visit just now — please try again.");
+      if (!res.ok) throw new Error("We couldn't start your visit just now. Please try again.");
       const voucher = await res.json();
       if (voucher.human_pass) humanPass.current = voucher.human_pass;
       // Contact-only submit + no MDI record found: the modal collects the
@@ -378,7 +384,7 @@ export default function ProductPage() {
             loading={loading}
             err={err}
             productId={active.id}
-            productName={active.name}
+            productName={displayTitle(active)} // the stored name carries "— Starter"
             categorySlug={active.categorySlug}
             onClose={() => setShowInfo(false)}
             onSubmit={startVisit}
@@ -391,19 +397,26 @@ export default function ProductPage() {
   return (
     <main className="min-h-screen w-full bg-bg text-ink">
       <Seo
-        title={`${product.displayName || product.name} — ${product.categoryName}`}
-        description={product.subtitle || `${product.displayName || product.name} from Nova MDK — physician-guided telehealth treatment, delivered to your door.`}
-        path={productPath(product)}
+        title={productSeoTitle(product)}
+        description={productSeoDescription(product)}
+        path={productPath(canonicalProduct(product, visibleProducts))}
         image={product.img}
-        jsonLd={{
-          "@context": "https://schema.org",
-          "@type": "Product",
-          name: product.displayName || product.name,
-          description: product.subtitle || undefined,
-          image: `https://www.novamdk.com${product.img}`,
-          category: product.categoryName,
-          brand: { "@type": "Brand", name: product.brandName || "Nova MDK" },
-        }}
+        jsonLd={[
+          {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            name: productSeoName(product),
+            description: product.subtitle || undefined,
+            image: `https://www.novamdk.com${product.img}`,
+            category: product.categoryName,
+            brand: { "@type": "Brand", name: product.brandName || "Nova MDK" },
+          },
+          breadcrumbs([
+            ["Home", "/"],
+            [product.categoryName, `/treatments/${product.categorySlug}`],
+            [productSeoName(product), productPath(product)],
+          ]),
+        ]}
       />
       <Navbar />
 
@@ -756,7 +769,7 @@ export default function ProductPage() {
           loading={loading}
           err={err}
           productId={active.id}
-          productName={active.name}
+          productName={displayTitle(active)} // the stored name carries "— Starter"
           categorySlug={active.categorySlug}
           onClose={() => setShowInfo(false)}
           onSubmit={startVisit}
@@ -953,6 +966,9 @@ function PatientInfoModal({
      as something that finished rather than a flicker. */
   const SUCCESS_HOLD_MS = 900;
   const [verified, setVerified] = useState(false);
+  /* Cloudflare's box stays hidden unless it needs a tick (client, 2026-10-14),
+     and this says when it does, so the screen can ask for it. */
+  const [needsTap, setNeedsTap] = useState(false);
   /* A ref, not state: Turnstile issues a fresh token every time it refreshes,
      and only the first one should schedule anything. Set synchronously in the
      handler so a double-invoked effect or a second token landing in the same
@@ -1131,26 +1147,23 @@ function PatientInfoModal({
     if (res?.blockedState) setServerBlock({ state: res.blockedState, served: res.served });
   };
 
+  /* 16px text: anything smaller and an iPhone zooms the page on every tap
+     into a field. Labels sit above every field rather than living in the
+     placeholder, which disappears the moment someone starts typing. */
   const inputCls =
-    "w-full rounded-xl border border-line bg-bg px-3.5 py-3 text-[0.95rem] text-ink placeholder:text-muted/60 focus:border-primary focus:outline-none";
-  const labelCls = "flex flex-col gap-1 text-left text-[0.7rem] font-semibold uppercase tracking-wide text-muted";
+    "w-full rounded-xl border border-line bg-bg px-4 py-3.5 text-base text-ink placeholder:text-muted/60 focus:border-primary focus:outline-none";
+  const labelCls = "flex flex-col gap-1.5 text-left text-sm font-medium text-ink";
   const TITLES = {
     /* Its own screen, not a widget under the email field (client request,
        2026-10-01). Nothing is asked of the patient and the step advances itself
-       the moment Turnstile hands back a token. The wording is Cloudflare's own
-       interstitial copy, which is what Hims shows (client request, 2026-10-08):
-       patients have met this screen elsewhere, so the familiar sentence reads as
-       routine rather than as something has gone wrong. */
-    [-1]: [
-      "Performing security verification",
-      "This website uses a security service to protect against malicious bots. This page is displayed while the website verifies you are not a bot.",
-    ],
+       the moment Turnstile hands back a token. Our words, not Cloudflare's
+       (client, 2026-10-14): the "malicious bots" sentence read badly to
+       patients, and Cloudflare's box now shows only when it needs a tick. */
+    [-1]: ["Securing your visit", "This only takes a moment."],
     0: ["What's your email address?", ""],
     1: ["First, a few details", "So your care team can reach you about your visit."],
-    2: ["About you", "These go on your private patient file — your intake will skip them."],
-    // Says why rather than just forbidding it: a bare "no PO boxes" reads as an
-    // arbitrary rule, and the carrier restriction is the actual reason.
-    3: ["Where should we deliver?", "A street address"],
+    2: ["About you", "These go on your private patient file, so your intake won't ask again."],
+    3: ["Where should we deliver?", ""], // no PO box line (client, 2026-10-14)
   };
 
   /* Takes over the modal rather than sitting inside the form: once we know we
@@ -1263,38 +1276,46 @@ function PatientInfoModal({
         {step === -1 ? (
           <>
             <img src="/logo-2026.png" alt="NovaMDK" className="h-12 w-auto sm:h-14" />
-            {/* The domain leads, the way Cloudflare's own interstitial sets it
-                out: the one thing this screen has to answer is whose site is
-                asking, before the patient has typed anything. */}
-            <p className="mt-5 font-display text-[clamp(1.65rem,6vw,2.4rem)] font-extrabold leading-tight tracking-tight text-ink">
-              www.novamdk.com
-            </p>
+            {/* A spinner while Cloudflare works out of sight, a check once it
+                has passed, and nothing while its box is asking for a tick. */}
+            {!needsTap && (
+              <span role="status" aria-label={verified ? "Verified" : "Checking"} className="mt-10 grid h-12 w-12 place-items-center">
+                {verified ? (
+                  <span className="grid h-12 w-12 place-items-center rounded-full bg-primary text-on-primary">
+                    <Check size={24} strokeWidth={3} />
+                  </span>
+                ) : (
+                  <span className="h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+                )}
+              </span>
+            )}
           </>
         ) : (
-          <span className="grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
-            <UserRound size={22} />
-          </span>
+          productName && (
+            <p className="pr-10 text-sm font-semibold text-primary">{productName}</p>
+          )
         )}
         <h3
-          className={`font-display font-extrabold leading-tight ${
-            takeover ? "mt-2 text-[clamp(1.15rem,3.6vw,1.45rem)]" : "mt-3 text-[1.35rem]"
+          className={`font-light leading-tight tracking-tight text-ks-heading ${
+            takeover ? (needsTap ? "mt-8 text-2xl" : "mt-6 text-2xl") : "mt-2 text-2xl"
           }`}
         >
           {TITLES[step][0]}
         </h3>
         {TITLES[step][1] && (
-          <p
-            className={
-              takeover
-                ? "mt-2.5 text-[0.92rem] leading-relaxed text-muted"
-                : "mt-1 text-[0.86rem] text-muted"
-            }
-          >
-            {TITLES[step][1]}
+          <p className={takeover ? "mt-2 text-base text-muted" : "mt-1.5 text-sm leading-relaxed text-muted"}>
+            {takeover && needsTap ? "Tick the box below to continue." : TITLES[step][1]}
           </p>
         )}
         {step > 0 && (
-          <p className="mt-2 font-mono text-[0.64rem] uppercase tracking-[0.16em] text-primary">Step {step} of 3</p>
+          <div className="mt-4">
+            <div className="flex gap-1.5" aria-hidden="true">
+              {[1, 2, 3].map((n) => (
+                <span key={n} className={`h-1 flex-1 rounded-full ${n <= step ? "bg-primary" : "bg-line"}`} />
+              ))}
+            </div>
+            <p className="mt-2 text-xs font-medium text-muted">Step {step} of 3</p>
+          </div>
         )}
 
         <form onSubmit={submit} className="mt-4 flex w-full flex-col gap-3">
@@ -1309,10 +1330,13 @@ function PatientInfoModal({
             <Turnstile
               key={humanKey}
               action="start_visit"
+              appearance="interaction-only"
+              onInteractive={() => setNeedsTap(true)}
               onToken={(t) => {
                 setHumanToken(t);
                 if (!t) return;
                 setHumanBroken(false);
+                setNeedsTap(false);
                 /* Only the first token does this. Later ones are refreshes of a
                    token that expired while the patient was still filling the
                    form, and they must change nothing on screen. */
@@ -1336,20 +1360,6 @@ function PatientInfoModal({
               </p>
             )}
           </div>
-
-          {/* The pass, said plainly, where the widget was. Held for
-              SUCCESS_HOLD_MS so it is actually read before the form arrives. */}
-          {step === -1 && verified && (
-            <div
-              role="status"
-              className="flex items-center gap-2.5 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5"
-            >
-              <span className="grid h-6 w-6 flex-none place-items-center rounded-full bg-primary text-on-primary">
-                <Check size={14} strokeWidth={3} />
-              </span>
-              <span className="text-[0.92rem] font-semibold text-ink">Success</span>
-            </div>
-          )}
 
           {step === 0 && (
             <>
@@ -1380,10 +1390,19 @@ function PatientInfoModal({
           {step === 1 && (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <input value={form.first_name} onChange={set("first_name")} placeholder="First name" autoComplete="given-name" className={inputCls} />
-                <input value={form.last_name} onChange={set("last_name")} placeholder="Last name" autoComplete="family-name" className={inputCls} />
+                <label className={labelCls}>
+                  First name
+                  <input value={form.first_name} onChange={set("first_name")} autoComplete="given-name" className={inputCls} />
+                </label>
+                <label className={labelCls}>
+                  Last name
+                  <input value={form.last_name} onChange={set("last_name")} autoComplete="family-name" className={inputCls} />
+                </label>
               </div>
-              <input type="tel" value={form.phone_number} onChange={set("phone_number")} placeholder="Mobile number" autoComplete="tel" className={inputCls} />
+              <label className={labelCls}>
+                Mobile number
+                <input type="tel" inputMode="tel" value={form.phone_number} onChange={set("phone_number")} autoComplete="tel" className={inputCls} />
+              </label>
               {/* Moved here from the email step (client request, 2026-10-01).
                   Still required: it discloses a fee, so it has to be an explicit
                   tick rather than something buried in the documents. */}
@@ -1395,20 +1414,32 @@ function PatientInfoModal({
 
           {step === 2 && (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                <label className={labelCls}>
-                  Date of birth
-                  <DatePicker value={form.dob} onChange={setVal("dob")} placeholder="Select…" />
-                </label>
-                <label className={labelCls}>
-                  Sex at birth
-                  <NvSelect
-                    value={form.gender}
-                    onChange={setVal("gender")}
-                    placeholder="Select…"
-                    options={[{ value: "1", label: "Male" }, { value: "2", label: "Female" }]}
-                  />
-                </label>
+              <label className={labelCls}>
+                Date of birth
+                <DobInput value={form.dob} onChange={setVal("dob")} className={inputCls} />
+              </label>
+              {/* Two buttons rather than a dropdown: one tap instead of two.
+                  MDI's codes: 1 = male, 2 = female. */}
+              <div className={labelCls}>
+                <span id="sex-at-birth">Sex at birth</span>
+                <div role="radiogroup" aria-labelledby="sex-at-birth" className="grid grid-cols-2 gap-3">
+                  {[["2", "Female"], ["1", "Male"]].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={form.gender === value}
+                      onClick={() => setVal("gender")(value)}
+                      className={`rounded-xl border px-4 py-3.5 text-base font-semibold transition-colors ${
+                        form.gender === value
+                          ? "border-primary bg-primary text-on-primary"
+                          : "border-line bg-bg text-ink hover:border-primary"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
               {/* Stated plainly rather than capping the calendar at 2008: a year
                   that simply isn't there reads as a broken picker. */}
@@ -1426,28 +1457,42 @@ function PatientInfoModal({
           {step === 3 && (
             <>
               {/* Street with live suggestions — picking one fills city/state/ZIP too */}
-              <AddressAutocomplete
-                value={form.street}
-                onChange={set("street")}
-                onPick={({ street, city, state, zip }) =>
-                  setForm((f) => ({
-                    ...f,
-                    street: street || f.street,
-                    city: city || f.city,
-                    state: US_STATES.includes(state) ? state : f.state,
-                    zip: zip || f.zip,
-                  }))
-                }
-                className={inputCls}
-              />
+              <label className={labelCls}>
+                Street address
+                <AddressAutocomplete
+                  value={form.street}
+                  onChange={set("street")}
+                  onPick={({ street, city, state, zip }) =>
+                    setForm((f) => ({
+                      ...f,
+                      street: street || f.street,
+                      city: city || f.city,
+                      state: US_STATES.includes(state) ? state : f.state,
+                      zip: zip || f.zip,
+                    }))
+                  }
+                  className={inputCls}
+                />
+              </label>
               <div className="grid grid-cols-2 gap-3">
-                <input value={form.city} onChange={set("city")} placeholder="City" autoComplete="address-level2" className={inputCls} />
-                <input value={form.zip} onChange={set("zip")} placeholder="ZIP code" autoComplete="postal-code" inputMode="numeric" className={inputCls} />
+                <label className={labelCls}>
+                  City
+                  <input value={form.city} onChange={set("city")} autoComplete="address-level2" className={inputCls} />
+                </label>
+                <label className={labelCls}>
+                  ZIP code
+                  <input value={form.zip} onChange={set("zip")} autoComplete="postal-code" inputMode="numeric" className={inputCls} />
+                </label>
               </div>
               {/* Blocked states stay in the list rather than being removed from
                   it: a missing state reads as a broken form. Choosing one swaps
                   this whole modal for the unavailable notice below. */}
-              <NvSelect value={form.state} onChange={setVal("state")} placeholder="State…" options={US_STATES} />
+              {/* A div, not a label: a label would hand every tap in the open
+                  list back to the toggle and reopen it. */}
+              <div className={labelCls}>
+                State
+                <NvSelect value={form.state} onChange={setVal("state")} placeholder="Select your state" options={US_STATES} />
+              </div>
             </>
           )}
 
@@ -1471,10 +1516,8 @@ function PatientInfoModal({
             >
               {loading ? (
                 <><Loader2 size={16} className="animate-spin" /> {step === 0 ? "Checking your records…" : "Preparing your intake…"}</>
-              ) : step < 3 ? (
-                <>Continue <ArrowRight size={16} /></>
               ) : (
-                <>Continue to intake <ArrowRight size={16} /></>
+                <>Continue <ArrowRight size={16} /></>
               )}
             </button>
           </div>
@@ -1489,6 +1532,50 @@ function PatientInfoModal({
         </p>
       </div>
     </div>
+  );
+}
+
+/* Date of birth typed as MM/DD/YYYY on the number pad (client, 2026-10-14):
+   scrolling a calendar back forty or fifty years was the slowest part of the
+   form for the patients we see most. Hands back Y-m-d, MDI's format, only once
+   the date is complete and real, and "" until then, which keeps Continue
+   disabled. */
+function DobInput({ value, onChange, className }) {
+  const fromIso = (v) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || "");
+    return m ? `${m[2]}/${m[3]}/${m[1]}` : "";
+  };
+  const [text, setText] = useState(() => fromIso(value));
+  const digits = text.replace(/\D/g, "");
+  const iso = (d) => {
+    const [mm, dd, yyyy] = [+d.slice(0, 2), +d.slice(2, 4), +d.slice(4)];
+    const date = new Date(yyyy, mm - 1, dd);
+    const real =
+      date.getFullYear() === yyyy && date.getMonth() === mm - 1 && date.getDate() === dd &&
+      yyyy >= 1900 && date <= new Date();
+    return real ? `${d.slice(4)}-${d.slice(0, 2)}-${d.slice(2, 4)}` : "";
+  };
+  const bad = digits.length === 8 && !iso(digits);
+
+  const onInput = (e) => {
+    const d = e.target.value.replace(/\D/g, "").slice(0, 8);
+    setText([d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join("/"));
+    onChange(d.length === 8 ? iso(d) : "");
+  };
+
+  return (
+    <>
+      <input
+        value={text}
+        onChange={onInput}
+        inputMode="numeric"
+        autoComplete="bday"
+        placeholder="MM/DD/YYYY"
+        aria-invalid={bad || undefined}
+        className={className}
+      />
+      {bad && <span role="alert" className="text-sm font-normal text-muted">Please check the date.</span>}
+    </>
   );
 }
 
@@ -1555,7 +1642,7 @@ function NvSelect({ value, onChange, options, placeholder = "Select…" }) {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`flex w-full items-center justify-between gap-2 rounded-xl border bg-bg px-3.5 py-3 text-left text-[0.95rem] transition-colors focus:outline-none ${
+        className={`flex w-full items-center justify-between gap-2 rounded-xl border bg-bg px-4 py-3.5 text-left text-base font-normal transition-colors focus:outline-none ${
           open ? "border-primary ring-2 ring-primary/15" : "border-line"
         } ${current ? "text-ink" : "text-muted/60"}`}
       >

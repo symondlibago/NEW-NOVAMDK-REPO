@@ -4,14 +4,16 @@ import { dirname, join } from "node:path";
 import { SITE_URL, buildRoutes } from "./seo-routes.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const routes = buildRoutes();
-const today = new Date().toISOString().slice(0, 10);
+// Dose rungs point at their shelf page as canonical, so they stay out.
+const routes = buildRoutes().filter((r) => r.sitemap !== false);
 
+/* A date only where one is known (a blog post's). Stamping every page with
+   the build date taught Google to ignore the field. */
 const urls = routes
   .map(
-    ({ path, priority }) => `  <url>
-    <loc>${SITE_URL}${path}</loc>
-    <lastmod>${today}</lastmod>
+    ({ path, priority, lastmod }) => `  <url>
+    <loc>${SITE_URL}${path}</loc>${lastmod ? `
+    <lastmod>${lastmod}</lastmod>` : ""}
     <priority>${priority}</priority>
   </url>`
   )

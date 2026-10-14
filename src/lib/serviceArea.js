@@ -55,6 +55,7 @@ export const STATE_PRODUCTS = {
     5, 6, 7, // Tirzepatide, all three doses
     45, 46, // Semaglutide + Glycine + B12, initial and refill
     47, 48, // Tirzepatide + Glycine + B12, initial and refill
+    13, 14, 15, // Semaglutide sublingual drops (SubMagna), all three doses: Strive ships them here (client, 2026-10-14)
     11, // Sermorelin
     23, // NAD+ Sublingual Tablet — the sublingual only, not the injections
     26, 27, 28, // Low-Dose Naltrexone, all three doses
@@ -78,6 +79,7 @@ export const PRODUCT_NO_SHIP = {
   45: NO_AR_IN_SC, 46: NO_AR_IN_SC,
   5: NO_AR_IN_SC, 6: NO_AR_IN_SC, 7: NO_AR_IN_SC, // Tirzepatide injection
   8: NO_AR_IN_SC, 9: NO_AR_IN_SC, 10: NO_AR_IN_SC, 47: NO_AR_IN_SC, 48: NO_AR_IN_SC,
+  13: NO_AR_IN_SC, 14: NO_AR_IN_SC, 15: NO_AR_IN_SC, // Semaglutide sublingual drops (Strive, 2026-10-14)
   24: NO_AR_IN_SC, // Sermorelin injection
   16: NO_AR_CA_IN_SC, 18: NO_AR_CA_IN_SC, 19: NO_AR_CA_IN_SC, 20: NO_AR_CA_IN_SC, // NAD+ injection (503A)
   17: NO_AR_CA_IN_SC, // Glutathione injection (503A)

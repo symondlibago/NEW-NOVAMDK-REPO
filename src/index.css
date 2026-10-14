@@ -70,6 +70,21 @@
   --color-ks-gold-hi: #D3B46A;
   --color-ks-gold: #B08B34;
   --color-ks-gold-lo: #6B511E;
+  /* The product pages' champagne price card, for the kiosk's QR panel. */
+  --color-ks-champagne: #F5EAD6;
+  --color-ks-champagne-deep: #E2CDA6;
+  /* The goal tiles: light golds and rose golds in place of the site's tans
+     (client, 2026-10-13: lighter, premium, colors that pop). */
+  --color-ks-tile-gold: #F8E8C4;
+  --color-ks-tile-gold-deep: #E2BA6E;
+  --color-ks-tile-rose: #FAECE4;
+  --color-ks-tile-rose-deep: #E8C0AA;
+  --color-ks-tile-pearl: #FCF7EE;
+  --color-ks-tile-pearl-deep: #EDDAB6;
+  --color-ks-tile-blush: #FAE4DF;
+  --color-ks-tile-blush-deep: #E4B0A5;
+  --color-ks-tile-honey: #FAEFD6;
+  --color-ks-tile-honey-deep: #E7C98E;
 }
 
 /* ---- Runtime defaults (Slate & Stone · Grotesk · Medium). JS overrides these. ---- */

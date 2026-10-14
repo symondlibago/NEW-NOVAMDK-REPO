@@ -43,10 +43,21 @@ export const programItem = (program) => {
      * that is entirely hidden still shows nothing. */
     formulations: program.blends
       .filter((b) => b.name && b.products[0])
-      .map((b) => ({ name: b.name, to: productPath(b.products[0]) })),
+      .map((b) => ({
+        name: b.name,
+        to: productPath(b.products[0]),
+        // What the category shelf swaps in when a formula is picked on the card.
+        startTo: `${productPath(b.products[0])}?start=1`,
+        img: b.products[0].img,
+        form: b.products[0].dosageForm || "",
+        price: b.fromPrice ? `From $${b.fromPrice}/mo` : "",
+      })),
     // The product View Details quick-looks. For a program that's its starting
     // dose — the same one Get Started takes into intake.
     product: starter,
+    to: productPath(starter),
+    price: program.fromPrice ? `From $${program.fromPrice}/mo` : "",
+    form: starter.dosageForm || "",
     startTo: `${productPath(starter)}?start=1`,
   };
 };
@@ -67,5 +78,8 @@ export const productItem = (p) => ({
   img: p.img,
   blurb: p.blurb || p.description || "",
   product: p,
+  to: productPath(p),
+  price: p.cardPrice || priceLabel(p),
+  form: p.dosageForm || "",
   startTo: `${productPath(p)}?start=1`,
 });

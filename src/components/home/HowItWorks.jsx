@@ -43,7 +43,10 @@ const STEPS = [
 ];
 
 const GOLD = "#b08d57";
-const GROUND = "#fbf8f2";
+/* Cream that turns white over the last stretch, so the band hands over to the
+   white Articles section without a seam (client, 2026-10-14). The top stays
+   the cream the Matters To You photo fades into. */
+const GROUND = "linear-gradient(180deg, #fbf8f2 0%, #fbf8f2 78%, #ffffff 100%)";
 
 function Tag({ children, className = "" }) {
   return (

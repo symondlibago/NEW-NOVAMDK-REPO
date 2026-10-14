@@ -39,15 +39,19 @@ function loadScript() {
  *   expires or the check errors, so the form can disable its button again
  * @param {() => void} [props.onError] the widget couldn't load at all
  * @param {string} [props.action] shows up in Cloudflare's analytics per form
+ * @param {"always"|"interaction-only"} [props.appearance] "interaction-only"
+ *   keeps Cloudflare's box hidden unless it needs the visitor to tick it, so
+ *   the page can show its own waiting state instead
+ * @param {() => void} [props.onInteractive] the box is about to ask for a tick
  *
  * To get a fresh token after a failed submit, remount it with a new `key`:
  * tokens are single use, and a remount is simpler than threading a reset call.
  */
-export default function Turnstile({ onToken, onError, action }) {
+export default function Turnstile({ onToken, onError, action, appearance = "always", onInteractive }) {
   const ref = useRef(null);
   // Latest callbacks without re-rendering the widget whenever the parent does.
-  const cb = useRef({ onToken, onError });
-  cb.current = { onToken, onError };
+  const cb = useRef({ onToken, onError, onInteractive });
+  cb.current = { onToken, onError, onInteractive };
 
   useEffect(() => {
     if (!SITE_KEY) return undefined;
@@ -64,7 +68,8 @@ export default function Turnstile({ onToken, onError, action }) {
           // follows the phone's dark mode, which put a black box on a white modal.
           theme: "light",
           size: "flexible",
-          appearance: "always",
+          appearance,
+          "before-interactive-callback": () => cb.current.onInteractive?.(),
           callback: (token) => cb.current.onToken(token),
           "expired-callback": () => cb.current.onToken(""),
           "error-callback": () => {
@@ -79,9 +84,10 @@ export default function Turnstile({ onToken, onError, action }) {
       gone = true;
       if (id !== undefined) window.turnstile?.remove(id);
     };
-  }, [action]);
+  }, [action, appearance]);
 
   if (!SITE_KEY) return null;
-  // Reserves the widget's height so the form doesn't jump when it appears.
-  return <div ref={ref} className="min-h-16.25 w-full" />;
+  // Reserves the widget's height so the form doesn't jump when it appears. A
+  // hidden-until-needed widget reserves nothing, or it leaves a blank gap.
+  return <div ref={ref} className={appearance === "always" ? "min-h-16.25 w-full" : "w-full"} />;
 }

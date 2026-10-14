@@ -1,27 +1,37 @@
+/* What Google shows for each treatment page (client, 2026-10-14): no em
+   dashes, written for women first, and the safer wording, so a licensed
+   provider decides and treatment ships if prescribed. Shared by the build's
+   prerender and <Seo>. */
+export const TREATMENTS_META = {
+  title: "Treatments Online: Weight Loss, Longevity, Skin and More",
+  description:
+    "Online care for weight loss, longevity, skin health, sexual wellness and recovery. A licensed provider reviews your history and decides what's right for you.",
+};
+
 export const CATEGORY_META = {
   "weight-loss": {
-    title: "Online Weight Loss Treatments — Semaglutide & Tirzepatide (GLP-1)",
+    title: "Online Weight Loss: Semaglutide and Tirzepatide",
     description:
-      "Physician-prescribed GLP-1 weight loss treatments online: compounded semaglutide and tirzepatide injections, sublingual drops and metabolic support — delivered discreetly to your door.",
+      "Compounded semaglutide and tirzepatide, as weekly injections or drops. A licensed provider reviews your history and decides what's right for you. Ships if prescribed.",
   },
   "longevity": {
-    title: "Longevity Treatments — NAD+, Glutathione & Sermorelin",
+    title: "Longevity Care Online: NAD+, Sermorelin and Glutathione",
     description:
-      "NAD+ injections and IV protocols, glutathione and sermorelin — longevity treatments prescribed online by licensed U.S. physicians and shipped to your door.",
+      "NAD+ injections and tablets, sermorelin nasal spray and glutathione. A licensed provider reviews your history and decides what's right for you. Ships if prescribed.",
   },
   "recovery-wellness": {
-    title: "Recovery & Wellness — Low-Dose Naltrexone (LDN)",
+    title: "Recovery and Wellness: LDN, Glutathione and Lipo-C",
     description:
-      "Low-dose naltrexone (LDN) and recovery-focused treatments, prescribed online by licensed physicians for pain, inflammation and performance recovery.",
+      "Low-dose naltrexone (LDN), glutathione, Lipo-C and NAD+. A licensed provider reviews your history and decides what's right for you. Ships if prescribed.",
   },
   "skin-health": {
-    title: "Prescription Skin Health Treatments Online",
+    title: "Prescription Skin Care Online: Luminance Cream",
     description:
-      "Physician-prescribed skincare, including compounded brightening treatments — prescribed online after a private assessment and delivered to your door.",
+      "Luminance, a compounded prescription cream for concerns such as dark spots and uneven skin tone. A licensed provider decides if it's right for you.",
   },
   "sexual-health": {
-    title: "Men's Health & Sexual Wellness Treatments Online",
+    title: "Sexual Wellness Online: PT-141, Euphoria Cream and More",
     description:
-      "Discreet, physician-prescribed men's health treatments — sexual wellness protocols and compounded therapies, prescribed online and delivered fast.",
+      "Discreet sexual wellness care: PT-141 injection or nasal spray, Euphoria Cream O and Olympus Peak. A licensed provider decides what's right for you.",
   },
 };

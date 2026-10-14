@@ -10,7 +10,8 @@ import GoalGrid from "../components/shop/GoalGrid";
 import TreatmentShop from "../components/shop/TreatmentShop";
 import Reveal from "../components/ui/Reveal";
 import { visibleProducts, categoriesOf } from "../components/data/products";
-import { CATEGORY_META } from "../lib/categoryMeta";
+import { CATEGORY_META, TREATMENTS_META } from "../lib/categoryMeta";
+import { breadcrumbs } from "../lib/seoMeta";
 
 const FAQ = lazy(() => import("../components/FAQ"));
 // Weight-loss only: the tool qualifies you for these treatments specifically.
@@ -26,11 +27,12 @@ const VALID_GOALS = new Set(
     .filter((slug) => slug !== "supplements")
 );
 
+// Labels only since 2026-10-13: the client asked for the subtext to go.
 const TRUST = [
-  { icon: ShieldCheck, label: "Doctor-guided care", sub: "Always backed by medical experts." },
-  { icon: Lock, label: "Discreet & confidential", sub: "Private care, delivered discreetly." },
-  { icon: FlaskConical, label: "Provider-reviewed treatment options", sub: "Treatment decisions based on each patient's clinical evaluation." },
-  { icon: Truck, label: "Home delivery, if prescribed", sub: "Shipped discreetly by a licensed pharmacy." },
+  { icon: ShieldCheck, label: "Doctor-guided care" },
+  { icon: Lock, label: "Discreet & confidential" },
+  { icon: FlaskConical, label: "Provider-reviewed options" },
+  { icon: Truck, label: "Home delivery, if prescribed" },
 ];
 
 
@@ -43,16 +45,13 @@ function TrustBand() {
        the box is gone — the grid, the icons and the copy are untouched, so the
        row still lands as the closing line of the goal grid above it. */
     <section className="mx-auto max-w-[1180px] px-5 pb-[clamp(2.5rem,5vw,4.5rem)] md:px-10">
-      <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4 lg:grid-cols-4">
         {TRUST.map((t) => (
-          <div key={t.label} className="flex items-start gap-3">
+          <div key={t.label} className="flex items-center gap-3">
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[calc(9px*var(--nv-r-scale,1))] bg-surface-2 text-primary">
               <t.icon size={15} strokeWidth={1.9} />
             </span>
-            <span className="flex min-w-0 flex-col">
-              <span className="text-[0.82rem] font-bold leading-tight text-ink">{t.label}</span>
-              <span className="mt-0.5 text-[0.76rem] leading-snug text-muted">{t.sub}</span>
-            </span>
+            <span className="text-[0.82rem] font-bold leading-tight text-ink">{t.label}</span>
           </div>
         ))}
       </div>
@@ -74,6 +73,7 @@ export default function TreatmentsPage() {
   }
   const validGoal = goalParam || null;
   const catMeta = validGoal ? CATEGORY_META[validGoal] : null;
+  const categoryName = visibleProducts.find((p) => p.categorySlug === validGoal)?.categoryName || "";
 
   return (
     <main
@@ -89,16 +89,24 @@ export default function TreatmentsPage() {
       }}
     >
       <Seo
-        title={catMeta ? catMeta.title : "Treatments — Physician-Prescribed Telehealth Care"}
-        description={catMeta ? catMeta.description : "Explore Nova MDK treatments for weight loss, longevity, skin health, sexual wellness and recovery — prescribed online by licensed physicians and shipped to your door."}
+        title={(catMeta || TREATMENTS_META).title}
+        description={(catMeta || TREATMENTS_META).description}
         path={validGoal ? `/treatments/${validGoal}` : "/treatments"}
+        jsonLd={
+          catMeta &&
+          breadcrumbs([
+            ["Home", "/"],
+            ["Treatments", "/treatments"],
+            [categoryName, `/treatments/${validGoal}`],
+          ])
+        }
       />
       <Navbar />
 
       {validGoal ? (
         /* Came from a consultation → only that category's products (their own header) */
         <>
-          <TreatmentShop category={validGoal} showBack />
+          <TreatmentShop category={validGoal} />
           {validGoal === "weight-loss" && (
             /* Wider than the 1180 the rest of the page runs at, with a thinner
                gutter: the calculator is a two-column instrument and the extra
@@ -115,7 +123,6 @@ export default function TreatmentsPage() {
                 <p className="mt-3 text-[0.9rem] leading-relaxed text-muted">
                   This tool is a screening aid only, and does not predict individual outcomes.
                 </p>
-                <p className="mt-3 text-[0.9rem] font-semibold text-ink">No sign-up required.</p>
               </Reveal>
               <Suspense fallback={<div className="grid h-[320px] place-items-center text-muted">Loading calculator…</div>}>
                 <Reveal><BmiCalculator /></Reveal>

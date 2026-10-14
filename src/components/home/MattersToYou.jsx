@@ -109,6 +109,16 @@ const CURVE_AREA = `
   Z
 `;
 
+/* The photo's edges dissolve into its neighbours (client, 2026-10-14): white
+   above, where Find the Right Starting Point ends, and the How it works cream
+   below. Same eased ramp as the hero's foot. The band's padding covers the
+   solid part of each fade, so the white heading and the glass cards stay on
+   the photo itself. */
+const FADE_TOP =
+  "linear-gradient(180deg, #ffffff 0%, rgba(255,255,255,0.68) 26%, rgba(255,255,255,0.3) 52%, rgba(255,255,255,0.08) 78%, rgba(255,255,255,0) 100%)";
+const FADE_BOTTOM =
+  "linear-gradient(0deg, #fbf8f2 0%, rgba(251,248,242,0.68) 26%, rgba(251,248,242,0.3) 52%, rgba(251,248,242,0.08) 78%, rgba(251,248,242,0) 100%)";
+
 /* Rolls through random digits and settles on the real figure, the way a counter
    wheel lands. Each roll is slower than the last, so the number decelerates
    onto its value instead of stopping dead on it. */
@@ -498,6 +508,8 @@ export default function MattersToYou() {
         loading="lazy"
         className="absolute inset-0 -z-20 h-full w-full object-cover object-[58%_28%]"
       />
+      <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-20 md:h-32" style={{ background: FADE_TOP }} />
+      <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-20 md:h-32" style={{ background: FADE_BOTTOM }} />
 
       <style>{`
         .nv-mty-ring { stroke-dashoffset: 0.27; }
@@ -541,7 +553,7 @@ export default function MattersToYou() {
         }
       `}</style>
 
-      <div className="relative mx-auto max-w-310 px-5 py-[clamp(2.75rem,6vw,4.75rem)] md:px-10">
+      <div className="relative mx-auto max-w-310 px-5 pb-16 pt-20 md:px-10 md:pb-28 md:pt-32">
         <Reveal className="text-center">
           <h2 className="nv-weight-keep font-display text-[clamp(2rem,4.6vw,3.9rem)] font-normal leading-[1.1] tracking-tight text-white">
             <span className="block">Starts With What</span>

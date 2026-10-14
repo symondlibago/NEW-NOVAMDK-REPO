@@ -7,6 +7,7 @@ import { treatmentFor } from "../../lib/portalCatalog";
 import { planStatus, currentVisitForPlan } from "../../lib/planStatus";
 import ResumeIntakeButton from "./ResumeIntakeButton";
 import NextFillButton from "./NextFillButton";
+import HabitsHomeCard from "./habits/HabitsHomeCard";
 
 /* The same pill tones the Treatments tab uses, so one status cannot look
    reassuring on one screen and alarming on the next. */
@@ -52,7 +53,7 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit, on
   const openVisit = (c) => () => {
     const id = c.case_id || c.id;
     if (onOpenVisit && id) onOpenVisit(id);
-    else onNavigate("visits");
+    else onNavigate("treatments");
   };
 
   const [visits, setVisits] = useState(null);
@@ -401,6 +402,9 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit, on
           </section>
         )}
 
+        {/* Weekly habits: after anything with a deadline, before the visits. */}
+        <HabitsHomeCard onNavigate={onNavigate} />
+
         {/* The one place a photo earns its space. Laid out side by side from md
             up so the card fills the width instead of stacking into a tall
             column with empty gutters either side. */}
@@ -409,7 +413,7 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit, on
             <div className="flex items-baseline justify-between gap-4">
               <Label>Active</Label>
               <button
-                onClick={() => onNavigate("visits")}
+                onClick={() => onNavigate("treatments")}
                 className="text-[0.84rem] font-semibold text-primary underline-offset-4 transition-opacity hover:opacity-70 hover:underline"
               >
                 See all

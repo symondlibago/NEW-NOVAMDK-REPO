@@ -4,6 +4,7 @@ import { CONSULTS, CONSULT_ORDER } from "../data/consultations";
 import { productItem } from "../../lib/programCard";
 import { stageOf, displayTitle } from "../../lib/catalog";
 import { GOAL_ART } from "../../lib/goalArt";
+import { availableInState } from "../../lib/serviceArea";
 
 /* The five goals in the order the site's nav lists them, with the approved
    blurbs and the goal-card art the treatments page already uses. */
@@ -27,6 +28,24 @@ export const GOAL_ANSWERS = {
 
 const isNeedleFree = (product) => !/inject/i.test(product?.dosageForm || "");
 
+/* What a kiosk in a state may show, on top of the site's own state rules.
+ * California launches with Strive's weight loss formulations only, Semaglutide
+ * and Tirzepatide with Glycine and B12 (client, 2026-10-13), plus Strive's
+ * SubMagna drops (client, 2026-10-14), even though the site also offers the
+ * other two there. By category, as a list of ids: a new
+ * weight loss product stays off a California kiosk until it is added here. A
+ * category or state with no entry follows serviceArea alone.
+ */
+const KIOSK_ONLY = {
+  California: { "weight-loss": [45, 47, 13] },
+};
+
+const onKiosk = (state, category) => (p) => {
+  if (!availableInState(state, p.id)) return false;
+  const only = KIOSK_ONLY[state]?.[category];
+  return !only || only.includes(p.id);
+};
+
 /* One card per treatment, the same list the site's nav panel shows.
  *
  * It used to mirror TreatmentShop, which collapses a program into one card for
@@ -40,11 +59,14 @@ const isNeedleFree = (product) => !/inject/i.test(product?.dosageForm || "");
  *
  * Only weight loss changes. It is the one category with programs, so every
  * other shelf already listed its treatments one by one.
+ *
+ * `state` is the kiosk's, and leaves out what can't be shipped there.
  */
-export function shelf(category) {
+export function shelf(category, state) {
   const seen = new Set();
   return visibleProducts
     .filter((p) => inCategory(p, category))
+    .filter(onKiosk(state, category))
     // The category's own treatments lead, cross-listed ones follow. Stable, so
     // equals keep catalogue order.
     .sort((a, b) => (a.categorySlug === category ? 0 : 1) - (b.categorySlug === category ? 0 : 1))
@@ -70,15 +92,15 @@ export function shelf(category) {
 }
 
 /* The quiz only asks about needles where the answer changes something. */
-export const hasFormChoice = (category) => new Set(shelf(category).map((c) => c.needleFree)).size > 1;
+export const hasFormChoice = (category, state) => new Set(shelf(category, state).map((c) => c.needleFree)).size > 1;
 
 export const matchesForm = (card, form) =>
   form === "needle-free" ? card.needleFree : form === "injection" ? !card.needleFree : false;
 
 /* The cheapest card's own price chip, so the goal card quotes exactly what the
    category screen does. */
-export function startingPrice(category) {
-  const priced = shelf(category).filter((c) => c.from);
+export function startingPrice(category, state) {
+  const priced = shelf(category, state).filter((c) => c.from);
   if (!priced.length) return "";
   return priced.reduce((a, b) => (b.from < a.from ? b : a)).chips[0];
 }

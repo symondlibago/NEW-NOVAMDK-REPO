@@ -11,7 +11,8 @@ const esc = (s) =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 function renderRoute(route) {
-  const url = `${SITE_URL}${route.path}`;
+  // A dose rung names its shelf page as canonical (see seo-routes).
+  const url = `${SITE_URL}${route.canonical || route.path}`;
   let html = shell
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(route.title)}</title>`)
     .replace(/(<meta name="description" content=")[^"]*(")/, `$1${esc(route.description)}$2`)

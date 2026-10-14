@@ -59,8 +59,8 @@ export default function KioskCategory({ category, cards, form, onOpen, onBack, o
       <KioskTopBar onBack={onBack} onStartOver={onStartOver} />
       <main data-lenis-prevent className="flex flex-1 flex-col gap-5 overflow-y-auto px-8 pb-8 lg:gap-7 lg:px-16 lg:pb-12">
         <div className="pt-2 lg:pt-4">
-          <span className="font-mono text-sm uppercase tracking-widest text-ks-heading lg:text-xl">{goal.tag}</span>
-          <GoldTitle className="mt-2 text-5xl lg:text-8xl">{goal.name}</GoldTitle>
+          {/* No small label over the name: it repeated it (client, 2026-10-13). */}
+          <GoldTitle className="text-5xl lg:text-8xl">{goal.name}</GoldTitle>
           <p className="mt-3 text-xl leading-snug text-muted lg:text-3xl">
             {CATEGORY_INTRO[category] || `Explore prescription options for ${goal.name.toLowerCase()} and learn how each treatment works.`}
           </p>

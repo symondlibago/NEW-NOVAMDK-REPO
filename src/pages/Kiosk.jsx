@@ -40,7 +40,7 @@ export default function KioskPage() {
   return (
     <main className="min-h-screen w-full bg-bg text-ink">
       <Seo
-        title="Smart Kiosk — Telehealth in Gyms, Med Spas & Clubs"
+        title="Smart Kiosk: Telehealth in Gyms, Med Spas & Clubs"
         description="Nova MDK Smart Kiosks bring physician-guided telehealth consultations to flagship centers, premium gyms, luxury med spas and member clubs."
         path="/kiosk"
       />

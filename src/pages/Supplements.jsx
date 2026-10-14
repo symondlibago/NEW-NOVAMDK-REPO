@@ -36,7 +36,7 @@ export default function SupplementsPage() {
           footer and HTML sitemap, dropped from sitemap.xml and the prerender, and
           marked noindex so it stops showing up in search. */}
       <Seo
-        title="Supplements — Clinical-Grade Formulas"
+        title="Supplements: Clinical-Grade Formulas"
         description="Compounded peptides and daily-foundation supplements from Nova MDK, prepared by state licensed U.S. pharmacies and matched to your protocol."
         path="/supplements"
         noindex

@@ -2,7 +2,6 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Check } from "lucide-react";
 import Reveal from "../ui/Reveal";
-import useRunOnceInView from "../../lib/useRunOnceInView";
 const INCLUDES = [
   {
     title: "GLP-1 Treatment",
@@ -81,22 +80,6 @@ function ChipTrack() {
   );
 }
 
-const PILLARS = [
-  {
-    title: "Support That Works With Your Body",
-    body: "GLP-1 treatments work with natural hormone pathways involved in appetite and food intake",
-  },
-  {
-    title: "More Control, More Consistency",
-    body: "By helping manage appetite, GLP-1 treatment can support healthier routines and long-term weight-management efforts",
-    featured: true,
-  },
-  {
-    title: "Why GLP-1 Care?",
-    body: "GLP-1 medications are designed to support appetite regulation, giving you another tool to help reach your weight goals",
-  },
-];
-
 const ART_BOX = "pointer-events-none absolute bottom-0 right-0 hidden aspect-square h-[116%] lg:block";
 
 function MembershipBanner({ to }) {
@@ -127,13 +110,17 @@ function MembershipBanner({ to }) {
 
         <ChipTrack />
 
-        <div className={`${ART_BOX} z-4`}>
+        {/* A woman in our audience's age range in place of the man with the
+            phone (client, 2026-10-13). A tall cut-out, so it gets the full
+            height of the banner rather than the square box the badge uses,
+            which would crop her head. */}
+        <div className="pointer-events-none absolute bottom-0 right-12 top-4 z-4 hidden lg:block">
           <img
-            src="/site/weight-loss/membership-man.avif"
+            src="/site/home/healthfit-woman.avif"
             alt=""
             aria-hidden="true"
             loading="lazy"
-            className="absolute inset-0 h-full w-full object-contain"
+            className="h-full w-auto object-contain object-bottom"
           />
         </div>
 
@@ -206,98 +193,6 @@ function Includes() {
   );
 }
 
-function TrendBars() {
-  const [ref, running] = useRunOnceInView();
-
-  return (
-    <svg
-      ref={ref}
-      viewBox="0 0 320 240"
-      aria-hidden="true"
-      className={`nv-bars pointer-events-none absolute inset-0 h-full w-full opacity-25 ${
-        running ? "is-in" : ""
-      }`}
-      preserveAspectRatio="none"
-    >
-      <g fill="#fff" opacity="0.35">
-        {[0, 1, 2, 3, 4, 5].map((n) => (
-          <rect
-            key={n}
-            className="nv-bars__bar"
-            x={26 + n * 48}
-            y={200 - n * 26}
-            width="30"
-            height={40 + n * 26}
-            style={{ animationDelay: `${n * 0.13}s` }}
-          />
-        ))}
-      </g>
-      <path
-        className="nv-bars__trend"
-        d="M30 200L280 44"
-        pathLength="1"
-        stroke="#fff"
-        strokeWidth="3"
-        fill="none"
-        style={{ animationDelay: "0.72s" }}
-      />
-      <path
-        className="nv-bars__trend"
-        d="M252 44h30v30"
-        pathLength="1"
-        stroke="#fff"
-        strokeWidth="3"
-        fill="none"
-        style={{ animationDelay: "1.5s" }}
-      />
-    </svg>
-  );
-}
-
-function Pillars() {
-  return (
-    <div className="mt-[clamp(3rem,7vw,6rem)] border-t border-[#e6dcc6] pt-[clamp(2.5rem,6vw,4.5rem)]">
-      {/* items-center is what raises the middle card: it's taller, so the two
-          beside it centre against it rather than stretching to match. */}
-      <div className="grid items-center gap-4 sm:gap-5 lg:grid-cols-3">
-        {PILLARS.map((p, i) => (
-          <Reveal as="div" key={p.title} delay={(i % 3) * 0.06}>
-            <div
-              className={`relative flex flex-col justify-center overflow-hidden rounded-[calc(20px*var(--nv-r-scale,1))] ${
-                p.featured ? "min-h-88 px-8 py-12 nv-shadow-lg" : "min-h-72 px-7 py-9"
-              }`}
-              style={{
-                background: p.featured
-                  ? "linear-gradient(150deg, #9a7843 0%, #b89358 55%, #a6803f 100%)"
-                  : "linear-gradient(150deg, #c3ab88 0%, #b39d7c 100%)",
-              }}
-            >
-              {/* Rising-trend motif behind the featured card, per the comp. */}
-              {p.featured && <TrendBars />}
-              <h3
-                className={`relative font-display font-extrabold leading-tight ${
-                  p.featured
-                    ? "text-[clamp(1.3rem,2.2vw,1.7rem)] text-white"
-                    : "text-[clamp(1.05rem,1.7vw,1.25rem)] text-[#f3e2b8]"
-                }`}
-              >
-                {p.title}
-              </h3>
-              <p
-                className={`relative mt-3 max-w-[34ch] font-semibold leading-snug text-white ${
-                  p.featured ? "text-[0.92rem]" : "text-[0.8rem] text-white/90"
-                }`}
-              >
-                {p.body}
-              </p>
-            </div>
-          </Reveal>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function StartCare({ to }) {
   return (
     <section
@@ -343,7 +238,6 @@ export default function WeightLossSections({ startTo }) {
       <div className="mx-auto max-w-[1320px] px-4 py-[clamp(3rem,7vw,6rem)] md:px-6">
         <MembershipBanner to={startTo} />
         <Includes />
-        <Pillars />
       </div>
       <StartCare to={startTo} />
     </div>
