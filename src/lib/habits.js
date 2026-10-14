@@ -5,6 +5,8 @@ import { portalData } from "./portal";
 /* Weekly habits: a short weekly check-in on water, sleep, movement, protein
  * and how the week felt, with an optional weigh-in, a streak, one small goal
  * and a short read. Built after Noom's habit loop (client, 2026-10-13).
+ * The shot log, strength sessions and monthly measurements were added from
+ * Noom's GLP-1 Companion (client, 2026-10-14) and live in the same record.
  *
  * Version one keeps everything in this browser's storage, keyed by patient.
  * Nothing here is sent anywhere: these answers are health information, so they
@@ -38,6 +40,7 @@ export const QUESTIONS = [
   {
     key: "active",
     title: "How many days were you active for 20 minutes or more?",
+    hint: "Walks and Strength in 10 sessions both count.",
     count: 7,
   },
   {
@@ -63,6 +66,29 @@ export const GOALS = [
 ];
 
 export const goalById = (id) => GOALS.find((g) => g.id === id) || null;
+
+/* The check-in's last question. Several can be picked; "none" stands alone. */
+export const SYMPTOMS = [
+  { id: "none", label: "Nothing, I feel fine" },
+  { id: "nausea", label: "Nausea" },
+  { id: "constipation", label: "Constipation" },
+  { id: "appetite", label: "Low appetite" },
+  { id: "tired", label: "Tired" },
+  { id: "other", label: "Something else" },
+];
+
+/* Placeholder wording. A provider has to approve these before TIPS_APPROVED
+   is turned on; until then the check-in only offers Messages. */
+export const TIPS_APPROVED = false;
+export const FEELING_TIPS = {
+  nausea: "Smaller meals, eaten slowly, and stopping when you feel full can make meals easier.",
+  constipation: "Water through the day and some fiber with each meal can help.",
+  appetite: "Start each meal with the protein, even if it's only a few bites.",
+  tired: "Regular meals and a short walk can help. Tell your care team if it keeps up.",
+  other: "Tell your care team what's going on. They read every message.",
+};
+
+export const STRENGTH_PER_WEEK = 2;
 
 /* General wellness only: no doses, no promises, nothing that reads as medical
    advice. Anything about treatment goes to the care team through Messages. */
@@ -143,7 +169,9 @@ export const MILESTONES = [
 
 export const REMIND_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-const EMPTY = { weeks: {}, goal: null, read: [], remind: null };
+/* shots: [{ at, spot }], newest first. strength: sessions per week key.
+   measures: { waist, hips } in inches per month key ("2026-10"). */
+const EMPTY = { weeks: {}, goal: null, read: [], remind: null, shots: [], shotDay: null, strength: {}, measures: {} };
 
 const storageKey = (pid) => `${KEY}:${pid || "me"}`;
 
@@ -237,6 +265,18 @@ export function useHabits(pid) {
     setGoal: (id) => update((d) => ({ ...d, goal: id })),
     markRead: (title) => update((d) => ({ ...d, read: [...new Set([...(d.read || []), title])] })),
     setRemind: (day) => update((d) => ({ ...d, remind: day })),
+    strengthDone: data.strength?.[thisWeek] || 0,
+    addStrength: () =>
+      update((d) => ({ ...d, strength: { ...d.strength, [thisWeek]: (d.strength?.[thisWeek] || 0) + 1 } })),
+    logShot: (spot, at = new Date()) =>
+      update((d) => ({
+        ...d,
+        shots: [{ at: at.toISOString(), spot }, ...(d.shots || [])].slice(0, 52),
+        // The first shot logged sets the shot day; it can be changed after.
+        shotDay: d.shotDay ?? at.getDay(),
+      })),
+    setShotDay: (day) => update((d) => ({ ...d, shotDay: day })),
+    saveMeasure: (month, m) => update((d) => ({ ...d, measures: { ...d.measures, [month]: m } })),
   };
 }
 

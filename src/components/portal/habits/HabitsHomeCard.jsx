@@ -1,61 +1,129 @@
 import React, { useState } from "react";
-import { ArrowRight, Check, Flame } from "lucide-react";
-import { useHabits, usePatientId } from "../../../lib/habits";
+import { format } from "date-fns";
+import { ArrowRight, Check, Dumbbell, Flame, Syringe } from "lucide-react";
+import { STRENGTH_PER_WEEK, useHabits, usePatientId } from "../../../lib/habits";
+import { nextSpot, shotStatus, spotLabel, useBodySex, useWeeklyShot } from "../../../lib/shots";
 import HabitCheckin from "./HabitCheckin";
+import ShotLogSheet from "./ShotLogSheet";
+import StrengthSession from "./StrengthSession";
 
-/* Home's one line on weekly habits: the streak, and the check-in when it is
-   due. Kept to a strip, because Home has to fit a phone screen with a visit
-   already on it. */
+/* Home's one card for the week. It shows the next thing to do, in this order:
+   the shot (patients on a weekly injection only), the check-in, then the two
+   strength sessions. One card rather than three, because Home has to fit a
+   phone screen with a visit already on it (client, 2026-10-14). */
 export default function HabitsHomeCard({ onNavigate }) {
   const pid = usePatientId();
   const habits = useHabits(pid);
-  const [open, setOpen] = useState(false);
+  const shot = useWeeklyShot();
+  const sex = useBodySex();
+  const [open, setOpen] = useState(null); // "checkin" | "shot" | "strength"
   if (!pid) return null;
+
+  const shots = habits.data.shots || [];
+  const s = shotStatus(shots, habits.data.shotDay);
+  const shotDone = Boolean(shot) && !s.due;
+  const strengthDone = habits.strengthDone >= STRENGTH_PER_WEEK;
+  const next = shot && s.due ? "shot" : !habits.done ? "checkin" : !strengthDone ? "strength" : "done";
+
+  const streak =
+    habits.streak > 0 ? (
+      <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-semibold text-primary-deep">
+        {habits.streak} week{habits.streak === 1 ? "" : "s"} in a row
+      </span>
+    ) : null;
+
+  const view = {
+    shot: {
+      icon: Syringe,
+      title: !shots.length ? "Log your weekly shot" : s.today ? "Today is shot day" : s.late ? `Your shot was due ${format(s.next, "EEEE")}` : "Shot day",
+      text: `Suggested spot: ${spotLabel(nextSpot(shots)).toLowerCase()}`,
+      action: "Log my shot",
+    },
+    checkin: { icon: Flame, title: "Weekly habits", badge: streak, text: "Your check-in is ready. About a minute.", action: "Check in" },
+    strength: {
+      icon: Dumbbell,
+      title: "Strength in 10",
+      text: `Session ${habits.strengthDone + 1} of ${STRENGTH_PER_WEEK} this week. About 10 minutes.`,
+      action: "Start",
+    },
+    done: {
+      icon: Check,
+      title: "All done this week",
+      badge: streak,
+      text: shot && s.next ? `Next shot: ${format(s.next, "EEEE, MMM d")}` : habits.goal ? `Focus: ${habits.goal.label}` : "Nice work. Small steps add up.",
+    },
+  }[next];
+  const Icon = view.icon;
+
+  const steps = [
+    ...(shot ? [{ key: "shot", label: "Shot", done: shotDone }] : []),
+    { key: "checkin", label: "Check-in", done: habits.done },
+    { key: "strength", label: `Strength ${Math.min(habits.strengthDone, STRENGTH_PER_WEEK)}/${STRENGTH_PER_WEEK}`, done: strengthDone },
+  ];
 
   return (
     <section className="mt-6 md:mt-10">
-      {/* On a phone the button drops to its own full-width row, so the text
-          beside the flame never has to squeeze. */}
-      <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-primary/30 bg-linear-to-br from-primary/15 to-primary/5 p-4 sm:flex-nowrap sm:gap-5 sm:p-5">
-        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-on-primary">
-          <Flame size={22} />
-        </span>
-        <div className="min-w-0 flex-1 basis-0">
-          <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-base font-semibold text-ink">
-            Weekly habits
-            {habits.streak > 0 && (
-              <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-semibold text-primary-deep">
-                {habits.streak} week{habits.streak === 1 ? "" : "s"} in a row
-              </span>
-            )}
-          </p>
-          <p className="mt-0.5 text-sm text-muted sm:truncate">
-            {habits.done
-              ? habits.goal
-                ? `Done for this week. Focus: ${habits.goal.label}`
-                : "Done for this week."
-              : "Your check-in is ready. About a minute."}
-          </p>
+      <div className="rounded-2xl border border-primary/30 bg-linear-to-br from-primary/15 to-primary/5 p-4 sm:p-5">
+        {/* On a phone the button drops to its own full-width row, so the text
+            beside the icon never has to squeeze. */}
+        <div className="flex flex-wrap items-center gap-4 sm:flex-nowrap sm:gap-5">
+          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-on-primary">
+            <Icon size={22} />
+          </span>
+          <div className="min-w-0 flex-1 basis-0">
+            <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-base font-semibold text-ink">
+              {view.title}
+              {view.badge}
+            </p>
+            <p className="mt-0.5 text-sm text-muted">{view.text}</p>
+          </div>
+          {next === "done" ? (
+            <button
+              type="button"
+              onClick={() => onNavigate("progress")}
+              className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full border border-primary/40 bg-surface px-4 py-2.5 text-sm font-semibold text-primary-deep transition-colors hover:border-primary sm:w-auto"
+            >
+              See progress
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setOpen(next)}
+              className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-deep sm:w-auto sm:py-2.5"
+            >
+              {view.action} <ArrowRight size={15} />
+            </button>
+          )}
         </div>
-        {habits.done ? (
-          <button
-            type="button"
-            onClick={() => onNavigate("progress")}
-            className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full border border-primary/40 bg-surface px-4 py-2.5 text-sm font-semibold text-primary-deep transition-colors hover:border-primary sm:w-auto"
-          >
-            <Check size={15} /> See progress
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-deep sm:w-auto sm:py-2.5"
-          >
-            Check in <ArrowRight size={15} />
-          </button>
-        )}
+
+        <ul className="mt-4 flex flex-wrap gap-2" aria-label="This week">
+          {steps.map((st) => (
+            <li
+              key={st.key}
+              className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${
+                st.done
+                  ? "border-primary bg-primary text-on-primary"
+                  : st.key === next
+                    ? "border-primary bg-surface text-primary-deep"
+                    : "border-line bg-surface/70 text-muted"
+              }`}
+            >
+              {st.done && <Check size={12} />}
+              {st.label}
+            </li>
+          ))}
+        </ul>
       </div>
-      <HabitCheckin habits={habits} open={open} onClose={() => setOpen(false)} onSeeProgress={() => onNavigate("progress")} />
+
+      <HabitCheckin
+        habits={habits}
+        open={open === "checkin"}
+        onClose={() => setOpen(null)}
+        onSeeProgress={() => onNavigate("progress")}
+        onMessage={() => onNavigate("messages")}
+      />
+      <ShotLogSheet habits={habits} open={open === "shot"} onClose={() => setOpen(null)} sex={sex} />
+      <StrengthSession habits={habits} open={open === "strength"} onClose={() => setOpen(null)} />
     </section>
   );
 }
