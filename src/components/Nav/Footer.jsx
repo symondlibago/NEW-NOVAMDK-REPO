@@ -16,12 +16,14 @@ const social =
 const heading = "mb-4 font-mono text-[11px] font-medium uppercase tracking-[0.13em] text-ink md:mb-6";
 const link = "transition-colors hover:text-primary";
 
-export default function Footer() {
+export default function Footer({ seamless = false }) {
   return (
     // Warm cream rather than white: a full-width white block under a cream page
     // is the part that glares. surface-2 sits just below the page tone, so the
     // footer still reads as a separate base without brightening.
-    <footer className="mt-auto w-full border-t border-line-strong bg-surface-2 pb-10 pt-16 text-muted md:pt-24">
+    // `seamless` drops the top rule where the page above already fades into the
+    // footer's cream (the homepage, 2026-10-14).
+    <footer className={`mt-auto w-full bg-surface-2 pb-10 pt-16 text-muted md:pt-24 ${seamless ? "" : "border-t border-line-strong"}`}>
       <div className="mx-auto max-w-[1340px] px-6 md:px-10">
         {/* The gap under this block was sized when the brand column ended at
             the social row. The seal made that column taller, so the same 80px
