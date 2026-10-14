@@ -40,6 +40,12 @@ const treatmentName = (productId) => {
 const MESSAGE_PAGE = 100;
 const CHANNELS = new Set(['patient']);
 
+/* How long one screen read may reuse another's answer. Long enough to cover a
+   page opening several tabs' worth of data at once, short enough that a patient
+   who just submitted an intake sees it. Only the reads below pass it; anything
+   deciding an entitlement reads live. */
+const SHARE_MS = 8_000;
+
 /* MDI's own list of accepted upload types; anything else is rejected upstream. */
 const UPLOAD_TYPE = (mime) => {
   if (String(mime).startsWith('image/')) return 'photo';
@@ -514,9 +520,13 @@ async function portal(req, res) {
     }
 
     if (resource === 'cases') {
+      /* Shared with the notifications read, which wants the same case list in
+         the same moment, and with a second tab doing the same. Both are plain
+         screen reads: a few seconds behind costs a patient nothing, and the
+         browser's own cache already holds these for a minute. */
       const [r, v] = await Promise.all([
-        mdi(`/patients/${id}/cases`),
-        mdi(`/patients/${id}/vouchers`),
+        mdi(`/patients/${id}/cases`, { share: SHARE_MS }),
+        mdi(`/patients/${id}/vouchers`, { share: SHARE_MS }),
       ]);
       if (!r.ok) {
         console.error('Portal cases failed:', r.status);
@@ -955,9 +965,12 @@ async function portal(req, res) {
     }
 
     if (resource === 'notifications') {
+      /* The case list here is the same one the Visits tab asks for, and Home
+         asks for both at once. Sharing it is the difference between the slowest
+         call we make running once for that screen or twice. */
       const [msgs, cases] = await Promise.all([
-        mdi(`/patients/${id}/messages?channel=patient&per_page=${MESSAGE_PAGE}`),
-        mdi(`/patients/${id}/cases`),
+        mdi(`/patients/${id}/messages?channel=patient&per_page=${MESSAGE_PAGE}`, { share: SHARE_MS }),
+        mdi(`/patients/${id}/cases`, { share: SHARE_MS }),
       ]);
 
       const items = [];

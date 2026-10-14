@@ -112,7 +112,10 @@ export default function PortalMessages({ onUnauthorized, about, onClearAbout }) 
   const load = useCallback(
     async ({ silent } = {}) => {
       try {
-        const { messages: next } = await portalData({ resource: "messages" });
+        /* A silent run is the twenty second timer, which exists to catch a
+           reply, so it reads past the minute of cache. Opening the tab is not:
+           that can have what Home already fetched. */
+        const { messages: next } = await portalData({ resource: "messages" }, { poll: silent });
         setMessages(next);
         setError(null);
       } catch (err) {

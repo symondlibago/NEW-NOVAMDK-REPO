@@ -473,6 +473,13 @@ export default function PortalTreatments({ onUnauthorized, onMessage, onOpenVisi
   const load = useCallback(() => {
     let alive = true;
 
+    /* Both asked for at once. WHICH visits matter depends on the plans, but
+       asking for them does not, and chaining the two made this tab cost the
+       plan's wait and then the visit list's, one after the other, where the
+       longer of the two would do. Home has usually asked for the visits
+       already, in which case this is a cache hit and costs nothing at all. */
+    const asked = portalData({ resource: "cases" }).catch(() => null);
+
     portalData({ resource: "plan" })
       .then((r) => {
         if (alive) setPlans(Array.isArray(r?.plans) ? r.plans : []);
@@ -484,14 +491,14 @@ export default function PortalTreatments({ onUnauthorized, onMessage, onOpenVisi
         setError(err.message);
         return null;
       })
-      /* The visits come second and are chained, because which of them matter
-         depends on the plans. A failure here costs the order row and nothing
-         else, so it never reaches the error state. */
+      /* The visits are joined to the plans here, once both have landed. A
+         failure on their side costs the order row and nothing else, so it never
+         reaches the error state. */
       .then(async (planned) => {
         const list = Array.isArray(planned?.plans) ? planned.plans : [];
         if (!alive || !list.length) return;
 
-        const cased = await portalData({ resource: "cases" }).catch(() => null);
+        const cased = await asked;
         if (!alive) return;
         const seen = cased?.visits || cased?.cases || [];
         setVisits(seen);

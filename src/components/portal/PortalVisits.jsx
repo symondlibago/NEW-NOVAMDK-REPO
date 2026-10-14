@@ -302,18 +302,17 @@ function CaseRow({ visit: c, onOpen, onMessageAbout }) {
         onClick={() => onOpen(c.case_id)}
         className="flex w-full items-center gap-4 p-4 text-left sm:p-5"
       >
-        {/* A tinted panel with the art contained inside it, the same treatment
-            the Home cards give a product photo. Square and generous: the first
-            version was a 56px tile with padding, and the vial art carries its
-            own whitespace, so what actually showed was a thumbnail inside a
-            thumbnail. */}
-        <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-2 sm:h-24 sm:w-24">
+        {/* A tinted panel with the photo fitted inside it, the same treatment
+            the shop's cards give a product photo. Sized down on 2026-10-14
+            (client: it read as huge) from a 96px tile with the art scaled to
+            110% inside it. */}
+        <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-2 sm:h-18 sm:w-18">
           {treatment.image ? (
             <img
               src={treatment.image}
               alt=""
               loading="lazy"
-              className="h-full w-full scale-110 object-contain"
+              className="h-full w-full object-contain"
             />
           ) : (
             <FileText size={20} className="text-primary" />

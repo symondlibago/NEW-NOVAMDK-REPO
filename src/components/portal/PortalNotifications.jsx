@@ -20,16 +20,20 @@ export default function PortalNotifications({ onNavigate }) {
     try { setSeenAt(Number(localStorage.getItem(SEEN_KEY)) || 0); } catch { /* private mode */ }
   }, []);
 
-  const load = useCallback(() => {
-    portalData({ resource: "notifications" })
+  const load = useCallback((poll = false) => {
+    portalData({ resource: "notifications" }, { poll })
       .then(({ items: next }) => setItems(next))
       .catch(() => { /* the bell is ambient — a failure shouldn't interrupt */ });
   }, []);
 
+  /* The first read can come from the cache, which is usually Home asking for
+     the same thing in the same moment. The timer cannot: it runs on the same
+     minute the cache keeps, so it would have alternated between a real check
+     and a replay of the one before it. */
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    const tick = () => { if (!document.hidden) load(); };
+    const tick = () => { if (!document.hidden) load(true); };
     const timer = setInterval(tick, POLL_MS);
     document.addEventListener("visibilitychange", tick);
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", tick); };

@@ -1,5 +1,5 @@
 import { blocked } from './_guard.js';
-import { mdi, mdiConfigured } from './_mdi.js';
+import { mdi, mdiConfigured, PATIENT_BASE } from './_mdi.js';
 import { sessionCookie, clearedCookie, readSession, sessionsEnabled } from './_session.js';
 const buckets = new Map();
 
@@ -63,11 +63,15 @@ export default async function handler(req, res) {
         return res.status(429).json({ error: 'Too many codes requested. Try again in a few minutes.' });
       }
 
-      const r = await mdi('/patients/auth/2fa', { method: 'POST', body: { email } });
+      const r = await mdi('/auth/2fa', { method: 'POST', body: { email }, base: PATIENT_BASE });
       if (!r.ok && r.status >= 500) {
         console.error('MDI 2FA send failed:', r.status);
         return res.status(502).json({ error: 'Could not send your code. Please try again.' });
       }
+      /* Anything else non-2xx still answers "sent" below, so it is logged here
+         or it is invisible. That is how the wrong path went unnoticed for a
+         month. A 4xx for an address that is not a patient is expected. */
+      if (!r.ok) console.warn(`MDI 2FA send returned ${r.status}`);
 
       // Deliberately identical whether or not the address is a patient — the
       // response must not tell a stranger who has an account here.
@@ -79,25 +83,58 @@ export default async function handler(req, res) {
         return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
       }
 
-      const code = String(req.body?.code || '').trim().toUpperCase();
+      /* Every space comes out, not just the ends. The field renders the code
+         with wide tracking and the email shows it spaced too, so a pasted code
+         can arrive as "3 P L X 7 X" and MDI would call a correct code wrong. */
+      const code = String(req.body?.code || '').replace(/\s+/g, '').toUpperCase();
       if (!code) return res.status(400).json({ error: 'Enter the code from your email' });
 
-      const r = await mdi('/patients/auth/2fa/validate', {
+      const r = await mdi('/auth/2fa/validate', {
         method: 'POST',
         body: { email, verification_code: code },
+        base: PATIENT_BASE,
       });
 
-      const patientId = r.data?.patient_id || r.data?.id || null;
-      if (!r.ok || !patientId) {
+      /* A wrong or spent code is a 404 here, and that is the only thing that
+         may deny a sign-in. It is checked on its own, before any lookup below,
+         because everything after this point trusts that MDI accepted the code.
+         Folding the two together is how a lookup turns into an auth bypass. */
+      if (!r.ok) {
+        console.warn(`MDI 2FA validate refused the code (${r.status})`);
         // MDI answers 4xx for both a bad code and an unknown email; either way
         // the visitor gets one message and no hint which it was.
+        return res.status(401).json({ error: 'That code is incorrect or has expired' });
+      }
+
+      /* MDI accepted the code. Now find who it belongs to, which it does not
+         reliably say: this endpoint answers 200 with a bare [] on success, the
+         same as the send does, so reading patient_id off the body returned null
+         and a correct code was reported as expired. Read the body where it does
+         carry an id, and fall back to looking the patient up by the address the
+         code was just proved against. */
+      const d = r.data || {};
+      let patientId = d.patient_id || d.id || d.patient?.id || d.data?.patient_id || d.data?.id || null;
+      let firstName = d.first_name || d.patient?.first_name || null;
+
+      if (!patientId) {
+        const s = await mdi('/patients/search', { method: 'POST', body: { search: email } });
+        const list = Array.isArray(s.data) ? s.data : s.data?.data || [];
+        const match = list.find((x) => String(x.email || '').toLowerCase() === email);
+        patientId = match?.patient_id || match?.id || null;
+        firstName = firstName || match?.first_name || null;
+        if (!patientId) {
+          console.error(`MDI accepted the 2FA code for a sign-in but no patient could be resolved (search ${s.status})`);
+        }
+      }
+
+      if (!patientId) {
         return res.status(401).json({ error: 'That code is incorrect or has expired' });
       }
 
       res.setHeader('Set-Cookie', sessionCookie(patientId));
       return res.status(200).json({
         authenticated: true,
-        first_name: r.data?.first_name || null,
+        first_name: firstName,
       });
     }
 
