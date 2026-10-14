@@ -1,8 +1,6 @@
 import { useEffect } from "react";
 import { SITE_URL, absoluteUrl } from "../lib/absoluteUrl";
-
-const SITE_NAME = "Nova MDK";
-const DEFAULT_TITLE = "Nova MDK | Premium Telehealth & Longevity";
+import { SITE_NAME, HOME_TITLE as DEFAULT_TITLE } from "../lib/seoMeta";
 const DEFAULT_IMAGE = `${SITE_URL}/logo-2026.png`;
 
 function setMeta(attr, key, content) {

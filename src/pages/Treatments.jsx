@@ -10,7 +10,8 @@ import GoalGrid from "../components/shop/GoalGrid";
 import TreatmentShop from "../components/shop/TreatmentShop";
 import Reveal from "../components/ui/Reveal";
 import { visibleProducts, categoriesOf } from "../components/data/products";
-import { CATEGORY_META } from "../lib/categoryMeta";
+import { CATEGORY_META, TREATMENTS_META } from "../lib/categoryMeta";
+import { breadcrumbs } from "../lib/seoMeta";
 
 const FAQ = lazy(() => import("../components/FAQ"));
 // Weight-loss only: the tool qualifies you for these treatments specifically.
@@ -72,6 +73,7 @@ export default function TreatmentsPage() {
   }
   const validGoal = goalParam || null;
   const catMeta = validGoal ? CATEGORY_META[validGoal] : null;
+  const categoryName = visibleProducts.find((p) => p.categorySlug === validGoal)?.categoryName || "";
 
   return (
     <main
@@ -87,9 +89,17 @@ export default function TreatmentsPage() {
       }}
     >
       <Seo
-        title={catMeta ? catMeta.title : "Treatments — Physician-Prescribed Telehealth Care"}
-        description={catMeta ? catMeta.description : "Explore Nova MDK treatments for weight loss, longevity, skin health, sexual wellness and recovery — prescribed online by licensed physicians and shipped to your door."}
+        title={(catMeta || TREATMENTS_META).title}
+        description={(catMeta || TREATMENTS_META).description}
         path={validGoal ? `/treatments/${validGoal}` : "/treatments"}
+        jsonLd={
+          catMeta &&
+          breadcrumbs([
+            ["Home", "/"],
+            ["Treatments", "/treatments"],
+            [categoryName, `/treatments/${validGoal}`],
+          ])
+        }
       />
       <Navbar />
 

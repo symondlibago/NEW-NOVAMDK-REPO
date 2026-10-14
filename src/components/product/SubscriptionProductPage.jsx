@@ -14,6 +14,7 @@ import ProductJourney from "./ProductJourney";
 import { ComplianceBadges } from "../Compliance";
 import { doseStage } from "../data/subscriptions";
 import { productPath } from "../../lib/slug";
+import { productSeoName, productSeoTitle, productSeoDescription, breadcrumbs } from "../../lib/seoMeta";
 import ProductAvailability from "./ProductAvailability";
 
 /* The product page for the triple blends (molecule + glycine + B12).
@@ -125,19 +126,26 @@ export default function SubscriptionProductPage({
   return (
     <main className="min-h-screen w-full bg-bg text-ink">
       <Seo
-        title={`${product.heroTitle || product.name} — ${product.categoryName}`}
-        description={product.subtitle}
+        title={productSeoTitle(product)}
+        description={productSeoDescription(product)}
         path={productPath(product)}
         image={product.img}
-        jsonLd={{
-          "@context": "https://schema.org",
-          "@type": "Product",
-          name: product.name,
-          description: product.subtitle || undefined,
-          image: `https://www.novamdk.com${product.img}`,
-          category: product.categoryName,
-          brand: { "@type": "Brand", name: product.brandName || "Nova MDK" },
-        }}
+        jsonLd={[
+          {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            name: productSeoName(product),
+            description: product.subtitle || undefined,
+            image: `https://www.novamdk.com${product.img}`,
+            category: product.categoryName,
+            brand: { "@type": "Brand", name: product.brandName || "Nova MDK" },
+          },
+          breadcrumbs([
+            ["Home", "/"],
+            [product.categoryName, `/treatments/${product.categorySlug}`],
+            [productSeoName(product), productPath(product)],
+          ]),
+        ]}
       />
       <Navbar />
 

@@ -31,6 +31,13 @@ import useLockBodyScroll from "../lib/useLockBodyScroll";
 import Turnstile, { turnstileOn } from "../components/Turnstile";
 import DatePicker from "../components/ui/DatePicker";
 import { baseName, stageOf, displayTitle } from "../lib/catalog";
+import {
+  productSeoName,
+  productSeoTitle,
+  productSeoDescription,
+  canonicalProduct,
+  breadcrumbs,
+} from "../lib/seoMeta";
 import ProductGallery from "../components/product/ProductGallery";
 import SubscriptionProductPage from "../components/product/SubscriptionProductPage";
 import ProductMechanism from "../components/product/ProductMechanism";
@@ -391,19 +398,26 @@ export default function ProductPage() {
   return (
     <main className="min-h-screen w-full bg-bg text-ink">
       <Seo
-        title={`${product.displayName || product.name} — ${product.categoryName}`}
-        description={product.subtitle || `${product.displayName || product.name} from Nova MDK — physician-guided telehealth treatment, delivered to your door.`}
-        path={productPath(product)}
+        title={productSeoTitle(product)}
+        description={productSeoDescription(product)}
+        path={productPath(canonicalProduct(product, visibleProducts))}
         image={product.img}
-        jsonLd={{
-          "@context": "https://schema.org",
-          "@type": "Product",
-          name: product.displayName || product.name,
-          description: product.subtitle || undefined,
-          image: `https://www.novamdk.com${product.img}`,
-          category: product.categoryName,
-          brand: { "@type": "Brand", name: product.brandName || "Nova MDK" },
-        }}
+        jsonLd={[
+          {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            name: productSeoName(product),
+            description: product.subtitle || undefined,
+            image: `https://www.novamdk.com${product.img}`,
+            category: product.categoryName,
+            brand: { "@type": "Brand", name: product.brandName || "Nova MDK" },
+          },
+          breadcrumbs([
+            ["Home", "/"],
+            [product.categoryName, `/treatments/${product.categorySlug}`],
+            [productSeoName(product), productPath(product)],
+          ]),
+        ]}
       />
       <Navbar />
 

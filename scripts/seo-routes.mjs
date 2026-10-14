@@ -2,13 +2,22 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { slugify, productSlug } from "../src/lib/slug.js";
-import { CATEGORY_META } from "../src/lib/categoryMeta.js";
+import { CATEGORY_META, TREATMENTS_META } from "../src/lib/categoryMeta.js";
+import {
+  SITE_NAME,
+  HOME_TITLE,
+  HOME_DESCRIPTION,
+  productSeoName,
+  productSeoTitle,
+  productSeoDescription,
+  canonicalProduct,
+  breadcrumbs,
+} from "../src/lib/seoMeta.js";
 import { LEGAL_PAGES, CONTENT_PAGES } from "../src/lib/siteLinks.js";
 import { SITE_URL, absoluteUrl } from "../src/lib/absoluteUrl.js";
 
 export { SITE_URL };
-const SITE_NAME = "Nova MDK";
-export const DEFAULT_TITLE = "Nova MDK | Premium Telehealth & Longevity";
+export const DEFAULT_TITLE = HOME_TITLE;
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -85,20 +94,18 @@ export function buildRoutes() {
     {
       path: "/",
       title: DEFAULT_TITLE,
-      description:
-        "Personalized prescription treatments, reviewed by licensed physicians and delivered to your door.",
+      description: HOME_DESCRIPTION,
       priority: "1.0",
     },
     {
       path: "/treatments",
-      title: `Treatments — Physician-Prescribed Telehealth Care | ${SITE_NAME}`,
-      description:
-        "Explore Nova MDK treatments for weight loss, longevity, skin health, sexual wellness and recovery — prescribed online by licensed physicians and shipped to your door.",
+      title: `${TREATMENTS_META.title} | ${SITE_NAME}`,
+      description: TREATMENTS_META.description,
       priority: "0.9",
     },
     {
       path: "/kiosk",
-      title: `Smart Kiosk — Telehealth in Gyms, Med Spas & Clubs | ${SITE_NAME}`,
+      title: `Smart Kiosk: Telehealth in Gyms, Med Spas & Clubs | ${SITE_NAME}`,
       description:
         "Nova MDK Smart Kiosks bring physician-guided telehealth consultations to flagship centers, premium gyms, luxury med spas and member clubs.",
       priority: "0.7",
@@ -107,21 +114,26 @@ export function buildRoutes() {
       path: "/contact",
       title: `Contact Us | ${SITE_NAME}`,
       description:
-        "Get in touch with the Nova MDK care team — questions about treatments, orders, kiosk partnerships or anything else.",
+        "Get in touch with the Nova MDK care team about treatments, orders, your account or hosting a kiosk.",
       priority: "0.6",
     },
   ];
 
+  const categoryName = (slug) => products.find((p) => p.categorySlug === slug)?.categoryName || "";
   for (const [slug, meta] of Object.entries(CATEGORY_META)) {
     routes.push({
       path: `/treatments/${slug}`,
       title: `${meta.title} | ${SITE_NAME}`,
       description: meta.description,
       priority: "0.9",
+      jsonLd: breadcrumbs([["Home", "/"], ["Treatments", "/treatments"], [categoryName(slug), `/treatments/${slug}`]]),
     });
   }
 
   for (const p of products) {
+    /* A dose rung shares its text with the shelf's page, so its HTML names
+       that page as canonical and it stays out of the sitemap. */
+    const main = canonicalProduct(p, products);
     const priceNum = String(p.price || "").replace(/[^0-9.]/g, "");
     const offers =
       Number(priceNum) > 0
@@ -135,20 +147,29 @@ export function buildRoutes() {
         : undefined;
     routes.push({
       path: `/product/${productSlug(p)}`,
-      title: `${p.name} — ${p.categoryName} | ${SITE_NAME}`,
-      description: p.subtitle || `${p.name} from Nova MDK — physician-guided telehealth treatment, delivered to your door.`,
+      canonical: main === p ? undefined : `/product/${productSlug(main)}`,
+      sitemap: main === p,
+      title: `${productSeoTitle(p)} | ${SITE_NAME}`,
+      description: productSeoDescription(p),
       image: p.img ? `${SITE_URL}${p.img}` : undefined,
       priority: "0.8",
-      jsonLd: {
-        "@context": "https://schema.org",
-        "@type": "Product",
-        name: p.name,
-        description: p.subtitle || undefined,
-        image: p.img ? `${SITE_URL}${p.img}` : undefined,
-        category: p.categoryName,
-        brand: { "@type": "Brand", name: p.brandName || SITE_NAME },
-        offers,
-      },
+      jsonLd: [
+        {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: productSeoName(p),
+          description: p.subtitle || undefined,
+          image: p.img ? `${SITE_URL}${p.img}` : undefined,
+          category: p.categoryName,
+          brand: { "@type": "Brand", name: p.brandName || SITE_NAME },
+          offers,
+        },
+        breadcrumbs([
+          ["Home", "/"],
+          [p.categoryName, `/treatments/${p.categorySlug}`],
+          [productSeoName(p), `/product/${productSlug(p)}`],
+        ]),
+      ],
     });
   }
 
@@ -179,6 +200,7 @@ export function buildRoutes() {
       description: p.description || p.excerpt,
       image: absoluteUrl(p.image),
       priority: "0.7",
+      lastmod: p.date,
       jsonLd: {
         "@context": "https://schema.org",
         "@type": "BlogPosting",
@@ -191,7 +213,7 @@ export function buildRoutes() {
         publisher: {
           "@type": "Organization",
           name: SITE_NAME,
-          logo: { "@type": "ImageObject", url: `${SITE_URL}/logo.png` },
+          logo: { "@type": "ImageObject", url: `${SITE_URL}/logo-2026.png` },
         },
         mainEntityOfPage: { "@type": "WebPage", "@id": `${SITE_URL}/blog/${p.slug}` },
       },
