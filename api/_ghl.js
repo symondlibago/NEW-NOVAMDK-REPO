@@ -31,6 +31,10 @@ export const FIELD = {
   EMAIL_MARKETING_CONSENT_DATE: "email_marketing_consent_date",
   EMAIL_MARKETING_CONSENT_SOURCE: "email_marketing_consent_source",
   EMAIL_MARKETING_CONSENT_VERSION: "email_marketing_consent_version",
+  /* A checkbox in GHL with the single option "Yes". Only ever ticked from
+     here, never cleared: a decline is recorded in the contact note instead, so a
+     write GHL might refuse can't cost the rest of the contact. */
+  SMS_MARKETING_CONSENT: "sms_marketing_consent",
   // MDI's permanent id for the person. One per patient, never changes, so the
   // Contact is the only place it belongs.
   /* The Stripe customer holding this patient's saved card, which is what lets
@@ -392,8 +396,27 @@ export async function upsertContact({ patient = {}, treatment, tags = [], source
     }
   }
 
+  /* SMS opt-in, its own write and never fatal. The field is a checkbox, and a
+     checkbox value GHL doesn't accept would reject the whole upsert if it rode
+     along with the fields above. The tag lands either way, so the opt-in can
+     still be found if the field write fails. Only a yes is written: the box
+     starts empty, and the note keeps the decline. */
+  if (contact?.id && marketing?.sms === true) {
+    try {
+      await tagContact(contact.id, [SMS_OPT_IN_TAG]);
+      await ghlFetch(`/contacts/${contact.id}`, {
+        method: "PUT",
+        body: { customFields: [{ key: FIELD.SMS_MARKETING_CONSENT, field_value: ["Yes"] }] },
+      });
+    } catch (e) {
+      console.error("GHL SMS consent write failed:", e.message, e.details ?? "");
+    }
+  }
+
   return contact;
 }
+
+export const SMS_OPT_IN_TAG = "sms-opt-in";
 
 const PIPELINE_NAME = process.env.GHL_PIPELINE_NAME || null;
 const STAGE_NAME = process.env.GHL_STAGE_NAME || null;
