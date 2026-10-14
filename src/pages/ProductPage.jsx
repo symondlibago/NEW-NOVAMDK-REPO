@@ -974,6 +974,11 @@ function PatientInfoModal({
     setStep(s);
     setPart(p);
   };
+  /* Continue always answers. Pressed too early, it says what's missing on that
+     screen instead of sitting greyed out with no reason given (client,
+     2026-10-14: stuck on the email screen, the unticked agreement box was easy
+     to miss). Tied to the screen it was pressed on, so it clears on moving. */
+  const [nudgeAt, setNudgeAt] = useState(null);
   /* Tapping Female or Male moves on by itself, like a one-tap question. */
   const autoNext = useRef(null);
   useEffect(() => () => clearTimeout(autoNext.current), []);
@@ -1114,7 +1119,10 @@ function PatientInfoModal({
        slip past it. */
     if (step === -1) return;
     if (step === 0) {
-      if (!emailValid || !consentValid || !humanValid) return;
+      if (!emailValid || !consentValid || !humanValid) {
+        setNudgeAt("0.0");
+        return;
+      }
       const at = new Date().toISOString();
       setConsentAt(at);
       const res = await onSubmit(
@@ -1143,18 +1151,18 @@ function PatientInfoModal({
       return;
     }
     if (step === 1) {
-      if (part === 0) {
-        if (namesValid) setPart(1);
-      } else if (step1Valid) go(2);
+      if (part === 0 ? !namesValid : !step1Valid) return setNudgeAt(`1.${part}`);
+      if (part === 0) setPart(1);
+      else go(2);
       return;
     }
     if (step === 2) {
-      if (part === 0) {
-        if (dobValid) setPart(1);
-      } else if (step2Valid) go(3);
+      if (part === 0 ? !dobValid : !step2Valid) return setNudgeAt(`2.${part}`);
+      if (part === 0) setPart(1);
+      else go(3);
       return;
     }
-    if (!step3Valid) return;
+    if (!step3Valid) return setNudgeAt("3.0");
     const res = await onSubmit({
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
@@ -1219,6 +1227,36 @@ function PatientInfoModal({
         : step === 2
           ? part === 0 ? dobValid : step2Valid
           : step3Valid;
+  const phoneDigits = form.phone_number.replace(/\D/g, "").length;
+  const missing =
+    nudgeAt !== screen || screenValid
+      ? ""
+      : screen === "0.0"
+        ? !emailValid
+          ? "Please enter your email address."
+          : !consentValid
+            ? "Please tick the box to agree to the Privacy Policy, Terms and Telehealth Consent."
+            : "One moment, we're still securing your visit."
+        : screen === "1.0"
+          ? "Please enter your first and last name."
+          : screen === "1.1"
+            ? phoneDigits < 10
+              ? "Please enter your 10 digit mobile number."
+              : "Please tick the box to agree to the consultation and its fee."
+            : screen === "2.0"
+              ? tooYoung
+                ? ""
+                : "Please enter your date of birth as MM/DD/YYYY."
+              : screen === "2.1"
+                ? "Please choose one."
+                : !form.street.trim() || !form.city.trim()
+                  ? "Please fill in your street and city."
+                  : !/^\d{5}(-\d{4})?$/.test(form.zip.trim())
+                    ? "Please check your ZIP code."
+                    : "Please choose your state.";
+  /* Which box the hint is about, so that one can be ringed. */
+  const flagRequired = Boolean(missing) && screen === "0.0" && emailValid && !consentValid;
+  const flagFee = Boolean(missing) && screen === "1.1" && phoneDigits >= 10 && !consent.fee;
   const back = () => {
     if (part > 0) setPart(part - 1);
     else if (step > 1) go(step - 1, 1);
@@ -1393,7 +1431,7 @@ function PatientInfoModal({
                         />
                       </FadeIn>
                       <FadeIn delay={reveal + 0.08} className="flex flex-col gap-3">
-                        <ConsentCheck checked={consent.required} onToggle={toggleConsent("required")}>
+                        <ConsentCheck checked={consent.required} onToggle={toggleConsent("required")} flagged={flagRequired}>
                           I agree to the{" "}
                           <ConsentLink href="/legal/privacy-policy">Privacy Policy</ConsentLink>,{" "}
                           <ConsentLink href="/legal/terms-and-conditions">Terms &amp; Conditions</ConsentLink>, and{" "}
@@ -1444,7 +1482,7 @@ function PatientInfoModal({
                           Still required: it discloses a fee, so it has to be an explicit
                           tick rather than something buried in the documents. */}
                       <FadeIn delay={reveal + 0.08} className="flex flex-col gap-3">
-                        <ConsentCheck checked={consent.fee} onToggle={toggleConsent("fee")}>
+                        <ConsentCheck checked={consent.fee} onToggle={toggleConsent("fee")} flagged={flagFee}>
                           {FEE_CONSENT_COPY}
                         </ConsentCheck>
                         {/* Optional, unticked by default, and never gates Continue. */}
@@ -1549,11 +1587,18 @@ function PatientInfoModal({
                     </>
                   )}
 
+                  {missing && (
+                    <p role="alert" className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-medium leading-relaxed text-ink">
+                      {missing}
+                    </p>
+                  )}
                   <FadeIn delay={reveal + 0.16} className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
                     <button
                       type="submit"
-                      disabled={!screenValid || loading}
-                      className="flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-4 text-base font-semibold text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow disabled:opacity-50 disabled:hover:translate-y-0 sm:min-w-44"
+                      disabled={loading}
+                      className={`flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-4 text-base font-semibold text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow disabled:opacity-50 disabled:hover:translate-y-0 sm:min-w-44 ${
+                        screenValid ? "" : "opacity-60"
+                      }`}
                     >
                       {loading ? (
                         <><Loader2 size={16} className="animate-spin" /> {step === 0 ? "Checking your records…" : "Preparing your intake…"}</>
@@ -1730,7 +1775,7 @@ function DobInput({ value, onChange, className, autoFocus = false }) {
 /* A consent checkbox row, used for both the required agreement and the optional
    marketing opt-in. Legal links open in a new tab so tapping one never
    navigates the patient out of the modal mid-consent. */
-function ConsentCheck({ checked, onToggle, children }) {
+function ConsentCheck({ checked, onToggle, flagged = false, children }) {
   return (
     <button
       type="button"
@@ -1741,7 +1786,11 @@ function ConsentCheck({ checked, onToggle, children }) {
     >
       <span
         className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border transition-colors ${
-          checked ? "border-primary bg-primary text-on-primary" : "border-line-strong bg-bg"
+          checked
+            ? "border-primary bg-primary text-on-primary"
+            : flagged
+              ? "border-primary bg-bg ring-4 ring-primary/25"
+              : "border-line-strong bg-bg"
         }`}
       >
         {checked && <Check size={12} strokeWidth={3} />}
