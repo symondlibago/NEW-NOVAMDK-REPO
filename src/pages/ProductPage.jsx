@@ -318,6 +318,9 @@ export default function ProductPage() {
                every choice a patient has made survives here. */
             (typeof patient?.marketing?.consent === "boolean"
               ? ` ${patient.marketing.consent ? "Opted in to" : "Declined"} marketing email (${patient.marketing.version}).`
+              : "") +
+            (typeof patient?.marketing?.sms === "boolean"
+              ? ` ${patient.marketing.sms ? "Opted in to" : "Declined"} marketing texts (${patient.marketing.sms_version}).`
               : ""),
         }).then((r) => {
           /* Say so when the CRM write did not land. It stays unawaited, so a
@@ -993,6 +996,13 @@ function PatientInfoModal({
   const MARKETING_CONSENT_COPY =
     "Send me occasional educational content, product updates, and promotional offers from NovaMDK. I can unsubscribe at any time.";
 
+  /* Texts need their own opt-in: TCPA wants the number, the kind of messages,
+     that it isn't a condition of purchase, and how to stop, all in the wording
+     the patient ticked. Same versioning rule as above. */
+  const SMS_CONSENT_VERSION = "v1";
+  const SMS_CONSENT_COPY =
+    "Text me reminders about my visit, updates and offers from NovaMDK at this number. Consent is not a condition of purchase. Msg frequency varies. Msg & data rates may apply. Reply STOP to opt out, HELP for help.";
+
   /* Same rule as the marketing copy: this wording is the disclosure itself,
      there is no document behind it to point at, so the version is the only
      record of what a given patient was shown. Bump it if the sentence changes. */
@@ -1002,7 +1012,7 @@ function PatientInfoModal({
 
   /* Two required boxes, the documents and the consultation fee, plus an optional
      marketing opt-in that must never stand between a patient and care. */
-  const [consent, setConsent] = useState({ required: false, fee: false, marketing: false });
+  const [consent, setConsent] = useState({ required: false, fee: false, marketing: false, sms: false });
   const [consentAt, setConsentAt] = useState("");
   const toggleConsent = (k) => () => setConsent((c) => ({ ...c, [k]: !c[k] }));
   /* The email step now gates on the documents alone: the fee box moved to
@@ -1043,11 +1053,15 @@ function PatientInfoModal({
      preference, not clinical consent, and it never travels to MDI. An unticked
      box is recorded as an explicit "no" rather than left blank, so a decline is
      distinguishable from never having been asked. */
-  const marketingRecord = (at) => ({
+  const marketingRecord = (at, { withSms = false } = {}) => ({
     consent: consent.marketing,
     at: at || consentAt,
     source: "website_intake",
     version: MARKETING_CONSENT_VERSION,
+    /* Only once the box has actually been shown. It sits under the mobile
+       number, so the email step can't have asked, and sending a false from
+       there would read as a decline nobody made. */
+    ...(withSms && { sms: consent.sms, sms_version: SMS_CONSENT_VERSION }),
   });
 
   const emailValid = /^\S+@\S+\.\S+$/.test(form.email.trim());
@@ -1140,7 +1154,7 @@ function PatientInfoModal({
         state_name: form.state,
       },
       consent: consentRecord(), // agreed at step 0; stored on the patient file
-      marketing: marketingRecord(), // agreed at step 0; CRM only, never MDI
+      marketing: marketingRecord(undefined, { withSms: true }), // CRM only, never MDI
     });
     /* step3Valid already blocks this, so reaching here means the client check
        was bypassed. The server is the one that counts, so honour its answer. */
@@ -1408,6 +1422,10 @@ function PatientInfoModal({
                   tick rather than something buried in the documents. */}
               <ConsentCheck checked={consent.fee} onToggle={toggleConsent("fee")}>
                 {FEE_CONSENT_COPY}
+              </ConsentCheck>
+              {/* Optional, unticked by default, and never gates Continue. */}
+              <ConsentCheck checked={consent.sms} onToggle={toggleConsent("sms")}>
+                {SMS_CONSENT_COPY}
               </ConsentCheck>
             </>
           )}
