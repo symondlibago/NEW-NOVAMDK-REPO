@@ -222,7 +222,7 @@ function AtWork({ startTo }) {
         <div className="lg:sticky lg:top-28 lg:self-start">
           <Reveal as="div">
             <span className="nv-eyebrow">Inside your cells</span>
-            <h2 className={`${H2} mt-3 max-w-[14ch]`}>Where NAD+ Is at Work</h2>
+            <h2 className={`${H2} mt-3 max-w-[14ch]`}>How Your Body Uses NAD+</h2>
             <p className="mt-4 max-w-[40ch] text-[1rem] leading-relaxed text-muted">
               NAD+ takes part in some of the most basic work your cells do every day.
               <Ref n={1} />
