@@ -30,13 +30,14 @@ const isNeedleFree = (product) => !/inject/i.test(product?.dosageForm || "");
 
 /* What a kiosk in a state may show, on top of the site's own state rules.
  * California launches with Strive's weight loss formulations only, Semaglutide
- * and Tirzepatide with Glycine and B12 (client, 2026-10-13), even though the
- * site also offers the other two there. By category, as a list of ids: a new
+ * and Tirzepatide with Glycine and B12 (client, 2026-10-13), plus Strive's
+ * SubMagna drops (client, 2026-10-14), even though the site also offers the
+ * other two there. By category, as a list of ids: a new
  * weight loss product stays off a California kiosk until it is added here. A
  * category or state with no entry follows serviceArea alone.
  */
 const KIOSK_ONLY = {
-  California: { "weight-loss": [45, 47] },
+  California: { "weight-loss": [45, 47, 13] },
 };
 
 const onKiosk = (state, category) => (p) => {
