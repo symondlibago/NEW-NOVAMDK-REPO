@@ -49,6 +49,25 @@ export const FIELD = {
   LATEST_MDI_ENCOUNTER_ID: "latest_mdi_encounter_id",
   MDI_ENCOUNTER_STATUS: "mdi_encounter_status",
   LAST_MDI_UPDATE_DATE: "last_mdi_update_date",
+  /* ---- where this person came from, first touch ----
+   *
+   * On the CONTACT, not the opportunity: a campaign earns the person, and every
+   * visit they ever make belongs to whatever first brought them. The visit is
+   * where the treatment and the money live; this is where the marketing lives.
+   *
+   * Written once and never overwritten (see attributionWritten below), so a
+   * patient who arrives from an ad and returns direct a week later still
+   * credits the ad. GoHighLevel keeps its own First and Latest Attribution and
+   * reports on these alongside them.
+   *
+   * Campaign names and click ids only. No treatment, no questionnaire answer,
+   * nothing a marketing tool has any business holding. */
+  UTM_SOURCE: "utm_source",
+  UTM_MEDIUM: "utm_medium",
+  UTM_CAMPAIGN: "utm_campaign",
+  UTM_CONTENT: "utm_content",
+  UTM_TERM: "utm_term",
+  LANDING_PATH: "landing_path",
   /* ---- these two live on the Opportunity, not the Contact ---- */
   // One person can walk up to two different kiosks, and per-visit is the only
   // place that stays true.
@@ -302,6 +321,69 @@ export async function updateOpportunityFields(opportunityId, fields = {}, { name
     body: { customFields, ...(clean(name) && { name: clean(name) }) },
   });
   return data?.opportunity || null;
+}
+
+/* The marketing tags a browser may send, and the field each one lands in.
+   Listed rather than looped over the request body so nothing a page invents can
+   write itself into the CRM. */
+const ATTRIBUTION_FIELDS = {
+  utm_source: FIELD.UTM_SOURCE,
+  utm_medium: FIELD.UTM_MEDIUM,
+  utm_campaign: FIELD.UTM_CAMPAIGN,
+  utm_content: FIELD.UTM_CONTENT,
+  utm_term: FIELD.UTM_TERM,
+  landing_path: FIELD.LANDING_PATH,
+};
+const ATTRIBUTION_MAX = 120;
+
+/**
+ * Records where a contact came from, the first time only.
+ *
+ * Its own call rather than part of the contact upsert, and never fatal. These
+ * six fields may not exist in the location yet and GoHighLevel rejects a PUT
+ * naming a key it does not know: folded into the upsert, a missing field would
+ * cost the contact itself and with it the whole intake. On its own it costs
+ * only the attribution, and the log names what to go and create.
+ *
+ * @param {string} contactId
+ * @param {object} tags the browser's attribution record
+ * @param {object} contact the contact as the upsert just returned it
+ */
+export async function recordAttribution(contactId, tags, contact) {
+  if (!contactId || !tags || typeof tags !== "object") return null;
+
+  /* FIRST TOUCH: written only when they do not already have one.
+   *
+   * A returning patient arriving direct, or from a second campaign, must not
+   * overwrite the one that actually won them.
+   *
+   * Decided on whether the field is EMPTY rather than on whether the contact is
+   * new, which is what this did first and was wrong twice over. A lead who
+   * filled in the contact form months ago and then clicks an ad and buys should
+   * credit that ad: it is the first attribution we have ever had for them, and
+   * refusing it because the record predates the ad throws away the only
+   * attribution that visit will ever produce. It also made the whole thing
+   * untestable with an email already in the CRM, which is how it was caught
+   * (2026-10-15). */
+  if (clean(fieldValueOf(contact, SEARCH_FIELD_ID.UTM_SOURCE))) return null;
+
+  const fields = {};
+  for (const [key, field] of Object.entries(ATTRIBUTION_FIELDS)) {
+    const value = typeof tags[key] === "string" ? tags[key].trim() : "";
+    if (value && value.length <= ATTRIBUTION_MAX) fields[field] = value;
+  }
+  if (!Object.keys(fields).length) return null;
+
+  try {
+    return await updateContactFields(contactId, fields);
+  } catch (e) {
+    console.error(
+      `GHL attribution write failed for contact ${contactId}:`,
+      e.message,
+      e.details ?? ""
+    );
+    return null;
+  }
 }
 
 /**
@@ -630,6 +712,23 @@ export const SEARCH_FIELD_ID = {
      The plan's own fields used to sit here too and moved to OPP_FIELD on
      2026-10-06. See the note on FIELD.STRIPE_CUSTOMER. */
   STRIPE_CUSTOMER: process.env.GHL_STRIPE_CUSTOMER_FIELD_ID || "KRIAYZNPph7M1qyFdI7F",
+  /* The campaign that won this person, read back to decide whether they already
+     have one. Hand-copied like the others for the same reason: the token is
+     refused the customFields scope, so a field cannot be looked up by name at
+     runtime. Read back on 2026-10-15 by writing "fb_ad" into UTM Source on a
+     throwaway contact and matching the value to the id GHL returned beside it. */
+  UTM_SOURCE: process.env.GHL_UTM_SOURCE_FIELD_ID || "gVi5SUSYfdAc5FMU0opk",
+  /* The rest of the set, read back the same way on 2026-10-15: the test contact
+     already carried fb_ad / paid_social / my_test, so each id was matched to the
+     value we knew we had written into it.
+
+     UTM Content and UTM Term have no id here because that contact's values were
+     empty, and an id cannot be matched to a blank. They are written correctly
+     (api/_ghl.js recordAttribution) and visible in GoHighLevel; they are simply
+     not read back yet. Add them the same way once an ad has filled one. */
+  UTM_MEDIUM: process.env.GHL_UTM_MEDIUM_FIELD_ID || "yLJ7pF3N8lac1wTp8sjL",
+  UTM_CAMPAIGN: process.env.GHL_UTM_CAMPAIGN_FIELD_ID || "mEQw13RErQRGxZiHXBRW",
+  LANDING_PATH: process.env.GHL_LANDING_PATH_FIELD_ID || "a3k0Nq82jtvNa3l5leHI",
 };
 
 /** The value of one custom field on a record GHL returned, or "". */
@@ -637,6 +736,47 @@ export const fieldValueOf = (record, fieldId) => {
   const f = (record?.customFields || []).find((x) => x.id === fieldId);
   return String(f?.fieldValueString ?? f?.fieldValue ?? f?.value ?? "");
 };
+
+/* Every contact in the location, with their custom fields, for the channel
+   report. 53 contacts come back in one 650ms call today, and the page cap keeps
+   a location that has grown to thousands from turning one dashboard load into a
+   hundred requests: past the cap it reports what it read rather than stalling.
+
+   Paged with `searchAfter` rather than a page number, which is what this
+   endpoint supports. The sort is required for it: without a stable order the
+   cursor walks the same rows again. Verified on 2026-10-15 against all 53,
+   three pages of 20, no duplicates and a clean stop.
+
+   Only the fields the caller asked about are ever looked at. The rows carry a
+   lot more than that, including answers to the contact form, so nothing from
+   them is logged, cached or returned. */
+const CONTACT_PAGE = 100;
+const CONTACT_PAGE_CAP = 12;
+const CONTACT_SORT = [{ field: "dateAdded", direction: "desc" }];
+
+export async function listContacts() {
+  const all = [];
+  let searchAfter = null;
+
+  for (let page = 0; page < CONTACT_PAGE_CAP; page++) {
+    const body = { locationId: LOCATION_ID, pageLimit: CONTACT_PAGE, sort: CONTACT_SORT };
+    if (searchAfter) body.searchAfter = searchAfter;
+
+    const data = await ghlFetch("/contacts/search", { method: "POST", body });
+    const rows = data?.contacts || [];
+    all.push(...rows);
+
+    searchAfter = rows[rows.length - 1]?.searchAfter || null;
+    if (!searchAfter || rows.length < CONTACT_PAGE || all.length >= (data?.total ?? 0)) break;
+
+    if (page === CONTACT_PAGE_CAP - 1) {
+      console.warn(
+        `Contact list hit the ${CONTACT_PAGE_CAP}-page cap at ${all.length} of ${data?.total}; the channel report covers the newest ones only.`
+      );
+    }
+  }
+  return all;
+}
 
 /** The one contact carrying this value in the given custom field, or null. */
 export async function findContactByCustomField(fieldId, value) {

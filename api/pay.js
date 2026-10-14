@@ -292,6 +292,23 @@ async function processorFor(amount) {
  * treatment. Returns only the client secret, which can confirm this one payment
  * and nothing else.
  */
+/* The marketing tags worth putting on a payment, cleaned for Stripe.
+ *
+ * Named keys only, never a spread of whatever the browser sent: Stripe metadata
+ * is a public-ish field on a financial record and nothing should be able to
+ * write itself in there. Blank values are dropped so an untagged order carries
+ * no empty keys. */
+const UTM_METADATA = ["utm_source", "utm_medium", "utm_campaign"];
+function utmMetadata(attribution) {
+  if (!attribution || typeof attribution !== "object") return {};
+  const out = {};
+  for (const key of UTM_METADATA) {
+    const value = typeof attribution[key] === "string" ? attribution[key].trim() : "";
+    if (value) out[key] = value.slice(0, 120);
+  }
+  return out;
+}
+
 async function stripeIntent(req, res) {
   if (blocked(req, res, { max: 8 })) return;
   if (!stripeEnabled()) {
@@ -441,6 +458,16 @@ async function stripeIntent(req, res) {
            so the payment stays the immutable record of how many fills were
            actually bought. */
         plan_months: String(charge.months),
+        /* The channel that won this patient, so Stripe's own revenue reports
+           group by campaign without joining anything to the CRM. Stripe is the
+           only system that knows what was actually COLLECTED, which is why the
+           dashboard reads revenue from here and not from an opportunity value
+           somebody could edit.
+
+           Three tags, not the whole record: source, medium and campaign are
+           what a channel report needs, and Stripe metadata is capped at 50
+           keys and 500 characters a value. Still nothing clinical. */
+        ...utmMetadata(req.body?.attribution),
       },
     },
     /* Deliberately NO idempotency key.

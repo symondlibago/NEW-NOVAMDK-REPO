@@ -82,7 +82,18 @@ function publicOrigin() {
  *  a location nobody configured. */
 export function scanUrl(product, locationId) {
   const params = new URLSearchParams({ start: "1" });
-  if (locationId && locationById(locationId)) params.set(SCAN_PARAM, locationId);
+  const placed = locationId && locationById(locationId);
+  if (placed) params.set(SCAN_PARAM, locationId);
+
+  /* The same channel tags the texted link carries (api/ghl-contact.js), so a
+     scan and a text from the same machine land in one channel report rather
+     than two. SCAN_PARAM above is what the kiosk funnel reads; these are the
+     shared vocabulary the marketing side reads. Campaign is the kiosk itself,
+     so each placement earns or loses its own line. */
+  params.set("utm_source", "kiosk");
+  params.set("utm_medium", "offline");
+  if (placed) params.set("utm_campaign", locationId);
+
   return `${publicOrigin()}${productPath(product)}?${params}`;
 }
 

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Check, HelpCircle, Info, Loader2, Lock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { declineMessage, HOLD_NOTICE, PAYMENT_DUE, renewalConsent } from "./declineMessage";
+import { attributionPayload } from "../../lib/attribution";
 import PlanTerms from "./PlanTerms";
 
 /* The whole checkout, on one screen.
@@ -186,6 +187,9 @@ export default function StripeCheckout({
             months: chosen.current,
             treatment,
             submitted,
+            /* The campaign that won this patient, so Stripe's revenue groups by
+               channel on its own. The server picks the three keys it keeps. */
+            attribution: attributionPayload(),
           }),
         })
           .then((r) => r.json())

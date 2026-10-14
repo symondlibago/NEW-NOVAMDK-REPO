@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import ThemeProvider from "./theme/ThemeContext";
 import ScrollToTop from "./components/Nav/ScrollToTop";
 import { trackPageView, applyRouteConsent } from "./lib/analytics";
+import { captureAttribution } from "./lib/attribution";
 import { trackPixelPageView } from "./lib/metaPixel";
 import { trackGtmPageView } from "./lib/gtm";
 import { applySupportChat } from "./lib/supportChat";
@@ -45,6 +46,16 @@ const CheckoutTestPage = import.meta.env.DEV
 function RouteAnalytics() {
   const { pathname } = useLocation();
   useEffect(() => {
+    /* Where they came from, before anything else runs.
+     *
+     * First one wins and is never overwritten, so calling it on every route is
+     * how a campaign pointed at a product page is caught as readily as one
+     * pointed at the home page. It writes nothing for an untagged visit and
+     * nothing clinical ever, so it is not gated on consent the way GA4 is: it
+     * is the campaign that brought them, which the CRM is entitled to know
+     * about its own lead. */
+    captureAttribution();
+
     if (applyRouteConsent(pathname)) trackPageView(pathname);
     /* The Meta pixel keeps its own counsel about which routes it may run on,
        rather than riding on GA4's answer: it is held off the same private

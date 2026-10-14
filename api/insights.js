@@ -7,8 +7,16 @@ import {
   clearedAdminCookie,
   readAdminSession,
 } from "./_admin.js";
-import { ghlConfigured, pipelineBoard, listOpportunities } from "./_ghl.js";
+import {
+  ghlConfigured,
+  pipelineBoard,
+  listOpportunities,
+  listContacts,
+  fieldValueOf,
+  SEARCH_FIELD_ID,
+} from "./_ghl.js";
 import { mdi, mdiConfigured } from "./_mdi.js";
+import { spendBySource, spendMonths, spendTotal } from "./_spend.js";
 
 /* Everything the staff dashboard needs, in one function.
 
@@ -17,9 +25,11 @@ import { mdi, mdiConfigured } from "./_mdi.js";
    deployment and api/ was at 13, which failed the build. These three were the
    obvious merge — same page, same session, same access rules.
 
-     POST                    login / logout / session check
-     GET  ?resource=ops      pipeline and intake funnel, from GHL and MDI
-     GET  (default)          website traffic, from the GA4 Data API
+     POST                      login / logout / session check
+     GET  ?resource=ops        pipeline and intake funnel, from GHL and MDI
+     GET  ?resource=channels   where customers came from and what each channel
+                               earned, from GHL joined to the spend on file
+     GET  (default)            website traffic, from the GA4 Data API
 
    Every read is aggregate counts. No patient is identifiable in any response,
    and nothing clinical is in either source to begin with. */
@@ -447,6 +457,255 @@ async function opsPayload() {
   return payload;
 }
 
+/* -------------------------------- channels ------------------------------- */
+
+/* "Where did each customer come from, and what did that channel earn."
+   Two of the five questions in the client's brief, and both are the same join:
+   the contact carries the campaign that won them, the opportunity carries the
+   money, and `contactId` is the key between them.
+
+   Three requests, about two seconds: one page of contacts and two of
+   opportunities. Deliberately not a lookup per card, which at 118 cards would
+   be 118 requests and a timeout.
+
+   Every row is a channel. No row is ever a person, and nothing clinical is in
+   either source to begin with. */
+
+const lower = (v) => (typeof v === "string" ? v.trim().toLowerCase() : "");
+
+const STARTED_TAG = "intake-started";
+const SUBMITTED_TAG = "intake-submitted";
+const UNATTRIBUTED = "unknown";
+
+/* `kiosk-<id>` is normally the location a machine stands in, and that id is the
+   campaign. Two of them are not places at all: api/ghl-contact.js writes
+   kiosk-text-sent and kiosk-text-link to record whether the server or the
+   fallback workflow sent the text. Both still mean "came from a kiosk", so they
+   keep the channel, but reporting either as a placement puts an internal
+   plumbing detail in a table of marketing campaigns. Add to this set if another
+   operational kiosk- tag is ever introduced. */
+const KIOSK_PREFIX = "kiosk-";
+const KIOSK_NOT_A_PLACE = new Set(["kiosk-text-sent", "kiosk-text-link"]);
+
+/* How a contact is credited to a channel, best evidence first. `basis` records
+   which rule answered, because these are not equally trustworthy and the page
+   has to be able to separate what was measured from what was inferred.
+
+     utm   our own first-touch capture. The campaign itself, from the link they
+           clicked. This is the only one that can name an ad.
+     tag   a kiosk tag we wrote ourselves at intake. Certain about the channel,
+           and the kiosk id doubles as the campaign.
+     ghl   GoHighLevel's own attribution. Thin in practice: it mostly reports
+           the chat widget or "Direct traffic", because it sees the session that
+           created the record rather than the click that started the visit.
+     none  nobody knows. Honest, and the number that should fall as the tagged
+           links go live. */
+function channelOf(contact) {
+  const source = lower(fieldValueOf(contact, SEARCH_FIELD_ID.UTM_SOURCE));
+  if (source) {
+    return {
+      source,
+      medium: lower(fieldValueOf(contact, SEARCH_FIELD_ID.UTM_MEDIUM)),
+      campaign: lower(fieldValueOf(contact, SEARCH_FIELD_ID.UTM_CAMPAIGN)),
+      basis: "utm",
+    };
+  }
+
+  const tags = (contact?.tags || []).map(lower);
+  const kiosk = tags.find((t) => t.startsWith(KIOSK_PREFIX) && !KIOSK_NOT_A_PLACE.has(t));
+  if (kiosk || tags.some((t) => t === "kiosk" || t.startsWith(KIOSK_PREFIX))) {
+    return {
+      source: "kiosk",
+      medium: "offline",
+      campaign: kiosk ? kiosk.slice(KIOSK_PREFIX.length) : "",
+      basis: "tag",
+    };
+  }
+
+  const a = contact?.attributionSource || {};
+  const native = lower(a.utmSource) || lower(a.sessionSource) || lower(a.referrer);
+  if (native) {
+    return {
+      source: native,
+      medium: lower(a.utmMedium) || lower(a.medium),
+      campaign: lower(a.campaign),
+      basis: "ghl",
+    };
+  }
+
+  return { source: UNATTRIBUTED, medium: "", campaign: "", basis: "none" };
+}
+
+const BASES = ["utm", "tag", "ghl", "none"];
+
+const blankRow = (extra) => ({
+  contacts: 0,
+  measured: 0,
+  by_basis: { utm: 0, tag: 0, ghl: 0, none: 0 },
+  started: 0,
+  submitted: 0,
+  paid: 0,
+  repeat: 0,
+  revenue: 0,
+  open_value: 0,
+  ...extra,
+});
+
+/* A card counts as paid when its status is won, which is what
+   markOpportunityPaid sets alongside moving it to the Paid column. Same rule as
+   the board panel above, deliberately: two panels on one page disagreeing about
+   who paid is worse than either being slightly narrow. */
+const isPaid = (o) => o.status === "won";
+
+async function channelsPayload() {
+  const { pipelineId } = await pipelineBoard();
+  const [contacts, opportunities] = await Promise.all([
+    listContacts(),
+    listOpportunities(pipelineId),
+  ]);
+
+  /* Money first, keyed by contact, so the contact pass below can fold it in
+     without searching the opportunity list once per person. */
+  const paidByContact = new Map(); // contactId -> { cards, value }
+  const openByContact = new Map(); // contactId -> value
+  for (const o of opportunities) {
+    const id = o.contactId;
+    if (!id) continue;
+    const value = Number(o.monetaryValue) || 0;
+    if (isPaid(o)) {
+      const row = paidByContact.get(id) || { cards: 0, value: 0 };
+      row.cards += 1;
+      row.value += value;
+      paidByContact.set(id, row);
+    } else if (o.status === "open") {
+      openByContact.set(id, (openByContact.get(id) || 0) + value);
+    }
+  }
+
+  const channels = new Map(); // "source/medium" -> row
+  const campaigns = new Map(); // campaign name -> row
+  const coverage = { utm: 0, tag: 0, ghl: 0, none: 0 };
+  const counted = new Set();
+
+  for (const contact of contacts) {
+    const { source, medium, campaign, basis } = channelOf(contact);
+    coverage[basis] += 1;
+
+    const key = medium ? `${source}/${medium}` : source;
+    const row =
+      channels.get(key) || blankRow({ key, source, medium });
+    channels.set(key, row);
+
+    const tags = (contact?.tags || []).map(lower);
+    const paid = paidByContact.get(contact.id);
+
+    row.contacts += 1;
+    row.by_basis[basis] += 1;
+    if (basis === "utm") row.measured += 1;
+    if (tags.includes(STARTED_TAG)) row.started += 1;
+    if (tags.includes(SUBMITTED_TAG)) row.submitted += 1;
+    if (paid) {
+      row.paid += 1;
+      row.revenue += paid.value;
+      /* A second paid card is the cheapest honest retention signal we hold: the
+         patient came back and bought again. Not the same as "still subscribed",
+         which needs the renewal state per plan, one MDI read per patient. */
+      if (paid.cards > 1) row.repeat += 1;
+    }
+    row.open_value += openByContact.get(contact.id) || 0;
+    counted.add(contact.id);
+
+    /* Campaigns are only listed where one is known. An untagged channel has no
+       campaign to report and padding the table with "(none)" rows would bury
+       the ads, which are the only rows anyone opens this for. */
+    if (campaign) {
+      const c = campaigns.get(campaign) || { name: campaign, source, contacts: 0, paid: 0, revenue: 0 };
+      campaigns.set(campaign, c);
+      c.contacts += 1;
+      if (paid) {
+        c.paid += 1;
+        c.revenue += paid.value;
+      }
+    }
+  }
+
+  /* Money against a contact the list didn't cover: a card whose contact was
+     deleted, or one past the page cap. Counted as unattributed rather than
+     dropped, so channel revenue always reconciles against the board's total. */
+  let orphan = 0;
+  for (const [id, paid] of paidByContact) {
+    if (counted.has(id)) continue;
+    const row = channels.get(UNATTRIBUTED) || blankRow({ key: UNATTRIBUTED, source: UNATTRIBUTED, medium: "" });
+    channels.set(UNATTRIBUTED, row);
+    row.paid += 1;
+    row.revenue += paid.value;
+    orphan += 1;
+  }
+
+  const spend = spendBySource();
+
+  /* A source with money against it but nobody to show for it still gets a row.
+     Without this the spend counts towards the blended CAC while being invisible
+     in the table, so the columns stop adding up to the headline, and a source
+     misspelled in _spend.js hides instead of standing out as the obvious $0
+     revenue row that it is. */
+  for (const source of Object.keys(spend)) {
+    if (![...channels.values()].some((r) => r.source === source)) {
+      channels.set(source, blankRow({ key: source, source, medium: "" }));
+    }
+  }
+
+  const rows = [...channels.values()].map((row) => {
+    const amount = spend[row.source] || 0;
+    const { by_basis, ...rest } = row;
+    return {
+      ...rest,
+      /* What most of this row rests on, so the page can mark a row built from
+         GoHighLevel's guess differently from one built from tagged links. */
+      basis: BASES.reduce((best, b) => (by_basis[b] > by_basis[best] ? b : best), "none"),
+      revenue: Math.round(row.revenue),
+      open_value: Math.round(row.open_value),
+      spend: Math.round(amount),
+      /* Null, not zero, when there is nothing to divide. Zero would read as
+         "this channel is free", which is the one wrong answer. */
+      cac: amount > 0 && row.paid > 0 ? Math.round(amount / row.paid) : null,
+    };
+  });
+
+  rows.sort((a, b) => b.revenue - a.revenue || b.contacts - a.contacts);
+
+  const sum = (key) => rows.reduce((n, r) => n + r[key], 0);
+  const totalSpend = Math.round(spendTotal());
+  const paidTotal = sum("paid");
+
+  return {
+    channels: rows,
+    campaigns: [...campaigns.values()]
+      .map((c) => ({ ...c, revenue: Math.round(c.revenue) }))
+      .sort((a, b) => b.revenue - a.revenue || b.contacts - a.contacts),
+    totals: {
+      contacts: contacts.length,
+      started: sum("started"),
+      submitted: sum("submitted"),
+      paid: paidTotal,
+      revenue: sum("revenue"),
+      spend: totalSpend,
+      cac: totalSpend > 0 && paidTotal > 0 ? Math.round(totalSpend / paidTotal) : null,
+    },
+    /* How much of the table is fact. Shown on the page rather than kept here,
+       because a channel split built mostly from "none" rows is worth reading
+       very differently from one built from tagged links. */
+    coverage,
+    spend: {
+      recorded: totalSpend > 0,
+      total: totalSpend,
+      months: spendMonths(),
+    },
+    orphan_paid: orphan,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 /* --------------------------------- cache --------------------------------- */
 
 /* One entry per view, held briefly. The dashboard is a page people leave open
@@ -459,6 +718,10 @@ const CACHE_MS = 5 * 60_000;
    totals that move a handful of times a day, so paying that once every half
    hour is right. Refresh is a manual button, not a wait people sit through. */
 const OPS_CACHE_MS = 30 * 60_000;
+/* The channel join is three fast GHL calls, so this one can be short. It also
+   moves on every payment, which is exactly what someone presses Refresh to see.
+*/
+const CHANNELS_CACHE_MS = 10 * 60_000;
 const cache = new Map();
 
 // Said once per instance, not once per request: the page re-asks whenever the
@@ -521,6 +784,23 @@ export default async function handler(req, res) {
   // req.query is missing under the local vite shim, so fall back to the URL.
   const params = new URL(req.url || "/", "http://localhost").searchParams;
   const resource = req.query?.resource ?? params.get("resource");
+
+  if (resource === "channels") {
+    if (!ghlConfigured()) return res.status(503).json({ error: "not_configured" });
+
+    const hit = cache.get("channels");
+    if (hit && Date.now() - hit.at < CHANNELS_CACHE_MS) {
+      return res.status(200).json({ ...hit.payload, cached: true });
+    }
+    try {
+      const payload = await channelsPayload();
+      cache.set("channels", { at: Date.now(), payload });
+      return res.status(200).json(payload);
+    } catch (e) {
+      console.error("Insights channels failed:", e.message, e.details ?? "");
+      return res.status(502).json({ error: "upstream_failed" });
+    }
+  }
 
   if (resource === "ops") {
     const hit = cache.get("ops");

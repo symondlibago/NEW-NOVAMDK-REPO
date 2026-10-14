@@ -4,6 +4,7 @@ import {
   addContactNote,
   createVisitOpportunity,
   updateContactFields,
+  recordAttribution,
   tagContact,
   untagContact,
   sendSms,
@@ -197,7 +198,27 @@ async function kioskTextLink(req, res) {
     return res.status(429).json({ ok: false, error: "too_many" });
   }
 
-  const params = new URLSearchParams({ start: "1", ...(kiosk && { from: kiosk }) });
+  /* The kiosk's own channel tags, on the link the patient is texted.
+   *
+   * GoHighLevel can stamp UTMs onto email links but not SMS ones, and this link
+   * is built here anyway, so the tags go on at the source. Without them a
+   * patient who walked up to a kiosk and asked for a text arrives at the site
+   * untagged and reads as direct traffic, which is the one channel the client
+   * is most likely to be judging against its rent.
+   *
+   * `from` already names which kiosk and is what the funnel and the opportunity
+   * record. These three are the same fact in the shared vocabulary every other
+   * channel uses, so kiosks appear in one channel report beside Meta and email
+   * rather than in a report of their own. Campaign is the kiosk itself: each
+   * machine is its own line in that report, which is how you tell a salon
+   * that earns its keep from one that does not. */
+  const params = new URLSearchParams({
+    start: "1",
+    ...(kiosk && { from: kiosk }),
+    utm_source: "kiosk",
+    utm_medium: "offline",
+    ...(kiosk && { utm_campaign: kiosk }),
+  });
   const link = `${SITE}/product/${pid}?${params}`;
 
   try {
@@ -280,13 +301,23 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { patient, treatment, tags, source, note, value, kioskLocation, mdiPatientId, productLine, marketing } = req.body || {};
+    const { patient, treatment, tags, source, note, value, kioskLocation, mdiPatientId, productLine, marketing, attribution } = req.body || {};
     /* This call is the hand-off: the contact and its opportunity are created a
        beat before the questionnaire opens, so the intake genuinely has not
        started yet. Anyone who never gets further stays parked here, which is
        the drop-off the funnel is meant to show. */
     const stage = INTAKE_STAGE.NOT_STARTED;
     const contact = await upsertContact({ patient, treatment, tags, source, mdiPatientId, productLine, intakeStage: stage, marketing });
+
+    /* Which campaign won this person, recorded on the visit that created them
+       and never again. Its own call and never fatal: these fields are new to
+       the location and GoHighLevel refuses a PUT naming a key it does not know,
+       so folded into the upsert above a missing field would have cost the
+       contact itself and with it the intake. */
+    if (contact?.id && attribution) {
+      await recordAttribution(contact.id, attribution, contact);
+    }
+
     // Returned to the client so the payment step can move this exact
     // opportunity to Paid, rather than guessing at it by contact later.
     let opportunityId = null;

@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { ExternalLink, Lock, LogOut, RefreshCw } from "lucide-react";
 import Seo from "../components/Seo";
-import { insightsAuth, insightsData, insightsOps } from "../lib/insights";
+import { insightsAuth, insightsChannels, insightsData, insightsOps } from "../lib/insights";
 
 /* Staff analytics, reading GA4 through /api/insights and the CRM through
    /api/insights?resource=ops. Everything on this page is aggregate counts: no patient is
@@ -118,10 +118,17 @@ function Bars({ title, rows, empty }) {
 }
 
 /* The board as a funnel rather than a bar chart: the columns are a sequence, so
-   what matters is each one's share of the top, and the bar is there to make the
-   fall-off readable at a glance rather than to be measured. */
+   what matters is each one's share of the board, and the bar is there to make
+   the shape readable at a glance rather than to be measured.
+
+   Each column's share is of every card on the board, not of the first column.
+   It was the first column until 2026-10-15, which read as nonsense the moment
+   there was any history: a board is not a funnel that drains, cards pile up in
+   the columns at the end of it, and against a New Lead column of 5 that made
+   Completed show as 840%. Share of the board always totals 100% and says the
+   useful thing, which is where the work is sitting. */
 function Funnel({ rows }) {
-  const top = rows[0]?.count || 0;
+  const total = rows.reduce((n, r) => n + r.count, 0);
   const max = Math.max(1, ...rows.map((r) => r.count));
 
   return (
@@ -132,7 +139,7 @@ function Funnel({ rows }) {
             <div className="flex items-baseline justify-between gap-3">
               <span className="truncate text-[0.87rem] font-medium">{r.name}</span>
               <span className="shrink-0 text-[0.76rem] text-muted">
-                {top ? Math.round((r.count / top) * 100) : 0}%
+                {total ? Math.round((r.count / total) * 100) : 0}%
                 {r.value > 0 && <span className="ml-2">{money(r.value)}</span>}
               </span>
             </div>
@@ -226,6 +233,209 @@ function StatusDonut({ rows }) {
   );
 }
 
+/* --------------------------- channel performance ------------------------- */
+
+/* How a channel row was identified, in the words someone reading the table
+   needs rather than the key the API uses. Shown per row because these are not
+   equally trustworthy and a guess must not sit in the same column as a fact. */
+const BASIS_LABEL = {
+  utm: "Tagged link",
+  tag: "Kiosk tag",
+  ghl: "GoHighLevel guess",
+  none: "Not identified",
+};
+
+const CHANNEL_NAME = {
+  unknown: "Not identified",
+  fb_ad: "Meta ads",
+  instagram: "Instagram",
+  email: "Email",
+  ghl: "Text messages",
+  kiosk: "Kiosks",
+};
+
+const channelTitle = (row) => CHANNEL_NAME[row.source] || prettyStatus(row.source);
+
+const th = "px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted";
+const td = "whitespace-nowrap px-3 py-2.5 text-[0.87rem]";
+
+function ChannelTable({ rows }) {
+  return (
+    <div className="mt-4 overflow-x-auto">
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="border-b border-line">
+            <th className={th}>Channel</th>
+            <th className={`${th} text-right`}>People</th>
+            <th className={`${th} text-right`}>Started</th>
+            <th className={`${th} text-right`}>Submitted</th>
+            <th className={`${th} text-right`}>Paid</th>
+            <th className={`${th} text-right`}>Revenue</th>
+            <th className={`${th} text-right`}>Ad spend</th>
+            <th className={`${th} text-right`}>Cost per customer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key} className="border-b border-line/60 last:border-0">
+              <td className={td}>
+                <span className="font-semibold">{channelTitle(r)}</span>
+                <span className="ml-2 text-[0.76rem] text-muted">
+                  {r.medium || BASIS_LABEL[r.basis]}
+                </span>
+              </td>
+              <td className={`${td} text-right`}>{count(r.contacts)}</td>
+              <td className={`${td} text-right text-muted`}>{count(r.started)}</td>
+              <td className={`${td} text-right text-muted`}>{count(r.submitted)}</td>
+              <td className={`${td} text-right font-semibold`}>{count(r.paid)}</td>
+              <td className={`${td} text-right font-semibold`}>{money(r.revenue)}</td>
+              <td className={`${td} text-right text-muted`}>
+                {r.spend > 0 ? money(r.spend) : "—"}
+              </td>
+              {/* A dash, never a zero: no spend on file means the number isn't
+                  known, and a zero there reads as a free customer. */}
+              <td className={`${td} text-right font-semibold`}>
+                {r.cac === null ? <span className="text-muted">—</span> : money(r.cac)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* Each step as a share of the step before it, which is the number the client's
+   brief asks for and the one that says where people are lost. Share of the
+   original total would make every later step look small for the same reason the
+   board funnel used to: the losses compound. */
+const pct = (part, whole) => (whole ? `${Math.round((part / whole) * 100)}%` : "—");
+
+function Channels({ data }) {
+  const { channels, campaigns, totals, coverage, spend } = data;
+  const identified = coverage.utm + coverage.tag;
+  const share = totals.contacts ? Math.round((identified / totals.contacts) * 100) : 0;
+  const repeat = channels.reduce((n, r) => n + r.repeat, 0);
+
+  return (
+    <div className={`${shell} mt-5 space-y-5`}>
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric
+          label="Paying customers"
+          value={count(totals.paid)}
+          hint={`of ${count(totals.contacts)} people in the CRM`}
+        />
+        <Metric label="Revenue" value={money(totals.revenue)} hint="Paid cards only" />
+        <Metric
+          label="Ad spend on file"
+          value={spend.recorded ? money(totals.spend) : "Not entered"}
+          hint={spend.months.length ? spend.months.join(", ") : "api/_spend.js"}
+        />
+        <Metric
+          label="Cost per customer"
+          value={totals.cac === null ? "—" : money(totals.cac)}
+          hint={spend.recorded ? "Spend divided by paying customers" : "Needs ad spend to calculate"}
+        />
+      </section>
+
+      <div className={card}>
+        <SectionHead label="Where customers came from" range="All time" />
+        <p className="mt-1.5 text-[0.82rem] text-muted">
+          One row per channel. People is everyone credited to it, Paid is how many of them bought,
+          and Revenue is what they paid. Started and Submitted count people, not questionnaires, so
+          they will not match the intake funnel above.
+        </p>
+
+        <ChannelTable rows={channels} />
+
+        {/* The stage to stage rates, which the counts above imply but nobody
+            should be made to divide in their head. */}
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Tile label="Started an intake" value={totals.started} />
+          <div className="rounded-xl border border-line bg-bg p-3.5">
+            <p className="text-[0.75rem] text-muted">Submitted it</p>
+            <p className="mt-1 text-[1.35rem] font-bold leading-none">
+              {pct(totals.submitted, totals.started)}
+            </p>
+            <p className="mt-1 text-[0.75rem] text-muted">
+              {count(totals.submitted)} of those who started
+            </p>
+          </div>
+          <div className="rounded-xl border border-line bg-bg p-3.5">
+            <p className="text-[0.75rem] text-muted">Then paid</p>
+            <p className="mt-1 text-[1.35rem] font-bold leading-none">
+              {pct(totals.paid, totals.submitted)}
+            </p>
+            <p className="mt-1 text-[0.75rem] text-muted">
+              {count(totals.paid)} of those who submitted
+            </p>
+          </div>
+          <div className="rounded-xl border border-line bg-bg p-3.5">
+            <p className="text-[0.75rem] text-muted">Bought again</p>
+            <p className="mt-1 text-[1.35rem] font-bold leading-none">
+              {pct(repeat, totals.paid)}
+            </p>
+            {/* Not the same as "still subscribed", and the wording has to keep
+                saying so: this counts a second paid treatment, which is the
+                only retention signal the CRM can answer on its own. */}
+            <p className="mt-1 text-[0.75rem] text-muted">
+              {count(repeat)} paid for more than one
+            </p>
+          </div>
+        </div>
+
+        {/* The honesty line. A channel split built mostly from unidentified
+            visitors is worth reading very differently from one built from
+            tagged links, and that difference has to be on the card rather than
+            in someone's head. */}
+        <p className="mt-4 rounded-xl border border-line bg-bg px-4 py-3 text-[0.82rem] text-muted">
+          <span className="font-semibold text-ink">
+            {count(identified)} of {count(totals.contacts)} people ({share}%)
+          </span>{" "}
+          are identified from a link we tagged or a kiosk. The rest arrived before the tagging went
+          live, or through a link that carries no campaign on it. That share rises as the tagged ad
+          and email links replace the untagged ones, and nothing already recorded changes.
+        </p>
+      </div>
+
+      {campaigns.length > 0 && (
+        <div className={card}>
+          <SectionHead label="Campaigns" range="All time" />
+          <p className="mt-1.5 text-[0.82rem] text-muted">
+            Each campaign named on an incoming link, with what it brought in. Kiosk campaigns are
+            the location the machine stands in.
+          </p>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className={th}>Campaign</th>
+                  <th className={th}>Channel</th>
+                  <th className={`${th} text-right`}>People</th>
+                  <th className={`${th} text-right`}>Paid</th>
+                  <th className={`${th} text-right`}>Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campaigns.map((c) => (
+                  <tr key={`${c.source}-${c.name}`} className="border-b border-line/60 last:border-0">
+                    <td className={`${td} font-semibold`}>{c.name}</td>
+                    <td className={`${td} text-muted`}>{CHANNEL_NAME[c.source] || c.source}</td>
+                    <td className={`${td} text-right`}>{count(c.contacts)}</td>
+                    <td className={`${td} text-right font-semibold`}>{count(c.paid)}</td>
+                    <td className={`${td} text-right font-semibold`}>{money(c.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Login({ onDone }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -294,6 +504,7 @@ export default function InsightsPage() {
      fault, and a red banner over a working report trains people to ignore red. */
   const [notice, setNotice] = useState("");
   const [ops, setOps] = useState(null);
+  const [channels, setChannels] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -342,23 +553,36 @@ export default function InsightsPage() {
       .catch(() => setOps(null));
   }, []);
 
+  /* Its own call for the same reasons as the ops one, and separate from it so a
+     slow MDI voucher read can't hold up a panel that only needs GoHighLevel. */
+  const loadChannels = useCallback(() => {
+    insightsChannels()
+      .then(setChannels)
+      .catch(() => setChannels(null));
+  }, []);
+
   useEffect(() => {
     if (state === "in") load(days);
   }, [state, days, load]);
 
   useEffect(() => {
-    if (state === "in") loadOps();
-  }, [state, loadOps]);
+    if (state === "in") {
+      loadOps();
+      loadChannels();
+    }
+  }, [state, loadOps, loadChannels]);
 
   const refresh = () => {
     load(days);
     loadOps();
+    loadChannels();
   };
 
   const signOut = async () => {
     await insightsAuth({ action: "logout" }).catch(() => {});
     setData(null);
     setOps(null);
+    setChannels(null);
     setState("out");
   };
 
@@ -477,7 +701,7 @@ export default function InsightsPage() {
                 <SectionHead label="Where patient journeys sit" range="All time" />
                 <p className="mt-1.5 text-[0.82rem] text-muted">
                   Every card on the {ops.board.pipeline}, by column, won and lost ones included.
-                  Percentages are of the first column.
+                  Each percentage is that column's share of the whole board.
                 </p>
                 <Funnel rows={ops.board.stages} />
               </div>
@@ -528,6 +752,11 @@ export default function InsightsPage() {
             </section>
           </div>
         )}
+
+        {/* Renders whenever GoHighLevel answered, independently of the panels
+            above: this one needs no GA4 key and no MDI read, so it should not
+            disappear because either of those is having a bad morning. */}
+        {channels && <Channels data={channels} />}
 
         {LOOKER_EMBED && (
           <section className={`${shell} mt-5`}>

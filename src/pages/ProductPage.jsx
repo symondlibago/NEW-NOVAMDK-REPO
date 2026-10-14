@@ -20,6 +20,7 @@ import {
 } from "../components/data/products";
 import { productSlug, productPath, matchesProduct } from "../lib/slug";
 import { syncToGhl, treatmentLabel } from "../lib/ghl";
+import { attributionPayload } from "../lib/attribution";
 import {
   readKioskLocation, scanUrl, captureScanSource, readScanSource, sourceLabel, SCAN_PARAM,
 } from "../lib/kioskLocations";
@@ -297,6 +298,11 @@ export default function ProductPage() {
           value: Number(String(active.price).replace(/[^0-9.]/g, "")) || undefined,
           source: originLabel,
           kioskLocation: scannedFrom ? originLabel : undefined,
+          /* The campaign that brought them, recorded on their first visit and
+             carried here however many days later. Absent for an untagged
+             visitor, which is most of them, and the server writes nothing in
+             that case rather than emptying what an earlier visit recorded. */
+          attribution: attributionPayload(),
           tags: [
             "website-lead",
             active.categorySlug,

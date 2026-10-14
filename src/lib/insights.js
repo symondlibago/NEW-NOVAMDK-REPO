@@ -51,3 +51,4 @@ async function get(url) {
 export const insightsAuth = (body) => post("/api/insights", body);
 export const insightsData = (days) => get(`/api/insights?days=${days}`);
 export const insightsOps = () => get("/api/insights?resource=ops");
+export const insightsChannels = () => get("/api/insights?resource=channels");
