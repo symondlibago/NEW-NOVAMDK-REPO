@@ -159,12 +159,12 @@ const marketingFields = (m) => {
   };
 };
 
-async function ghlFetch(path, { method = "GET", body } = {}) {
+async function ghlFetch(path, { method = "GET", body, version = VERSION } = {}) {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${TOKEN}`,
-      Version: VERSION,
+      Version: version,
       Accept: "application/json",
       ...(body && { "Content-Type": "application/json" }),
     },
@@ -1254,4 +1254,48 @@ export async function addContactNote(contactId, note) {
   const body = clean(note);
   if (!contactId || !body) return null;
   return ghlFetch(`/contacts/${contactId}/notes`, { method: "POST", body: { body } });
+}
+
+/* ------------------------------- messaging -------------------------------- */
+
+/* Has this person asked us not to text them?
+ *
+ * GoHighLevel reports this two different ways and neither endpoint returns
+ * both: a search carries `dnd`, a single-contact GET omits it and carries
+ * `dndSettings` instead. So this reads whichever the caller happens to hold.
+ *
+ * Treat it as a courtesy check rather than the guard. The real protection is
+ * that GoHighLevel refuses a send to someone who replied STOP on its own side,
+ * and sendSms surfaces that refusal. A missing field here must not be read as
+ * consent, which is why the caller also has to handle a failed send.
+ */
+export function optedOutOfSms(contact) {
+  if (!contact) return false;
+  if (contact.dnd === true) return true;
+  const sms = contact.dndSettings?.SMS?.status;
+  return typeof sms === "string" && sms.toLowerCase() === "active";
+}
+
+/** Send one SMS to a contact now, rather than through a workflow on a tag.
+ *
+ * A tag-triggered workflow took one to two minutes to enroll and fire, which a
+ * patient standing at a kiosk reads as nothing having happened (client,
+ * 2026-10-14). This is the same channel that workflow would have used, from the
+ * same number, without the wait.
+ *
+ * The conversations API wants its own Version, and the token needs the
+ * conversations/message.write scope. Without it this throws, so a caller that
+ * has a slower path should catch and take it rather than losing the message.
+ *
+ * The caller owns the wording, the opt-out line included: GoHighLevel appends
+ * its own "Reply STOP to unsubscribe" to a workflow send, not to this one.
+ */
+export async function sendSms(contactId, message) {
+  const body = clean(message);
+  if (!contactId || !body) return null;
+  return ghlFetch("/conversations/messages", {
+    method: "POST",
+    version: "2021-04-15",
+    body: { type: "SMS", contactId, message: body },
+  });
 }

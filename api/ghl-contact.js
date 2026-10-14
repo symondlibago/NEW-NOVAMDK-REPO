@@ -6,6 +6,8 @@ import {
   updateContactFields,
   tagContact,
   untagContact,
+  sendSms,
+  optedOutOfSms,
   INTAKE_STAGE,
 } from "./_ghl.js";
 import { blocked } from "./_guard.js";
@@ -116,17 +118,45 @@ async function contactForm(req, res) {
 /* ----------------------------- kiosk text-me ----------------------------- */
 
 /* "Text me the link" on the in-store kiosk (client approved, 2026-10-10). The
-   number is saved with a link to start the visit, then tagged; a GHL workflow
-   on that tag sends the text, so its wording and opt-outs live in GHL. Same
-   field-then-tag order as the contact form above.
+   number is saved with a link to start the visit, and the text goes out from
+   here, on the clinic's own number.
+
+   Sent here rather than by a GoHighLevel workflow on the tag (client,
+   2026-10-14). The workflow worked, but it took one to two minutes to enroll
+   the contact and fire, which a patient standing at a kiosk reads as nothing
+   having happened.
+
+   The workflow is still the fallback, and which tag goes on is what decides
+   between them:
+
+     sent here    -> kiosk-text-sent, which nothing triggers off
+     send failed  -> kiosk-text-link, which the workflow watches
+
+   So a token that loses the messaging scope means a slower text, not a lost
+   one, and two texts for one tap is not possible even if someone leaves the
+   workflow running. That matters more than it sounds: the alternative was a
+   note telling a human to remember.
+
+   The cost of sending from here is that the wording lives in this file rather
+   than in GoHighLevel, where it could be changed without a deploy. The opt-out
+   line is ours for the same reason: GoHighLevel appends its own only to a
+   workflow send.
 
    The link names the product by id, never by name, so nothing about a
    treatment reaches GHL from here. It is always built on the live site rather
    than from the request's Origin: a forged Origin must not be able to put
    another domain's link into a text sent from the clinic's number. */
 const TEXT_LINK_TAG = "kiosk-text-link";
+// Marks a text that went out from here, for the smart lists. Nothing watches it.
+const TEXT_SENT_TAG = "kiosk-text-sent";
 const SITE = "https://www.novamdk.com";
 const KIOSK_ID_RE = /^[a-z0-9-]{1,40}$/;
+
+/* NOT YET REVIEWED BY COUNSEL, like the consent line on the kiosk screen it
+   answers. One opt-out sentence, since nothing appends a second one here. The
+   link sits on its own line so it is easy to tap. */
+const textBody = (link) =>
+  `NovaMDK: here's your link to start your visit.\n${link}\nReply STOP to opt out.`;
 
 /* At most three texts to one number in fifteen minutes on a warm instance,
    on top of the per-IP limit, so the form can't be used to flood a stranger. */
@@ -174,18 +204,51 @@ async function kioskTextLink(req, res) {
     const contact = await upsertContact({ patient: { phone_number: digits } });
     if (!contact?.id) throw new Error("GHL returned no contact");
 
-    await updateContactFields(contact.id, { kiosk_link: link });
+    /* Before anything is sent. Someone who has replied STOP must not be texted
+       because they walked up to a kiosk, and the kiosk should say so rather
+       than claim a text is coming. */
+    if (optedOutOfSms(contact)) {
+      console.warn(`Kiosk text-me refused: contact ${contact.id} has opted out of SMS.`);
+      return res.status(409).json({ ok: false, error: "opted_out" });
+    }
+
+    /* The send comes first, because it is the only part the patient is waiting
+       on. A failure here is not fatal: the tag below hands it to the workflow,
+       which is slower but still arrives. */
+    const sent = await sendSms(contact.id, textBody(link)).then(
+      () => true,
+      (e) => {
+        console.error("Kiosk text-me direct send failed, using the workflow:", e.message, e.details ?? "");
+        return false;
+      }
+    );
+
+    /* The field carries the link because the smart lists read it, because it is
+       the record of what was sent, and because the workflow merges it when the
+       send above did not work. Best effort from here on: none of the record
+       keeping should turn a text that went out into a failure on the screen. */
+    await updateContactFields(contact.id, { kiosk_link: link }).catch((e) =>
+      console.error("Kiosk text-me field failed:", e.message)
+    );
 
     // The consent record: what the screen said, where, and when (the note's own date).
     await addContactNote(contact.id, `Kiosk text-me${kiosk ? ` (${kiosk})` : ""}. Agreed to: "${consent}"`).catch((e) =>
       console.error("Kiosk text-me note failed:", e.message)
     );
 
-    // Removed first so a second request fires the workflow again.
-    await untagContact(contact.id, [TEXT_LINK_TAG]).catch(() => {});
-    await tagContact(contact.id, [TEXT_LINK_TAG]);
+    if (sent) {
+      await tagContact(contact.id, [TEXT_SENT_TAG]).catch((e) =>
+        console.error("Kiosk text-me tag failed:", e.message)
+      );
+    } else {
+      // Removed first so a second request fires the workflow again.
+      await untagContact(contact.id, [TEXT_LINK_TAG]).catch(() => {});
+      await tagContact(contact.id, [TEXT_LINK_TAG]).catch((e) =>
+        console.error("Kiosk text-me fallback tag failed:", e.message)
+      );
+    }
 
-    console.info(`Kiosk text-me saved for contact ${contact.id}`);
+    console.info(`Kiosk text-me ${sent ? "sent" : "handed to the workflow"} for contact ${contact.id}`);
     return res.status(200).json({ ok: true });
   } catch (e) {
     console.error("Kiosk text-me failed:", e.message, e.details ?? "");

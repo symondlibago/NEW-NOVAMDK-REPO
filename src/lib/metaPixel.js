@@ -25,22 +25,37 @@ import { isPrivatePath } from "./analytics";
 
 export const PIXEL_ID = "1598274301289115";
 
-/* Whether the pixel may run on /product/:slug.
+/* The only pages the pixel may run on.
  *
- * productPath() in slug.js builds those URLs from the product name, so they
- * read /product/semaglutide-glycine-injection-starter, and Meta attaches the
- * page URL to every event it sends. A PageView there tells Meta which drug a
- * named person was looking at.
+ * An allowlist, not a list of exceptions. On 2026-10-13 Meta blocked all
+ * website data from www.novamdk.com, reporting that it "may be associated with
+ * medical conditions, specific health statuses, or provider/patient
+ * relationships". Meta attaches the page URL to every event and there is no
+ * supported way to withhold it, so the URLs were the disclosure:
+ * /product/semaglutide-glycine-b12-initial names the drug, and
+ * /treatments/sexual-health names the condition outright. 27 of the site's 46
+ * public routes read like one or the other.
  *
- * That is the page the ad spend is optimising towards, so it defaults to on.
- * It is a disclosure question rather than a technical one, and the Privacy
- * Policy's Section 6 undertaking about Consumer Health Data is what it has to
- * be squared against, so it is one flag: set it to false to keep the pixel on
- * the marketing pages and off the drug pages. Awaiting John, 2026-10-01.
+ * It is an allowlist because the blocklist that came before it could not hold.
+ * A new treatment, a new category or a renamed slug would have started sending
+ * health data again with nobody deciding that it should, which is how this
+ * happened once already. Adding a page here is a deliberate act.
+ *
+ * Home, contact and the blog, agreed with John on 2026-10-14. He also named
+ * "about", which has no route yet; add it here when it exists. /legal/* and
+ * /sitemap are just as neutral if anyone wants them later, but nothing
+ * optimises an ad towards a privacy policy, so they are left out.
+ *
+ * What this costs: the product page is what the ad spend was optimising
+ * towards, and the pixel no longer fires there. That is a real loss, taken
+ * knowingly, because Meta was already discarding the data.
  */
-export const PIXEL_ON_PRODUCT_PAGES = true;
+const PIXEL_PATHS = ["/", "/contact", "/blog"];
 
-const PRODUCT_PREFIX = "/product";
+/* "/" matches only itself. Prefix matching it would allow every page there is,
+   which is the one mistake this list exists to prevent. */
+const pathAllowed = (p) =>
+  PIXEL_PATHS.some((base) => p === base || (base !== "/" && p.startsWith(`${base}/`)));
 
 const isBrowser = typeof window !== "undefined";
 
@@ -60,13 +75,15 @@ export function pixelAllowed(path) {
   if (!isBrowser) return false;
   if (gpcDeclined()) return false;
   /* The same private routes GA4 is held off: intake, patient portal and the
-     staff dashboard. */
+     staff dashboard. Redundant now that the list above has to say yes, and kept
+     anyway: it is the one rule that must never depend on a list being right. */
   if (isPrivatePath(path)) return false;
-  const p = typeof path === "string" && path ? path : window.location.pathname;
-  if (!PIXEL_ON_PRODUCT_PAGES && (p === PRODUCT_PREFIX || p.startsWith(`${PRODUCT_PREFIX}/`))) {
-    return false;
-  }
-  return true;
+
+  const raw = typeof path === "string" && path ? path : window.location.pathname;
+  /* Query, hash and a trailing slash come off before matching, so none of them
+     can turn an allowed page into an unlisted one or the reverse. */
+  const trimmed = (raw.split(/[?#]/)[0] || "/").replace(/\/+$/, "");
+  return pathAllowed(trimmed || "/");
 }
 
 /* Meta's queue shim, written out rather than pasted in as a minified IIFE.

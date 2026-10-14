@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
-import useKioskMode from "../../lib/useKioskMode";
+import { useKioskApp } from "../../lib/useKioskMode";
 
 const KIOSK_AD_SRC = "/video/golden.mp4";
 const DEFAULT_IDLE_MS = 2 * 60 * 1000; // 2 minutes of inactivity
@@ -17,13 +17,26 @@ function resolveIdleMs() {
 const ACTIVITY_EVENTS = ["pointerdown", "touchstart", "mousedown", "keydown", "wheel", "scroll", "mousemove"];
 
 export default function KioskAttractLoop() {
-  const isKiosk = useKioskMode();
+  /* useKioskApp, not useKioskMode (client, 2026-10-14: the standby film should
+     only play on a kiosk, never on a desktop or a phone).
+
+     useKioskMode is the loose test behind the kiosk's styling tweaks: portrait
+     and 600px wide, which a portrait tablet meets, plus a `?kiosk` flag that
+     stays set for the rest of the SPA session. Either one put this film on a
+     machine that is not a kiosk. useKioskApp asks the narrower question, is
+     this a placed kiosk, which is the question this film wants answered. */
+  const isKiosk = useKioskApp();
   const navigate = useNavigate();
-  // Suspend on the intake and portal pages: both run in a cross-origin iframe,
-  // whose touches never reach our window — the ad would fire mid-visit. The
-  // kiosk app under /kiosk/ runs its own standby film instead.
+  /* Suspend on the intake and portal pages: both run in a cross-origin iframe,
+     whose touches never reach our window — the ad would fire mid-visit.
+     Suspend on the kiosk app too, at /kiosk/* and at / where it now boots, since
+     it runs its own standby film and two would fight over the screen. */
   const { pathname } = useLocation();
-  const suspended = pathname === "/intake" || pathname === "/portal" || pathname.startsWith("/kiosk/");
+  const suspended =
+    pathname === "/intake" ||
+    pathname === "/portal" ||
+    pathname.startsWith("/kiosk/") ||
+    pathname === "/";
   const [active, setActive] = useState(false);
   const activeRef = useRef(false);
   const timerRef = useRef(null);
