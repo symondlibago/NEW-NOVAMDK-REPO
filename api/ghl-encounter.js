@@ -11,7 +11,7 @@ import {
   INTAKE_STAGE,
   FIELD,
   OPP_FIELD,
-  SITE,
+  CHECKOUT_LINK,
 } from "./_ghl.js";
 import { blocked, verifyReleaseToken } from "./_guard.js";
 
@@ -31,20 +31,6 @@ const idOf = (result) => result?.opportunity?.id || result?.id || null;
    This one means they reached the end and MDI created the encounter, so the
    two together give the drop-off between starting and finishing. */
 const SUBMITTED_TAG = "intake-submitted";
-
-/* Where an unpaid submission is sent to finish paying.
- *
- * The portal's front door, with nothing in the link but the instruction to pick
- * up where they left off. They sign in with their own one-time code and the
- * portal finds the unfinished intake from their own record, so the link grants
- * nothing on its own: forwarded, leaked or sitting in a CRM export, it is a
- * sign-in page. A link carrying a voucher token would have been a bearer
- * credential to someone's chart, which is why John asked for it this way.
- *
- * It is the same string for every visit, since it names none of them. What
- * makes it per-visit is the card it is written on, which is the field being
- * SET that marks that card as an unpaid intake. */
-const CHECKOUT_LINK = `${SITE}/portal?resume=1`;
 
 /* Set on an unpaid visit, emptied on a paid one.
  *

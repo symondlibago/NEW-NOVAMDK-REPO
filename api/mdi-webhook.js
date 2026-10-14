@@ -15,8 +15,13 @@ import {
   markOpportunityFailed,
   recordFillShipped,
   startRenewal,
+  updateOpportunityFields,
+  stageIdNamed,
+  STAGE,
   SEARCH_FIELD_ID,
   FIELD,
+  OPP_FIELD,
+  CHECKOUT_LINK,
 } from "./_ghl.js";
 import { mdi } from "./_mdi.js";
 import { PRICES } from "./_prices.js";
@@ -511,6 +516,67 @@ async function findContact(payload) {
   return { contact, stampCaseId: caseId, opportunityId: card.id };
 }
 
+/* case_created, done on the server as well as in the browser.
+ *
+ * The browser normally does this: MDI tells the intake page the encounter
+ * exists and /api/ghl-encounter stamps it on the card and moves the card to
+ * Intake Submitted. MDI takes 3 to 5 seconds to create it, and a patient who
+ * closes the payment screen inside that window never sends that call, so their
+ * card stayed in Intake Started and the unpaid-intake reminders, which trigger
+ * on Intake Submitted, never started. This is the same write driven by MDI's
+ * own event, which arrives whether or not the tab is still open.
+ *
+ * Whichever lands first does the work. If the browser got there, a card
+ * already carries this case and nothing happens here; if this got there first,
+ * the browser's later call stamps the same id and its forward-only move is a
+ * no-op.
+ *
+ * The card is found by elimination, never by recency (see the note on the
+ * stage move in the handler): the one card of this contact still in Intake
+ * Started with no encounter on it. A paid card has already left that column, so
+ * it can't be picked up here. More than one candidate means two unfinished
+ * intakes, and this event doesn't say which one MDI just created, so it is
+ * logged and left to the browser rather than guessed. */
+async function attachNewCase(contactId, caseId) {
+  if (!contactId || !caseId) return null;
+  const encounterOn = (o) => fieldValueOf(o, SEARCH_FIELD_ID.OPPORTUNITY_ENCOUNTER_ID);
+
+  const opps = await opportunitiesForContact(contactId);
+  if (opps.some((o) => encounterOn(o) === caseId)) return null;
+
+  const startedId = await stageIdNamed(STAGE.INTAKE_STARTED);
+  if (!startedId) {
+    console.warn(`MDI webhook case_created: no "${STAGE.INTAKE_STARTED}" column, case ${caseId} not attached`);
+    return null;
+  }
+  const waiting = opps.filter(
+    (o) => o.status === "open" && o.pipelineStageId === startedId && !encounterOn(o)
+  );
+  if (waiting.length !== 1) {
+    console.warn(
+      `MDI webhook case_created: ${waiting.length} card(s) waiting in ${STAGE.INTAKE_STARTED} for case ${caseId}, left to the browser`
+    );
+    return null;
+  }
+  const card = waiting[0];
+
+  /* The encounter first and on its own: it is what every later event matches
+     this card by, so without it nothing else here is worth doing. */
+  await updateOpportunityFields(card.id, { [FIELD.MDI_ENCOUNTER_ID]: caseId }, { name: card.name });
+
+  /* Separate and never fatal, as in ghl-encounter.js: the field may not exist
+     in the location yet, and a PUT naming an unknown key is rejected whole.
+     Before the move, because Intake Submitted is what the reminder workflow
+     triggers on. */
+  await updateOpportunityFields(card.id, { [OPP_FIELD.CHECKOUT_LINK]: CHECKOUT_LINK }, { name: card.name }).catch(
+    (e) => console.error(`GHL checkout_link write failed for opportunity ${card.id}:`, e.message, e.details ?? "")
+  );
+
+  const moved = await moveOpportunityForward(card.id, STAGE.INTAKE_SUBMITTED);
+  console.info(`MDI webhook case_created: case ${caseId} attached to card ${card.id}`);
+  return moved;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method Not Allowed" });
@@ -675,6 +741,10 @@ export default async function handler(req, res) {
           return moved;
         })()
       );
+    }
+
+    if (event === "case_created") {
+      writes.push(attachNewCase(contact.id, payload.case_id || payload.encounter_id || null));
     }
 
     const results = await Promise.allSettled(writes);

@@ -17,6 +17,21 @@ export const ghlConfigured = () => Boolean(TOKEN && LOCATION_ID);
  * preview. */
 export const SITE = "https://www.novamdk.com";
 
+/* Where an unpaid submission is sent to finish paying.
+ *
+ * The portal's front door, with nothing in the link but the instruction to pick
+ * up where they left off. They sign in with their own one-time code and the
+ * portal finds the unfinished intake from their own record, so the link grants
+ * nothing on its own: forwarded, leaked or sitting in a CRM export, it is a
+ * sign-in page. A link carrying a voucher token would have been a bearer
+ * credential to someone's chart, which is why John asked for it this way.
+ *
+ * It is the same string for every visit, since it names none of them. What
+ * makes it per-visit is the card it is written on, which is the field being
+ * SET that marks that card as an unpaid intake. Shared because both the
+ * browser's encounter call and MDI's case_created webhook write it. */
+export const CHECKOUT_LINK = `${SITE}/portal?resume=1`;
+
 export const FIELD = {
   TREATMENT: "treatment",
   SEX_AT_BIRTH: "sex_at_birth",
@@ -1246,6 +1261,14 @@ export async function moveOpportunityForward(opportunityId, stageName) {
     console.error(`GHL move to "${stageName}" failed for opportunity ${opportunityId}:`, e.message, e.details ?? "");
     return null;
   }
+}
+
+/* The id of the board column with this name, or null. Lets a caller tell which
+   column a card it already holds is sitting in without a call per card. */
+export async function stageIdNamed(stageName) {
+  if (!stageName) return null;
+  const { stages } = await resolvePipeline();
+  return stages.find((s) => s.name?.toLowerCase() === stageName.toLowerCase())?.id || null;
 }
 
 /* One opportunity per visit, hanging off the single patient contact — this is
