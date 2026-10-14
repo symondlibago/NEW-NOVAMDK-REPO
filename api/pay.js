@@ -8,6 +8,7 @@ import {
   markOpportunityFailed,
   updateContactFields,
   updateOpportunityFields,
+  clearOpportunityFields,
   contactById,
   fieldValueOf,
   SEARCH_FIELD_ID,
@@ -15,6 +16,7 @@ import {
   setOpportunityValue,
   INTAKE_STAGE,
   FIELD,
+  OPP_FIELD,
 } from "./_ghl.js";
 import {
   kurvEnabled,
@@ -214,6 +216,12 @@ async function markComplete(contactId, opportunityId, treatment) {
   const writes = await Promise.allSettled([
     contactId ? updateContactFields(contactId, fields) : null,
     opportunityId ? updateOpportunityFields(opportunityId, fields, { name: treatment }) : null,
+    /* The checkout link comes off THIS card the moment its money lands.
+       ghl-encounter put it there when the questionnaire was submitted unpaid,
+       and while it is set the card is an unpaid intake waiting to be chased.
+       Only this card: a patient paying for one treatment says nothing about
+       another they left unpaid, and that one has to stay chaseable. */
+    opportunityId ? clearOpportunityFields(opportunityId, [OPP_FIELD.CHECKOUT_LINK]) : null,
   ]);
   for (const w of writes) {
     if (w.status === "rejected") console.error("GHL intake_stage complete write failed:", w.reason?.message);

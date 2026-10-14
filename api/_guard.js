@@ -38,11 +38,26 @@ function rateLimited(req, max = MAX_PER_WINDOW) {
     (req.headers?.["x-forwarded-for"] || "").split(",")[0].trim() ||
     req.socket?.remoteAddress ||
     "unknown";
+
+  /* Counted per endpoint, not per visitor.
+   *
+   * One bucket per IP with a DIFFERENT ceiling per endpoint is a trap: the
+   * portal is allowed 240 a minute because an open portal legitimately makes
+   * dozens, and /api/pay is allowed 30, but they shared a counter. So a patient
+   * who used their portal and then went to pay arrived at the checkout with the
+   * count already past 30 and had the payment refused, which showed as "We
+   * couldn't load the secure card form" with nothing wrong with the card
+   * (2026-10-15, resuming an unpaid visit straight after loading the portal).
+   *
+   * Each endpoint now counts its own. The ceilings mean what they say and heavy
+   * use of one cannot spend another's budget. */
+  const route = String(req.url || "").split("?")[0] || "/";
+  const key = `${ip}|${route}`;
   const now = Date.now();
-  const entry = hits.get(ip);
+  const entry = hits.get(key);
 
   if (!entry || now - entry.start > WINDOW_MS) {
-    hits.set(ip, { start: now, count: 1 });
+    hits.set(key, { start: now, count: 1 });
     // Opportunistic sweep so the Map can't grow without bound on a warm instance.
     if (hits.size > 5000) {
       for (const [k, v] of hits) if (now - v.start > WINDOW_MS) hits.delete(k);
@@ -66,7 +81,11 @@ export function blocked(req, res, { max } = {}) {
   }
 
   if (rateLimited(req, max)) {
-    console.warn("Rate limited /api call");
+    // Named, because "rate limited" on its own never said which endpoint ran
+    // out of budget or what its ceiling was.
+    console.warn(
+      `Rate limited ${String(req.url || "").split("?")[0] || "/api"} (ceiling ${max ?? MAX_PER_WINDOW}/min)`
+    );
     res.status(429).json({ error: "Too many requests" });
     return true;
   }

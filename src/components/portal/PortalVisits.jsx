@@ -261,7 +261,7 @@ function VisitFilter({ visits, value, onChange }) {
   );
 }
 
-function VisitList({ visits, filter, onOpen, onMessageAbout }) {
+function VisitList({ visits, filter, onOpen, onMessageAbout, owed = {} }) {
   if (!visits.length) {
     return (
       <p className="mt-8 rounded-2xl border border-line bg-surface p-8 text-center text-[0.9rem] text-muted">
@@ -277,7 +277,7 @@ function VisitList({ visits, filter, onOpen, onMessageAbout }) {
             {v.kind === "draft" ? (
               <DraftRow draft={v} />
             ) : (
-              <CaseRow visit={v} onOpen={onOpen} onMessageAbout={onMessageAbout} />
+              <CaseRow visit={v} onOpen={onOpen} onMessageAbout={onMessageAbout} owedVoucher={owed[v.case_id]} />
             )}
           </li>
       ))}
@@ -289,7 +289,7 @@ function VisitList({ visits, filter, onOpen, onMessageAbout }) {
    we have seen. Beyond that the row would outgrow the list it sits in. */
 const NAMES_SHOWN = 3;
 
-function CaseRow({ visit: c, onOpen, onMessageAbout }) {
+function CaseRow({ visit: c, onOpen, onMessageAbout, owedVoucher }) {
   /* The treatment's own photo, so a row is recognisable at a glance rather than
      by reading it. Matched the same way the rest of the portal matches: the
      prescription name first, then the questionnaire. John's request,
@@ -328,8 +328,15 @@ function CaseRow({ visit: c, onOpen, onMessageAbout }) {
             <StatusPill status={c.status} />
           </span>
           <span className="mt-1 block truncate text-[0.85rem] text-muted">
-            {c.clinician ? `Dr. ${c.clinician}` : "Awaiting a provider"}
-            {!c.treatments.length && <> · No treatment prescribed</>}
+            {/* An unpaid visit is NOT awaiting a provider, and saying so was the
+                portal's worst lie: MDI holds the case out of the queue entirely
+                and no clinician will ever see it until someone pays. */}
+            {owedVoucher
+              ? "Not submitted for review yet"
+              : c.clinician
+                ? `Dr. ${c.clinician}`
+                : "Awaiting a provider"}
+            {!owedVoucher && !c.treatments.length && <> · No treatment prescribed</>}
           </span>
         {/* The names themselves rather than a count, which told the patient
             nothing they wanted to know. Chips instead of a joined sentence
@@ -358,6 +365,26 @@ function CaseRow({ visit: c, onOpen, onMessageAbout }) {
           className="shrink-0 text-muted transition-colors group-hover:text-primary"
         />
       </button>
+
+      {/* The way back into a checkout that was closed.
+          Same strip and same reason as the message button below: outside the
+          row's own button, because a button inside a button is invalid markup
+          and the browser drops it. Resumed by voucher, exactly as an unfinished
+          questionnaire is, and the server re-checks the case is still held
+          before it mints anything. */}
+      {owedVoucher && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line px-4 py-2.5 sm:px-5">
+          <ResumeIntakeButton
+            draftId={owedVoucher}
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-[0.84rem] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-70"
+          >
+            Finish paying
+          </ResumeIntakeButton>
+          <span className="text-[0.82rem] text-muted">
+            Your card is only charged once a provider approves.
+          </span>
+        </div>
+      )}
 
       {/* On the row, not only inside the visit. A question about a visit is the
           commonest reason to open one, so it should not need opening. Outside
@@ -460,6 +487,27 @@ export default function PortalVisits({ onUnauthorized, onMessageAbout, initialOp
       });
   }, [onUnauthorized]);
 
+  /* Which of these visits were never paid for, which only MDI's hold on the
+     case says. Asked for separately and never awaited by the list: it costs a
+     call per unassigned case, and a visit list that painted only once that had
+     come back would be the slowest screen in the portal. The rows arrive
+     looking ordinary and the unpaid ones are marked a moment later. */
+  const [owed, setOwed] = useState({});
+  useEffect(() => {
+    let alive = true;
+    portalData({ resource: "unpaid" })
+      .then(({ unpaid }) => {
+        if (!alive) return;
+        setOwed(Object.fromEntries((unpaid || []).map((u) => [u.case_id, u.voucher_id])));
+      })
+      /* Silent. A visit that cannot be confirmed unpaid simply reads as it did
+         before, which is a missing button and not a broken screen. */
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // The stepper and clinician cost three upstream calls, so they're fetched
   // when a visit is opened rather than for every row in the list.
   useEffect(() => {
@@ -502,7 +550,7 @@ export default function PortalVisits({ onUnauthorized, onMessageAbout, initialOp
         ) : (
           <>
             <VisitFilter visits={visits} value={filter} onChange={setFilter} />
-            <VisitList visits={visits.filter((v) => v.bucket === filter)} filter={filter} onOpen={onOpen} />
+            <VisitList visits={visits.filter((v) => v.bucket === filter)} filter={filter} onOpen={onOpen} owed={owed} />
           </>
         )}
       </section>
@@ -679,6 +727,7 @@ export default function PortalVisits({ onUnauthorized, onMessageAbout, initialOp
             filter={filter}
             onOpen={setOpenId}
             onMessageAbout={onMessageAbout}
+            owed={owed}
           />
         )}
       </div>

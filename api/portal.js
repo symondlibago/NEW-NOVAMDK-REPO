@@ -10,6 +10,7 @@ import {
   CHECKIN_TAG,
   cancelRenewal,
   stripeCustomerOf,
+  opportunityForEncounter,
   INTAKE_STAGE,
 } from './_ghl.js';
 import { PRICES } from './_prices.js';
@@ -45,6 +46,29 @@ const CHANNELS = new Set(['patient']);
    who just submitted an intake sees it. Only the reads below pass it; anything
    deciding an entitlement reads live. */
 const SHARE_MS = 8_000;
+
+/* The product a visit was for, read back off the name of its CRM card.
+ *
+ * Nothing else records it. MDI's case carries no offering (the voucher is
+ * deliberately created with none), and the questionnaire is shared by every
+ * rung of a ladder, so a resumed visit could only offer the patient a list of
+ * prices and ask them to pick one of their own visits again. The client's call,
+ * 2026-10-14: Finish paying belongs to its row and must open that row's
+ * checkout.
+ *
+ * The card's name is "Category - Product", built from this same catalogue by
+ * treatmentLabel at intake, so this rebuilds the label for every product and
+ * matches it. Exact, not fuzzy: an unrecognised name returns null and the
+ * patient is asked, which is where this started. */
+function productIdForCardName(name) {
+  const wanted = String(name || '').trim().toLowerCase();
+  if (!wanted) return null;
+  for (const [id, p] of Object.entries(PRICES)) {
+    const label = [p.categoryName, p.name].filter(Boolean).join(' - ').toLowerCase();
+    if (label && label === wanted) return id;
+  }
+  return null;
+}
 
 /* MDI's own list of accepted upload types; anything else is rejected upstream. */
 const UPLOAD_TYPE = (mime) => {
@@ -173,6 +197,41 @@ const shapeDraft = (v) => {
     treatments: [],
   };
 };
+
+/* A visit that was submitted and never paid for.
+ *
+ * MDI holds the case rather than queueing it: it is created with hold_status
+ * true and sits in Created, never assigned to a clinician, until the payment
+ * releases it. So MDI already knows which visits are unpaid and GoHighLevel
+ * does not have to be asked (Symond, 2026-10-14).
+ *
+ * The catch is that hold_status comes back ONLY from /cases/:id, never from
+ * /patients/:id/cases, so finding them costs one call per candidate. Only a
+ * case still waiting to be assigned can be held, which is what keeps that
+ * bounded: everything already with a clinician is paid for by definition.
+ * Checked against a real chart on 2026-10-14, where all three created and
+ * unassigned cases read hold true and every assigned one read false. */
+const HELDABLE = new Set(['created', 'pending', 'new']);
+
+/** The held case ids among the ones given. Never throws; unreadable is not held. */
+async function heldCaseIds(cases) {
+  const candidates = cases.filter(
+    (c) => HELDABLE.has(String(c.case_status?.name || '').toLowerCase()) && !c.case_assignment
+  );
+  if (!candidates.length) return new Set();
+
+  const details = await Promise.all(
+    candidates.map((c) =>
+      mdi(`/cases/${encodeURIComponent(c.case_id || c.id)}`, { share: SHARE_MS }).catch(() => null)
+    )
+  );
+  const held = new Set();
+  details.forEach((r, i) => {
+    const body = r?.data?.data || r?.data;
+    if (body?.case_status?.hold_status === true) held.add(candidates[i].case_id || candidates[i].id);
+  });
+  return held;
+}
 
 /* Only statuses worth telling a patient about. Anything unlisted produces no
    notification rather than leaking an internal workflow name. */
@@ -561,9 +620,56 @@ async function portal(req, res) {
       return res.status(200).json({ cases, visits });
     }
 
-    /* Resuming a half-finished intake has to come back through /intake rather
-       than MDI's onboarding_url: that page has no checkout, so a patient could
-       submit, never pay, and leave a held case nothing would ever release. The
+    /* The visits this patient finished and never paid for.
+     *
+     * Its own resource rather than part of `cases` because it costs a call per
+     * candidate and the visit list must not wait behind it: the list paints,
+     * then the unpaid ones are marked. Separate from `resume` too, which only
+     * ever knew about intakes abandoned part-way through the questionnaire.
+     * This is the other kind, submitted in full with the checkout closed, and
+     * the one the checkout_link on the CRM card points at. */
+    if (resource === 'unpaid') {
+      const [r, v] = await Promise.all([
+        mdi(`/patients/${id}/cases`, { share: SHARE_MS }),
+        mdi(`/patients/${id}/vouchers`, { share: SHARE_MS }),
+      ]);
+      if (!r.ok) {
+        console.error('Portal unpaid cases failed:', r.status);
+        return res.status(502).json({ error: 'Could not load your visits' });
+      }
+
+      const cases = listOf(r.data);
+      const held = await heldCaseIds(cases);
+      /* The voucher is what reopens the checkout: /intake takes it as `token`,
+         exactly as the product page does. Without one there is nothing to
+         resume, however held the case is, so those are left out. */
+      const voucherByCase = new Map(
+        listOf(v.data).filter((x) => x.case_id).map((x) => [x.case_id, x])
+      );
+
+      const unpaid = cases
+        .filter((c) => held.has(c.case_id || c.id))
+        .map((c) => {
+          const caseId = c.case_id || c.id;
+          const voucher = voucherByCase.get(caseId);
+          return voucher
+            ? {
+                case_id: caseId,
+                created_at: c.created_at,
+                voucher_id: voucher.id,
+                questionnaire_id: voucher.partner_questionnaire_id || null,
+              }
+            : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      return res.status(200).json({ unpaid });
+    }
+
+    /* Resuming an intake has to come back through /intake rather than MDI's
+       onboarding_url: that page has no checkout, so a patient could submit,
+       never pay, and leave a held case nothing would ever release. The
        release token is minted here, at click time, because tokens last 45
        minutes and a portal tab can sit open far longer than that. */
     if (resource === 'resume') {
@@ -578,14 +684,72 @@ async function portal(req, res) {
       // Found among this patient's own vouchers only, so a signed-in patient
       // can't mint a release token against someone else's intake.
       const voucher = listOf(v.data).find((x) => String(x.id) === voucherId);
-      const draft = voucher && !voucher.case_id ? shapeDraft(voucher) : null;
-      if (!draft?.resume_url) {
+      if (!voucher) {
         return res.status(410).json({ error: 'This intake can no longer be resumed' });
       }
+
+      /* Two different things are resumable, and they are told apart by whether
+         MDI made a case out of the voucher.
+       *
+       * No case: the questionnaire was abandoned part-way. MDI's own rules say
+       * whether it can still be picked up, and shapeDraft applies them.
+       *
+       * A case: the questionnaire was finished and the checkout closed, so the
+       * case is held and nothing will release it until someone pays. Allowed,
+       * but ONLY while it really is held. That check is the whole safety of
+       * this branch: a case that has been paid for and released must never be
+       * resumable, or the patient would be walked back into a checkout for a
+       * visit they already own and charged for it twice. */
+      let questionnaireId;
+      if (voucher.case_id) {
+        const held = await heldCaseIds([{ case_id: voucher.case_id, case_status: { name: 'created' } }]);
+        if (!held.has(voucher.case_id)) {
+          return res.status(410).json({ error: 'This intake can no longer be resumed' });
+        }
+        questionnaireId = voucher.partner_questionnaire_id || null;
+      } else {
+        const draft = shapeDraft(voucher);
+        if (!draft.resume_url) {
+          return res.status(410).json({ error: 'This intake can no longer be resumed' });
+        }
+        questionnaireId = draft.questionnaire_id;
+      }
+
+      /* The CRM card this visit already has.
+       *
+       * /api/pay moves a card to Paid and clears its checkout link by id, and
+       * on a normal intake the browser carries that id in session storage from
+       * the email step. A resume is a new tab with none of that, so paying
+       * released the MDI case and left the card sitting in Intake Submitted
+       * with its checkout link still on it (found 2026-10-14, first live
+       * resume). Looked up here by the encounter the card was stamped with at
+       * intake, which is the one link between the two systems that is written
+       * once and never overwritten.
+       *
+       * Best effort: a card that cannot be found costs the board a move, not
+       * the patient their treatment, and the log says which encounter to go
+       * looking for. */
+      const card = voucher.case_id ? await opportunityForEncounter(voucher.case_id) : null;
+      if (voucher.case_id && !card) {
+        console.warn(`Portal resume found no card for encounter ${voucher.case_id}`);
+      }
+
       return res.status(200).json({
         // The voucher id is the intake token, same as ProductPage uses.
         token: voucher.id,
-        questionnaire_id: draft.questionnaire_id,
+        questionnaire_id: questionnaireId,
+        /* Present only when the questionnaire was already finished. /intake
+           uses it to go straight to the checkout instead of reopening a
+           questionnaire MDI will only answer with "you already completed this",
+           and to release the case once the card clears, which it otherwise
+           learns from the iframe and the iframe is no longer going to say. */
+        case_id: voucher.case_id || null,
+        opportunity_id: card?.id || null,
+        contact_id: card?.contactId || null,
+        /* Which product this visit was for, so Finish paying opens that row's
+           checkout rather than asking the patient to choose between the rungs
+           of a ladder they already chose from. Null falls back to the chooser. */
+        product_id: card?.name ? productIdForCardName(card.name) : null,
         release_token: signReleaseToken(patientId),
       });
     }

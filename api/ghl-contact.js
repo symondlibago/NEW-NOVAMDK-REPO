@@ -9,6 +9,7 @@ import {
   sendSms,
   optedOutOfSms,
   INTAKE_STAGE,
+  SITE,
 } from "./_ghl.js";
 import { blocked } from "./_guard.js";
 import { checkHuman } from "./_turnstile.js";
@@ -149,7 +150,6 @@ async function contactForm(req, res) {
 const TEXT_LINK_TAG = "kiosk-text-link";
 // Marks a text that went out from here, for the smart lists. Nothing watches it.
 const TEXT_SENT_TAG = "kiosk-text-sent";
-const SITE = "https://www.novamdk.com";
 const KIOSK_ID_RE = /^[a-z0-9-]{1,40}$/;
 
 /* NOT YET REVIEWED BY COUNSEL, like the consent line on the kiosk screen it

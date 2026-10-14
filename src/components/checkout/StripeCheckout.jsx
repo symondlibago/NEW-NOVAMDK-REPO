@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Check, HelpCircle, Info, Loader2, Lock } from "lucide-react";
+import { Link } from "react-router-dom";
 import { declineMessage, HOLD_NOTICE, PAYMENT_DUE, renewalConsent } from "./declineMessage";
 import PlanTerms from "./PlanTerms";
 
@@ -462,7 +463,9 @@ export default function StripeCheckout({
   if (status === "dead") {
     return (
       <div className={STATE}>
-        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start md:h-11" />
+        <Link to="/" aria-label="NovaMDK home" className="self-start">
+          <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto md:h-11" />
+        </Link>
         <div className={`m-auto mt-8 w-full text-center ${CARD}`}>
           <p className="text-base font-semibold text-co-error">
             We couldn&rsquo;t load the secure card form.
@@ -479,7 +482,9 @@ export default function StripeCheckout({
   if (status === "done") {
     return (
       <div className={STATE}>
-        <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto self-start md:h-11" />
+        <Link to="/" aria-label="NovaMDK home" className="self-start">
+          <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto md:h-11" />
+        </Link>
         {/* Not "Payment received": the card is held here and only charged once
             a provider approves, so that heading contradicted the line the
             patient agreed to on the screen before.
@@ -550,7 +555,14 @@ export default function StripeCheckout({
           where the plan side takes the wider share. */}
       <div className="mx-auto w-full max-w-6xl">
         <div className="flex items-center justify-between gap-4">
-          <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto md:h-11" />
+          {/* The logo is a way out. On the failure state it is the ONLY one:
+              that panel has no Exit and no button, so a patient whose card form
+              would not load was left on a dead page (client, 2026-10-15). It
+              links from all three states rather than only that one, so the mark
+              behaves the same wherever the checkout has got to. */}
+          <Link to="/" aria-label="NovaMDK home">
+            <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto md:h-11" />
+          </Link>
           <span className="flex items-center gap-1.5 text-sm text-co-muted">
             <Lock size={14} />
             Secure checkout
