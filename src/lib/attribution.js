@@ -21,6 +21,8 @@
  * what was bought stays in MD Integrations.
  */
 
+import { isPrivatePath } from "./analytics";
+
 const KEY = "nv_attribution";
 
 /* The five UTM parameters, plus the click ids the ad platforms add themselves.
@@ -60,6 +62,24 @@ function read() {
  */
 export function captureAttribution() {
   if (!isBrowser) return null;
+
+  /* Never on the intake, the portal or the dashboard.
+   *
+   * Anyone on those pages is already a patient, so nothing that lands them
+   * there is acquisition. GoHighLevel's lifecycle emails now carry their own
+   * utm tags (the link tracking switched on 2026-10-14), and their buttons
+   * point at /portal: without this, a patient who signed up before tagging
+   * existed clicks "Go to my patient portal" and gets banked as first touched
+   * by `email`, which then becomes the campaign credited with winning them.
+   * Lifecycle email would appear to acquire patients it had merely followed up
+   * with, and the channel report would quietly credit the wrong thing.
+   *
+   * Spotted on 2026-10-15 from a real onboarding email landing on
+   * /portal?utm_source=email&utm_medium=email%20marketing.
+   *
+   * The same gate GA4 and the pixel use, rather than a second list to keep in
+   * step with it. A resume link into /intake is lifecycle for the same reason. */
+  if (isPrivatePath(window.location.pathname)) return read();
 
   const already = read();
   if (already) return already;

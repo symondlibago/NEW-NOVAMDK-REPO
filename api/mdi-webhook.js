@@ -25,6 +25,7 @@ import {
 } from "./_ghl.js";
 import { mdi } from "./_mdi.js";
 import { PRICES } from "./_prices.js";
+import { isFollowOnRung } from "./_fills.js";
 import { stripe, stripeEnabled, findHold, holdExpiresAt } from "./_stripe.js";
 
 const FAILED_TAG = "payment-failed";
@@ -611,10 +612,27 @@ async function attachNewCase(contactId, caseId) {
   /* Separate and never fatal, as in ghl-encounter.js: the field may not exist
      in the location yet, and a PUT naming an unknown key is rejected whole.
      Before the move, because Intake Submitted is what the reminder workflow
-     triggers on. */
-  await updateOpportunityFields(card.id, { [OPP_FIELD.CHECKOUT_LINK]: CHECKOUT_LINK }, { name: card.name }).catch(
-    (e) => console.error(`GHL checkout_link write failed for opportunity ${card.id}:`, e.message, e.details ?? "")
-  );
+     triggers on.
+
+     NOT on a later month of a plan. A follow-on rung is only reachable as a
+     month the patient has already bought, so it is never an unpaid first
+     purchase and must never be told to go and pay. This write used to be
+     unconditional, and because it lands seconds after the case is created it
+     could overwrite a clear the browser had already made: a patient who
+     prepaid three months was handed a "finish paying" link for month two, and
+     checkout_link is what the unpaid-intake reminder triggers on, so they
+     would have been chased for money they had already given us.
+     (Symond spotted it on 2026-10-15 on a Tirzepatide + Glycine + B12 Refill.) */
+  const rung = productIdOfCard(card);
+  if (rung && isFollowOnRung(rung)) {
+    console.info(
+      `MDI webhook case_created: card ${card.id} is a later month of a plan, no checkout link written`
+    );
+  } else {
+    await updateOpportunityFields(card.id, { [OPP_FIELD.CHECKOUT_LINK]: CHECKOUT_LINK }, { name: card.name }).catch(
+      (e) => console.error(`GHL checkout_link write failed for opportunity ${card.id}:`, e.message, e.details ?? "")
+    );
+  }
 
   const moved = await moveOpportunityForward(card.id, STAGE.INTAKE_SUBMITTED);
   console.info(`MDI webhook case_created: case ${caseId} attached to card ${card.id}`);

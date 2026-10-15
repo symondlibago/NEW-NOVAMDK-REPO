@@ -192,6 +192,13 @@ export const productsData = [
     categorySlug: "weight-loss",
     categoryName: "Weight Loss",
     name: "Semaglutide/Cyanocobalamin (B12) — Starter",
+    /* Retired in favour of the Glycine + B12 pair (John, 2026-10-15: "keep
+       glycine + b12 pair, and keep submagna"). The MediVera line it belongs to
+       has been superseded by products 45 to 48, and this was the last of the
+       old semaglutide ones still on the shop. Hidden rather than deleted, same
+       as its Maintenance sibling above: the id still has to resolve for the
+       patients already on it and for anything holding it in GoHighLevel. */
+    hidden: true,
     /* The tag on the card art, same field the For women / For men tags use:
        it is the card's label, whatever the label happens to say. These two are
        the only products sold as a 1, 2 or 3 month plan. */
@@ -364,6 +371,10 @@ export const productsData = [
     categorySlug: "weight-loss",
     categoryName: "Weight Loss",
     name: "Tirzepatide/Niacinamide — Starter",
+    /* Retired alongside product 1, for the same reason and on the same
+       instruction: the Glycine + B12 pair (47 and 48) replaces it. This was the
+       last tirzepatide product from the old MediVera line still on the shop. */
+    hidden: true,
     // Card tag, as on product 1.
     audience: "Subscription",
     size: "2.5 mL vial (20 mg)",
@@ -1300,7 +1311,7 @@ export const productsData = [
     /* Monthly, 1 or 3 months at checkout (client's pricing table, 2026-10-10),
        in place of the 14 and 90 day fills. The tag is what offers 3 months. */
     audience: "Subscription",
-    price: "$69.17",
+    price: "$69",
     shipping: "Shipped discreetly by a licensed pharmacy.",
     dosageForm: "Oral Tablet",
     icon: <Shield size={16} />,
@@ -1332,7 +1343,7 @@ export const productsData = [
     qrImg: "/qr/Low-Dose Naltrexone (LDN).png",
     subtitle: "A low-dose oral prescription that briefly blocks opioid receptors. Low-dose use is off-label, and a licensed provider decides if it is appropriate for you.",
     audience: "Subscription",
-    price: "$69.17",
+    price: "$69",
     shipping: "Shipped discreetly by a licensed pharmacy.",
     dosageForm: "Oral Tablet",
     icon: <Shield size={16} />,
@@ -1364,7 +1375,7 @@ export const productsData = [
     qrImg: "/qr/Low-Dose Naltrexone (LDN).png",
     subtitle: "A low-dose oral prescription that briefly blocks opioid receptors. Low-dose use is off-label, and a licensed provider decides if it is appropriate for you.",
     audience: "Subscription",
-    price: "$69.17",
+    price: "$69",
     shipping: "Shipped discreetly by a licensed pharmacy.",
     dosageForm: "Oral Tablet",
     icon: <Shield size={16} />,

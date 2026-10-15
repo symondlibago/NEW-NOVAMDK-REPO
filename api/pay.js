@@ -707,6 +707,29 @@ async function prepaidFill(req, res) {
 
   await Promise.allSettled([
     syncTag(contactId, { failed: false }),
+    /* Unconditional, unlike the stage move below.
+     *
+     * A month of a plan is settled the moment the entitlement above is
+     * accepted, so this card is not waiting on money and must not carry a
+     * "finish paying" link, whatever else is or isn't true yet. It used to be
+     * cleared only inside markComplete, which runs only once the questionnaire
+     * has been submitted; the prepaid confirmation opens several screens
+     * earlier, so a patient who confirmed before submitting kept the link
+     * forever and nothing came back for it. checkout_link is what the
+     * unpaid-intake reminder triggers on, so that chased people who owed
+     * nothing (2026-10-15).
+     *
+     * Never fatal and never ordered against the writes below: clearing a field
+     * that is already empty is a no-op, and a failure here must not cost the
+     * month its claim. */
+    orderId
+      ? clearOpportunityFields(orderId, [OPP_FIELD.CHECKOUT_LINK]).catch((e) =>
+          console.error(`GHL checkout_link clear failed for opportunity ${orderId}:`, e.message, e.details ?? "")
+        )
+      : null,
+    /* The stage move stays gated: Paid and intake_stage "complete" describe a
+       questionnaire that has actually been submitted, and this can run before
+       that. When it does, the encounter write completes the card instead. */
     markPaid(orderId, `plan:${fill.current}/${fill.months}`, { won: false }).then(() =>
       req.body?.submitted === true
         ? markComplete(contactId, orderId, clean(req.body?.treatment, 120))
