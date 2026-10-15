@@ -537,6 +537,40 @@ async function findContact(payload) {
  * it can't be picked up here. More than one candidate means two unfinished
  * intakes, and this event doesn't say which one MDI just created, so it is
  * logged and left to the browser rather than guessed. */
+
+/* How recently a card must have been created to be a candidate at all.
+ *
+ * Elimination alone was too strict to fire in practice. The card is created
+ * when the patient submits their email and the case when they finish the
+ * questionnaire, so in the ordinary flow they are minutes apart, but a card
+ * abandoned part way through weeks ago sits in Intake Started forever and
+ * nothing cleans it up. One of those was enough to make every later intake by
+ * that patient look ambiguous, so the repair was disabled for exactly the
+ * people it exists for: the ones who have abandoned a checkout before. Seen in
+ * production on 2026-10-15, "2 card(s) waiting in Intake Started ... left to
+ * the browser", against cards from two weeks earlier.
+ *
+ * Deliberately tight rather than generous, and the asymmetry is the reason:
+ * a skip leaves things exactly as they are today and the browser or a later
+ * event can still put it right, while stamping the WRONG card writes a case id
+ * that every subsequent payment, approval and plan-month write then follows
+ * onto the wrong treatment. Narrowing can only promote an obvious single
+ * candidate; widening starts letting old cards back in to compete. A patient
+ * who starts a questionnaire and finishes it days later falls outside the
+ * window and is left to the browser, which is the status quo, not a regression.
+ *
+ * Measured against now rather than the case's own timestamp, which the payload
+ * doesn't carry: this event arrives seconds after creation. A delivery MDI
+ * retries hours later therefore falls outside and skips, which is the safe way
+ * round.
+ *
+ * A day rather than a few hours (Symond, 2026-10-15). Patients are interrupted
+ * part way through a questionnaire and come back to finish it, and the gap this
+ * spans is email-submitted to questionnaire-finished, so a tighter window would
+ * refuse to repair anyone who did not do both in one sitting. It does not cover
+ * payment: by then the case exists and the checkout link is written, and that
+ * can be resumed from the portal with no time limit. */
+const CASE_CARD_WINDOW_MS = 24 * 60 * 60_000;
 async function attachNewCase(contactId, caseId) {
   if (!contactId || !caseId) return null;
   const encounterOn = (o) => fieldValueOf(o, SEARCH_FIELD_ID.OPPORTUNITY_ENCOUNTER_ID);
@@ -552,13 +586,23 @@ async function attachNewCase(contactId, caseId) {
   const waiting = opps.filter(
     (o) => o.status === "open" && o.pipelineStageId === startedId && !encounterOn(o)
   );
-  if (waiting.length !== 1) {
+
+  /* Narrowed by age BEFORE the count, so that a stale card cannot make a
+     clear-cut attach look ambiguous. An unparseable or missing createdAt drops
+     the card from the running rather than admitting it: this list only has to
+     end up with the one card that is obviously this case's. */
+  const recent = waiting.filter((o) => {
+    const at = Date.parse(o.createdAt);
+    return Number.isFinite(at) && Date.now() - at < CASE_CARD_WINDOW_MS;
+  });
+
+  if (recent.length !== 1) {
     console.warn(
-      `MDI webhook case_created: ${waiting.length} card(s) waiting in ${STAGE.INTAKE_STARTED} for case ${caseId}, left to the browser`
+      `MDI webhook case_created: ${recent.length} of ${waiting.length} card(s) waiting in ${STAGE.INTAKE_STARTED} are recent enough for case ${caseId}, left to the browser`
     );
     return null;
   }
-  const card = waiting[0];
+  const card = recent[0];
 
   /* The encounter first and on its own: it is what every later event matches
      this card by, so without it nothing else here is worth doing. */
