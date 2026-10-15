@@ -17,6 +17,21 @@ export const ghlConfigured = () => Boolean(TOKEN && LOCATION_ID);
  * preview. */
 export const SITE = "https://www.novamdk.com";
 
+/* Where an unpaid submission is sent to finish paying.
+ *
+ * The portal's front door, with nothing in the link but the instruction to pick
+ * up where they left off. They sign in with their own one-time code and the
+ * portal finds the unfinished intake from their own record, so the link grants
+ * nothing on its own: forwarded, leaked or sitting in a CRM export, it is a
+ * sign-in page. A link carrying a voucher token would have been a bearer
+ * credential to someone's chart, which is why John asked for it this way.
+ *
+ * It is the same string for every visit, since it names none of them. What
+ * makes it per-visit is the card it is written on, which is the field being
+ * SET that marks that card as an unpaid intake. Shared because both the
+ * browser's encounter call and MDI's case_created webhook write it. */
+export const CHECKOUT_LINK = `${SITE}/portal?resume=1`;
+
 export const FIELD = {
   TREATMENT: "treatment",
   SEX_AT_BIRTH: "sex_at_birth",
@@ -31,6 +46,10 @@ export const FIELD = {
   EMAIL_MARKETING_CONSENT_DATE: "email_marketing_consent_date",
   EMAIL_MARKETING_CONSENT_SOURCE: "email_marketing_consent_source",
   EMAIL_MARKETING_CONSENT_VERSION: "email_marketing_consent_version",
+  /* A checkbox in GHL with the single option "Yes". Only ever ticked from
+     here, never cleared: a decline is recorded in the contact note instead, so a
+     write GHL might refuse can't cost the rest of the contact. */
+  SMS_MARKETING_CONSENT: "sms_marketing_consent",
   // MDI's permanent id for the person. One per patient, never changes, so the
   // Contact is the only place it belongs.
   /* The Stripe customer holding this patient's saved card, which is what lets
@@ -474,8 +493,27 @@ export async function upsertContact({ patient = {}, treatment, tags = [], source
     }
   }
 
+  /* SMS opt-in, its own write and never fatal. The field is a checkbox, and a
+     checkbox value GHL doesn't accept would reject the whole upsert if it rode
+     along with the fields above. The tag lands either way, so the opt-in can
+     still be found if the field write fails. Only a yes is written: the box
+     starts empty, and the note keeps the decline. */
+  if (contact?.id && marketing?.sms === true) {
+    try {
+      await tagContact(contact.id, [SMS_OPT_IN_TAG]);
+      await ghlFetch(`/contacts/${contact.id}`, {
+        method: "PUT",
+        body: { customFields: [{ key: FIELD.SMS_MARKETING_CONSENT, field_value: ["Yes"] }] },
+      });
+    } catch (e) {
+      console.error("GHL SMS consent write failed:", e.message, e.details ?? "");
+    }
+  }
+
   return contact;
 }
+
+export const SMS_OPT_IN_TAG = "sms-opt-in";
 
 const PIPELINE_NAME = process.env.GHL_PIPELINE_NAME || null;
 const STAGE_NAME = process.env.GHL_STAGE_NAME || null;
@@ -1386,6 +1424,14 @@ export async function moveOpportunityForward(opportunityId, stageName) {
     console.error(`GHL move to "${stageName}" failed for opportunity ${opportunityId}:`, e.message, e.details ?? "");
     return null;
   }
+}
+
+/* The id of the board column with this name, or null. Lets a caller tell which
+   column a card it already holds is sitting in without a call per card. */
+export async function stageIdNamed(stageName) {
+  if (!stageName) return null;
+  const { stages } = await resolvePipeline();
+  return stages.find((s) => s.name?.toLowerCase() === stageName.toLowerCase())?.id || null;
 }
 
 /* One opportunity per visit, hanging off the single patient contact — this is

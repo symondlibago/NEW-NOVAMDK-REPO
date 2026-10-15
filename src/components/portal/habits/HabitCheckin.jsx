@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion as Motion } from "framer-motion";
-import { ArrowRight, Check, ChevronLeft, Droplet, Egg, Flame, Footprints, Moon, Scale, Smile, Target, X } from "lucide-react";
-import { QUESTIONS, goalById, suggestGoals } from "../../../lib/habits";
+import { AlertCircle, ArrowRight, Check, ChevronLeft, Droplet, Egg, Flame, Footprints, HeartPulse, MessageSquare, Moon, Scale, Smile, Target, X } from "lucide-react";
+import { FEELING_TIPS, QUESTIONS, SYMPTOMS, TIPS_APPROVED, goalById, suggestGoals } from "../../../lib/habits";
 
-const ICON = { water: Droplet, sleep: Moon, active: Footprints, protein: Egg, energy: Smile, goal: Target, weight: Scale };
+const ICON = { water: Droplet, sleep: Moon, active: Footprints, protein: Egg, energy: Smile, symptoms: HeartPulse, goal: Target, weight: Scale };
 const FACES = ["😣", "😕", "😐", "🙂", "😄"];
 
 const option =
@@ -13,10 +13,11 @@ const optionOn = "border-primary bg-primary text-on-primary";
 
 /* One question per screen, big tap targets, about a minute end to end. A tap
    on an answer moves on by itself; Back is there for a slip. */
-export default function HabitCheckin({ habits, open, onClose, onSeeProgress }) {
+export default function HabitCheckin({ habits, open, onClose, onSeeProgress, onMessage }) {
   const lastGoal = habits.goal;
   const steps = [
     ...QUESTIONS.map((q) => q.key),
+    "symptoms",
     ...(lastGoal ? ["goal"] : []),
     "weight",
     "done",
@@ -117,6 +118,7 @@ export default function HabitCheckin({ habits, open, onClose, onSeeProgress }) {
                   {q && (
                     <>
                       <h2 className="mt-1 text-2xl leading-snug tracking-tight text-ink">{q.title}</h2>
+                      {q.hint && <p className="mt-2 text-base text-muted">{q.hint}</p>}
                       {q.count ? (
                         <div className="mt-6 grid grid-cols-4 gap-2.5">
                           {Array.from({ length: q.count + 1 }, (_, n) => (
@@ -155,6 +157,14 @@ export default function HabitCheckin({ habits, open, onClose, onSeeProgress }) {
                         </div>
                       )}
                     </>
+                  )}
+
+                  {step === "symptoms" && (
+                    <Symptoms
+                      value={entry.symptoms}
+                      onChange={(symptoms) => setEntry((e) => ({ ...e, symptoms }))}
+                      onNext={() => setI((n) => n + 1)}
+                    />
                   )}
 
                   {step === "goal" && (
@@ -205,7 +215,7 @@ export default function HabitCheckin({ habits, open, onClose, onSeeProgress }) {
                   )}
 
                   {step === "done" && (
-                    <Done habits={habits} entry={entry} lastGoal={lastGoal} nextGoal={nextGoal} onGoal={setNextGoal} onClose={close} onSeeProgress={onSeeProgress} />
+                    <Done habits={habits} entry={entry} lastGoal={lastGoal} nextGoal={nextGoal} onGoal={setNextGoal} onClose={close} onSeeProgress={onSeeProgress} onMessage={onMessage} />
                   )}
                 </Motion.div>
               </AnimatePresence>
@@ -217,7 +227,74 @@ export default function HabitCheckin({ habits, open, onClose, onSeeProgress }) {
   );
 }
 
-function Done({ habits, entry, lastGoal, nextGoal, onGoal, onClose, onSeeProgress }) {
+/* Anything bothering them this week. Several can be picked; "Nothing" stands
+   alone and moves on by itself, like the single-answer questions. */
+function Symptoms({ value = [], onChange, onNext }) {
+  const toggle = (id) => {
+    if (id === "none") {
+      onChange([]);
+      setTimeout(onNext, 180);
+      return;
+    }
+    onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  };
+  return (
+    <>
+      <h2 className="mt-1 text-2xl leading-snug tracking-tight text-ink">Anything bothering you this week?</h2>
+      <p className="mt-2 text-base text-muted">Pick any that apply.</p>
+      <div className="mt-6 space-y-2.5">
+        {SYMPTOMS.map((s) => {
+          const on = s.id === "none" ? false : value.includes(s.id);
+          return (
+            <button key={s.id} type="button" aria-pressed={on} onClick={() => toggle(s.id)} className={`${option} ${on ? optionOn : optionOff}`}>
+              {s.label}
+              {on && <Check size={18} />}
+            </button>
+          );
+        })}
+      </div>
+      {value.length > 0 && (
+        <button type="button" onClick={onNext} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-semibold text-on-primary transition-colors hover:bg-primary-deep">
+          Continue <ArrowRight size={16} />
+        </button>
+      )}
+    </>
+  );
+}
+
+/* After a check-in that named a symptom: the care team, one tap away. The
+   tips stay off until a provider has approved their wording. */
+function CareTeamNote({ symptoms, onMessage }) {
+  const named = SYMPTOMS.filter((s) => symptoms.includes(s.id));
+  const list = named.map((s) => s.label.toLowerCase());
+  const said = list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}` : list[0];
+  return (
+    <div className="mt-7 rounded-2xl border border-line bg-surface p-5 text-left">
+      <p className="text-base font-semibold text-ink">You mentioned {said}.</p>
+      <p className="mt-1 text-base text-muted">Send your care team a note so they know.</p>
+      {TIPS_APPROVED && (
+        <ul className="mt-3 space-y-2">
+          {named.map((s) => (
+            <li key={s.id} className="flex gap-2.5 text-base leading-snug text-muted">
+              <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
+              {FEELING_TIPS[s.id]}
+            </li>
+          ))}
+        </ul>
+      )}
+      {onMessage && (
+        <button type="button" onClick={onMessage} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-on-primary transition-colors hover:bg-primary-deep">
+          <MessageSquare size={16} /> Message my care team
+        </button>
+      )}
+      <p className="mt-3 flex gap-2 text-sm text-muted">
+        <AlertCircle size={14} className="mt-0.5 shrink-0 text-primary" /> In an emergency, call 911.
+      </p>
+    </div>
+  );
+}
+
+function Done({ habits, entry, lastGoal, nextGoal, onGoal, onClose, onSeeProgress, onMessage }) {
   const ideas = suggestGoals(entry, null);
   const chosen = nextGoal || lastGoal?.id || null;
   return (
@@ -234,6 +311,19 @@ function Done({ habits, entry, lastGoal, nextGoal, onGoal, onClose, onSeeProgres
         {habits.streak > 1 ? `${habits.streak} weeks in a row` : "First week done"}
       </h2>
       <p className="mt-2 text-base text-muted">Nice work. Small steps add up.</p>
+
+      {entry.symptoms?.length > 0 && (
+        <CareTeamNote
+          symptoms={entry.symptoms}
+          onMessage={
+            onMessage &&
+            (() => {
+              onClose();
+              onMessage();
+            })
+          }
+        />
+      )}
 
       <div className="mt-7 text-left">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted">Pick a focus for next week</p>

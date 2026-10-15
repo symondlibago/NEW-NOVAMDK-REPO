@@ -58,8 +58,10 @@ function RouteAnalytics() {
 
     if (applyRouteConsent(pathname)) trackPageView(pathname);
     /* The Meta pixel keeps its own counsel about which routes it may run on,
-       rather than riding on GA4's answer: it is held off the same private
-       routes, and off the drug pages too when that flag is set. */
+       rather than riding on GA4's answer. It is held off the same private
+       routes, and beyond that runs only on the handful of pages named in its
+       own allowlist: home, contact and the blog. Everything else, the treatment
+       categories and the product pages included, is off by default. */
     trackPixelPageView(pathname);
     /* Tag Manager, same again. Loaded on demand rather than pasted into
        index.html, so a tag John adds in GTM's UI cannot start running on a

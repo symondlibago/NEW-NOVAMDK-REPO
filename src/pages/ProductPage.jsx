@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { AnimatePresence, motion as Motion, useReducedMotion } from "framer-motion";
 import { useParams, useNavigate, useSearchParams, Navigate, Link } from "react-router-dom";
 import { track, EVENTS } from "../lib/analytics";
 import {
@@ -324,6 +325,9 @@ export default function ProductPage() {
                every choice a patient has made survives here. */
             (typeof patient?.marketing?.consent === "boolean"
               ? ` ${patient.marketing.consent ? "Opted in to" : "Declined"} marketing email (${patient.marketing.version}).`
+              : "") +
+            (typeof patient?.marketing?.sms === "boolean"
+              ? ` ${patient.marketing.sms ? "Opted in to" : "Declined"} marketing texts (${patient.marketing.sms_version}).`
               : ""),
         }).then((r) => {
           /* Say so when the CRM write did not land. It stays unawaited, so a
@@ -967,6 +971,23 @@ function PatientInfoModal({
      when no Turnstile site key is configured, so a local run without one does
      not stall on a widget that can never load. */
   const [step, setStep] = useState(turnstileOn ? -1 : 0);
+  /* Steps 1 and 2 each ask two things, one per screen (client, 2026-10-14,
+     after Good Life Meds): name then mobile, birthday then sex. `part` says
+     which half is showing. The steps themselves, and what each sends, are
+     unchanged. */
+  const [part, setPart] = useState(0);
+  const go = (s, p = 0) => {
+    setStep(s);
+    setPart(p);
+  };
+  /* Continue always answers. Pressed too early, it says what's missing on that
+     screen instead of sitting greyed out with no reason given (client,
+     2026-10-14: stuck on the email screen, the unticked agreement box was easy
+     to miss). Tied to the screen it was pressed on, so it clears on moving. */
+  const [nudgeAt, setNudgeAt] = useState(null);
+  /* Tapping Female or Male moves on by itself, like a one-tap question. */
+  const autoNext = useRef(null);
+  useEffect(() => () => clearTimeout(autoNext.current), []);
 
   /* The pass is held on screen before the form replaces it, so the check reads
      as something that finished rather than a flicker. */
@@ -999,6 +1020,13 @@ function PatientInfoModal({
   const MARKETING_CONSENT_COPY =
     "Send me occasional educational content, product updates, and promotional offers from NovaMDK. I can unsubscribe at any time.";
 
+  /* Texts need their own opt-in: TCPA wants the number, the kind of messages,
+     that it isn't a condition of purchase, and how to stop, all in the wording
+     the patient ticked. Same versioning rule as above. */
+  const SMS_CONSENT_VERSION = "v1";
+  const SMS_CONSENT_COPY =
+    "Text me reminders about my visit, updates and offers from NovaMDK at this number. Consent is not a condition of purchase. Msg frequency varies. Msg & data rates may apply. Reply STOP to opt out, HELP for help.";
+
   /* Same rule as the marketing copy: this wording is the disclosure itself,
      there is no document behind it to point at, so the version is the only
      record of what a given patient was shown. Bump it if the sentence changes. */
@@ -1008,7 +1036,7 @@ function PatientInfoModal({
 
   /* Two required boxes, the documents and the consultation fee, plus an optional
      marketing opt-in that must never stand between a patient and care. */
-  const [consent, setConsent] = useState({ required: false, fee: false, marketing: false });
+  const [consent, setConsent] = useState({ required: false, fee: false, marketing: false, sms: false });
   const [consentAt, setConsentAt] = useState("");
   const toggleConsent = (k) => () => setConsent((c) => ({ ...c, [k]: !c[k] }));
   /* The email step now gates on the documents alone: the fee box moved to
@@ -1049,29 +1077,29 @@ function PatientInfoModal({
      preference, not clinical consent, and it never travels to MDI. An unticked
      box is recorded as an explicit "no" rather than left blank, so a decline is
      distinguishable from never having been asked. */
-  const marketingRecord = (at) => ({
+  const marketingRecord = (at, { withSms = false } = {}) => ({
     consent: consent.marketing,
     at: at || consentAt,
     source: "website_intake",
     version: MARKETING_CONSENT_VERSION,
+    /* Only once the box has actually been shown. It sits under the mobile
+       number, so the email step can't have asked, and sending a false from
+       there would read as a decline nobody made. */
+    ...(withSms && { sms: consent.sms, sms_version: SMS_CONSENT_VERSION }),
   });
 
   const emailValid = /^\S+@\S+\.\S+$/.test(form.email.trim());
-  /* consent.fee is part of this step now that its box sits under the mobile
-     number, so Continue stays disabled until it is ticked. */
-  const step1Valid =
-    form.first_name.trim().length > 0 &&
-    form.last_name.trim().length > 0 &&
-    form.phone_number.replace(/\D/g, "").length >= 10 &&
-    consent.fee;
+  /* The fee box sits under the name (client, 2026-10-14), so the name screen
+     needs it ticked before moving on, and step 1 as a whole still does. */
+  const namesValid = form.first_name.trim().length > 0 && form.last_name.trim().length > 0;
+  const nameScreenValid = namesValid && consent.fee;
+  const step1Valid = nameScreenValid && form.phone_number.replace(/\D/g, "").length >= 10;
 
   /* The Terms already require 18, so catching it here saves a minor from filling
      in an address and being turned away by the questionnaire afterwards. */
   const tooYoung = form.dob && !isAdult(form.dob);
-  const step2Valid =
-    form.dob &&
-    !tooYoung &&
-    (form.gender === "1" || form.gender === "2");
+  const dobValid = Boolean(form.dob) && !tooYoung;
+  const step2Valid = dobValid && (form.gender === "1" || form.gender === "2");
 
   /* This treatment, in the state they just gave. Distinct from isBlockedState:
      we serve the state, the pharmacy just can't dispense this one there. */
@@ -1095,7 +1123,10 @@ function PatientInfoModal({
        slip past it. */
     if (step === -1) return;
     if (step === 0) {
-      if (!emailValid || !consentValid || !humanValid) return;
+      if (!emailValid || !consentValid || !humanValid) {
+        setNudgeAt("0.0");
+        return;
+      }
       const at = new Date().toISOString();
       setConsentAt(at);
       const res = await onSubmit(
@@ -1107,7 +1138,7 @@ function PatientInfoModal({
         { turnstileToken: humanToken }
       );
       if (res?.needProfile) {
-        setStep(1);
+        go(1);
         return;
       }
       /* A returning patient the pharmacy can't serve where they live. They
@@ -1124,14 +1155,18 @@ function PatientInfoModal({
       return;
     }
     if (step === 1) {
-      if (step1Valid) setStep(2);
+      if (part === 0 ? !nameScreenValid : !step1Valid) return setNudgeAt(`1.${part}`);
+      if (part === 0) setPart(1);
+      else go(2);
       return;
     }
     if (step === 2) {
-      if (step2Valid) setStep(3);
+      if (part === 0 ? !dobValid : !step2Valid) return setNudgeAt(`2.${part}`);
+      if (part === 0) setPart(1);
+      else go(3);
       return;
     }
-    if (!step3Valid) return;
+    if (!step3Valid) return setNudgeAt("3.0");
     const res = await onSubmit({
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
@@ -1146,30 +1181,89 @@ function PatientInfoModal({
         state_name: form.state,
       },
       consent: consentRecord(), // agreed at step 0; stored on the patient file
-      marketing: marketingRecord(), // agreed at step 0; CRM only, never MDI
+      marketing: marketingRecord(undefined, { withSms: true }), // CRM only, never MDI
     });
     /* step3Valid already blocks this, so reaching here means the client check
        was bypassed. The server is the one that counts, so honour its answer. */
     if (res?.blockedState) setServerBlock({ state: res.blockedState, served: res.served });
   };
 
-  /* 16px text: anything smaller and an iPhone zooms the page on every tap
-     into a field. Labels sit above every field rather than living in the
+  /* 16px text or more: anything smaller and an iPhone zooms the page on every
+     tap into a field. Labels sit above every field rather than living in the
      placeholder, which disappears the moment someone starts typing. */
   const inputCls =
-    "w-full rounded-xl border border-line bg-bg px-4 py-3.5 text-base text-ink placeholder:text-muted/60 focus:border-primary focus:outline-none";
-  const labelCls = "flex flex-col gap-1.5 text-left text-sm font-medium text-ink";
-  const TITLES = {
+    "w-full rounded-2xl border border-line bg-surface px-5 py-4 text-lg text-ink placeholder:text-muted/50 transition-colors focus:border-primary focus:outline-none";
+  const labelCls = "flex flex-col gap-2 text-left text-sm font-medium text-muted";
+
+  /* One question per screen, asked the way a person would ask it. The mobile
+     question greets them by the first name they just typed. */
+  const firstName = form.first_name.trim().split(/\s+/)[0] || "";
+  const greet = firstName && firstName.charAt(0).toUpperCase() + firstName.slice(1);
+  const screen = `${step}.${part}`;
+  const SCREENS = {
     /* Its own screen, not a widget under the email field (client request,
        2026-10-01). Nothing is asked of the patient and the step advances itself
        the moment Turnstile hands back a token. Our words, not Cloudflare's
        (client, 2026-10-14): the "malicious bots" sentence read badly to
        patients, and Cloudflare's box now shows only when it needs a tick. */
-    [-1]: ["Securing your visit", "This only takes a moment."],
-    0: ["What's your email address?", ""],
-    1: ["First, a few details", "So your care team can reach you about your visit."],
-    2: ["About you", "These go on your private patient file, so your intake won't ask again."],
-    3: ["Where should we deliver?", ""], // no PO box line (client, 2026-10-14)
+    "-1.0": ["Securing your visit", needsTap ? "Tick the box below to continue." : "This only takes a moment."],
+    "0.0": ["Let's start with your email.", ""],
+    "1.0": ["What's your name?", "Your legal name, for your patient file."],
+    "1.1": [
+      greet ? `Nice to meet you, ${greet}. What's your mobile number?` : "What's your mobile number?",
+      "So your care team can reach you about your visit.",
+    ],
+    "2.0": ["When's your birthday?", "It goes on your private patient file, so your intake won't ask again."],
+    "2.1": ["What was your sex at birth?", ""],
+    "3.0": ["Where should we deliver?", ""], // no PO box line (client, 2026-10-14)
+  };
+  const [title, subtitle] = SCREENS[screen];
+  /* Where the bar sits: six screens from the email to the address. */
+  const ORDER = ["0.0", "1.0", "1.1", "2.0", "2.1", "3.0"];
+  const progress = Math.max(0, ORDER.indexOf(screen) + 1) / ORDER.length;
+  /* The fields fade in as the question finishes typing. */
+  const reveal = typingSeconds(title);
+  const screenValid =
+    step === 0
+      ? emailValid && consentValid && humanValid
+      : step === 1
+        ? part === 0 ? nameScreenValid : step1Valid
+        : step === 2
+          ? part === 0 ? dobValid : step2Valid
+          : step3Valid;
+  const missing =
+    nudgeAt !== screen || screenValid
+      ? ""
+      : screen === "0.0"
+        ? !emailValid
+          ? "Please enter your email address."
+          : !consentValid
+            ? "Please tick the box to agree to the Privacy Policy, Terms and Telehealth Consent."
+            : "One moment, we're still securing your visit."
+        : screen === "1.0"
+          ? !namesValid
+            ? "Please enter your first and last name."
+            : "Please tick the box to agree to the consultation and its fee."
+          : screen === "1.1"
+            ? "Please enter your 10 digit mobile number."
+            : screen === "2.0"
+              ? tooYoung
+                ? ""
+                : "Please enter your date of birth as MM/DD/YYYY."
+              : screen === "2.1"
+                ? "Please choose one."
+                : !form.street.trim() || !form.city.trim()
+                  ? "Please fill in your street and city."
+                  : !/^\d{5}(-\d{4})?$/.test(form.zip.trim())
+                    ? "Please check your ZIP code."
+                    : "Please choose your state.";
+  /* Which box the hint is about, so that one can be ringed. */
+  const flagRequired = Boolean(missing) && screen === "0.0" && emailValid && !consentValid;
+  const flagFee = Boolean(missing) && screen === "1.0" && namesValid && !consent.fee;
+  const back = () => {
+    if (part > 0) setPart(part - 1);
+    else if (step > 1) go(step - 1, 1);
+    else go(0);
   };
 
   /* Takes over the modal rather than sitting inside the form: once we know we
@@ -1235,96 +1329,302 @@ function PatientInfoModal({
     );
   }
 
-  /* The bot check takes the whole screen rather than sitting in a card (client
-     request, 2026-10-08): it is an interstitial, not a step of the form, and a
-     dialog floating over a blurred page invites the patient to dismiss the one
-     thing they have to wait out. The form steps keep the modal. */
-  const takeover = step === -1;
+  /* Every screen takes the whole page (client, 2026-10-14, after Good Life
+     Meds): one question at a time on a calm page reads as a conversation, where
+     a dialog over a blurred page reads as a form to get through. The bot check
+     was already a full screen (2026-10-08) and stays the first of them. */
+  const checking = step === -1;
 
   return (
     /* data-lenis-prevent: Lenis intercepts touchmove globally, so without it a
-       modal taller than the phone viewport can't be scrolled at all. */
-    <div
-      /* No click-to-close on the takeover: with no visible backdrop, every
-         click would land on what looks like the page itself. */
-      onClick={takeover ? undefined : onClose}
-      data-lenis-prevent
-      className={
-        takeover
-          ? "fixed inset-0 z-120 flex overflow-y-auto bg-surface"
-          : "fixed inset-0 z-120 flex overflow-y-auto bg-ink/65 p-6 backdrop-blur-sm"
-      }
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className={
-          takeover
-            ? "relative m-auto flex w-full max-w-110 flex-col items-center px-6 py-12 text-center"
-            : "relative m-auto w-full max-w-110 rounded-3xl border border-line bg-surface p-6 nv-shadow-lg md:p-8"
-        }
-      >
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          /* Fixed to the screen on the takeover: absolute would pin it to the
-             narrow centred column instead of the corner of the page. */
-          className={`grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink ${
-            takeover ? "fixed right-5 top-5" : "absolute right-4 top-4"
-          }`}
-        >
-          <X size={18} />
-        </button>
+       screen taller than the phone viewport can't be scrolled at all. */
+    <div data-lenis-prevent className="fixed inset-0 z-120 flex flex-col overflow-y-auto bg-bg">
+      <header className="sticky top-0 z-10 bg-bg/90 backdrop-blur-sm">
+        <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-4 px-5 md:px-8">
+          {/* The brand leads on every screen: the bot check is the one that
+              has to say whose site is asking before anything is typed. */}
+          <img src="/logo-2026.png" alt="NovaMDK" className="h-8 w-auto md:h-9" />
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-10 w-10 place-items-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        {/* A thin bar instead of "Step 2 of 3", since it moves on every screen. */}
+        <div className="h-0.5 bg-line" aria-hidden="true">
+          <div className="h-full bg-primary transition-all duration-500 ease-out" style={{ width: `${progress * 100}%` }} />
+        </div>
+      </header>
 
-        {/* The bot check leads with the brand and the domain, the way an
-            interstitial of this kind does: it is the one screen that has to say
-            whose site is asking before the patient has typed anything. The rest
-            of the flow keeps the patient avatar, which is about them, not us. */}
-        {step === -1 ? (
-          <>
-            <img src="/logo-2026.png" alt="NovaMDK" className="h-12 w-auto sm:h-14" />
-            {/* A spinner while Cloudflare works out of sight, a check once it
-                has passed, and nothing while its box is asking for a tick. */}
-            {!needsTap && (
-              <span role="status" aria-label={verified ? "Verified" : "Checking"} className="mt-10 grid h-12 w-12 place-items-center">
-                {verified ? (
-                  <span className="grid h-12 w-12 place-items-center rounded-full bg-primary text-on-primary">
-                    <Check size={24} strokeWidth={3} />
-                  </span>
-                ) : (
-                  <span className="h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
-                )}
-              </span>
+      <main
+        className={`mx-auto flex w-full max-w-xl flex-1 flex-col px-6 pb-12 ${
+          checking ? "items-center justify-center text-center" : "pt-6 md:pt-16"
+        }`}
+      >
+        {!checking && (
+          <div className="flex h-9 items-center justify-between gap-3">
+            {screen !== "0.0" ? (
+              <button
+                type="button"
+                onClick={back}
+                disabled={loading}
+                className="-ml-2 inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-sm font-semibold text-muted transition-colors hover:text-ink disabled:opacity-60"
+              >
+                <ArrowLeft size={15} /> Back
+              </button>
+            ) : (
+              <span />
             )}
-          </>
-        ) : (
-          productName && (
-            <p className="pr-10 text-sm font-semibold text-primary">{productName}</p>
-          )
-        )}
-        <h3
-          className={`font-light leading-tight tracking-tight text-ks-heading ${
-            takeover ? (needsTap ? "mt-8 text-2xl" : "mt-6 text-2xl") : "mt-2 text-2xl"
-          }`}
-        >
-          {TITLES[step][0]}
-        </h3>
-        {TITLES[step][1] && (
-          <p className={takeover ? "mt-2 text-base text-muted" : "mt-1.5 text-sm leading-relaxed text-muted"}>
-            {takeover && needsTap ? "Tick the box below to continue." : TITLES[step][1]}
-          </p>
-        )}
-        {step > 0 && (
-          <div className="mt-4">
-            <div className="flex gap-1.5" aria-hidden="true">
-              {[1, 2, 3].map((n) => (
-                <span key={n} className={`h-1 flex-1 rounded-full ${n <= step ? "bg-primary" : "bg-line"}`} />
-              ))}
-            </div>
-            <p className="mt-2 text-xs font-medium text-muted">Step {step} of 3</p>
+            {productName && <p className="truncate text-sm font-semibold text-primary">{productName}</p>}
           </div>
         )}
 
-        <form onSubmit={submit} className="mt-4 flex w-full flex-col gap-3">
+        <form onSubmit={submit} className="w-full">
+          <AnimatePresence mode="wait" initial={false}>
+            <Motion.div
+              key={screen}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className={checking ? "flex flex-col items-center" : "mt-6"}
+            >
+              {/* A spinner while Cloudflare works out of sight, a check once it
+                  has passed, and nothing while its box is asking for a tick. */}
+              {checking && !needsTap && (
+                <span role="status" aria-label={verified ? "Verified" : "Checking"} className="grid h-12 w-12 place-items-center">
+                  {verified ? (
+                    <span className="grid h-12 w-12 place-items-center rounded-full bg-primary text-on-primary">
+                      <Check size={24} strokeWidth={3} />
+                    </span>
+                  ) : (
+                    <span className="h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+                  )}
+                </span>
+              )}
+              <h2
+                className={`font-light leading-tight tracking-tight text-ks-heading ${
+                  checking ? "mt-6 text-2xl" : "text-3xl md:text-4xl"
+                }`}
+              >
+                <TypeLine key={title} text={title} />
+              </h2>
+              {subtitle && (
+                <FadeIn delay={reveal}>
+                  <p className="mt-3 text-base leading-relaxed text-muted">{subtitle}</p>
+                </FadeIn>
+              )}
+
+              {!checking && (
+                <div className="mt-8 flex flex-col gap-4">
+                  {screen === "0.0" && (
+                    <>
+                      <FadeIn delay={reveal}>
+                        <input
+                          type="email"
+                          value={form.email}
+                          onChange={set("email")}
+                          placeholder="you@example.com"
+                          aria-label="Email address"
+                          autoComplete="email"
+                          autoFocus
+                          className={inputCls}
+                        />
+                      </FadeIn>
+                      <FadeIn delay={reveal + 0.08} className="flex flex-col gap-3">
+                        <ConsentCheck checked={consent.required} onToggle={toggleConsent("required")} flagged={flagRequired}>
+                          I agree to the{" "}
+                          <ConsentLink href="/legal/privacy-policy">Privacy Policy</ConsentLink>,{" "}
+                          <ConsentLink href="/legal/terms-and-conditions">Terms &amp; Conditions</ConsentLink>, and{" "}
+                          <ConsentLink href="/legal/telehealth-consent">Telehealth Consent</ConsentLink>.
+                        </ConsentCheck>
+                        {/* Optional. Never gates Continue, and starts unticked. */}
+                        <ConsentCheck checked={consent.marketing} onToggle={toggleConsent("marketing")}>
+                          {MARKETING_CONSENT_COPY}
+                        </ConsentCheck>
+                      </FadeIn>
+                    </>
+                  )}
+
+                  {screen === "1.0" && (
+                    <>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FadeIn delay={reveal}>
+                          <label className={labelCls}>
+                            First name
+                            <input value={form.first_name} onChange={set("first_name")} autoComplete="given-name" autoFocus className={inputCls} />
+                          </label>
+                        </FadeIn>
+                        <FadeIn delay={reveal + 0.06}>
+                          <label className={labelCls}>
+                            Last name
+                            <input value={form.last_name} onChange={set("last_name")} autoComplete="family-name" className={inputCls} />
+                          </label>
+                        </FadeIn>
+                      </div>
+                      {/* Under the name (client, 2026-10-14), so the text opt-in has
+                          the mobile screen to itself. Still required: it discloses a
+                          fee, so it has to be an explicit tick rather than something
+                          buried in the documents. */}
+                      <FadeIn delay={reveal + 0.12}>
+                        <ConsentCheck checked={consent.fee} onToggle={toggleConsent("fee")} flagged={flagFee}>
+                          {FEE_CONSENT_COPY}
+                        </ConsentCheck>
+                      </FadeIn>
+                    </>
+                  )}
+
+                  {screen === "1.1" && (
+                    <>
+                      <FadeIn delay={reveal}>
+                        <label className={labelCls}>
+                          Mobile number
+                          <input
+                            type="tel"
+                            inputMode="tel"
+                            value={form.phone_number}
+                            onChange={set("phone_number")}
+                            autoComplete="tel"
+                            autoFocus
+                            className={inputCls}
+                          />
+                        </label>
+                      </FadeIn>
+                      {/* Optional, unticked by default, and never gates Continue. */}
+                      <FadeIn delay={reveal + 0.08}>
+                        <ConsentCheck checked={consent.sms} onToggle={toggleConsent("sms")}>
+                          {SMS_CONSENT_COPY}
+                        </ConsentCheck>
+                      </FadeIn>
+                    </>
+                  )}
+
+                  {screen === "2.0" && (
+                    <FadeIn delay={reveal} className="flex flex-col gap-3">
+                      <label className={labelCls}>
+                        Date of birth
+                        <DobInput value={form.dob} onChange={setVal("dob")} className={inputCls} autoFocus />
+                      </label>
+                      {/* Stated plainly rather than capping the calendar at 2008: a year
+                          that simply isn't there reads as a broken picker. */}
+                      {tooYoung && (
+                        <p
+                          role="alert"
+                          className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm leading-relaxed text-amber-700"
+                        >
+                          You need to be {MIN_AGE} or older to start a visit with Nova MDK.
+                        </p>
+                      )}
+                    </FadeIn>
+                  )}
+
+                  {/* Two big answers rather than a dropdown, and a tap moves on.
+                      MDI's codes: 1 = male, 2 = female. */}
+                  {screen === "2.1" && (
+                    <div role="radiogroup" aria-label="Sex at birth" className="grid gap-3 sm:grid-cols-2">
+                      {[["2", "Female"], ["1", "Male"]].map(([value, label], i) => (
+                        <FadeIn key={value} delay={reveal + i * 0.06}>
+                          <button
+                            type="button"
+                            role="radio"
+                            aria-checked={form.gender === value}
+                            onClick={() => {
+                              setVal("gender")(value);
+                              clearTimeout(autoNext.current);
+                              autoNext.current = setTimeout(() => go(3), 350);
+                            }}
+                            className={`flex w-full items-center justify-between rounded-2xl border px-5 py-4 text-lg font-semibold transition-colors ${
+                              form.gender === value
+                                ? "border-primary bg-primary text-on-primary"
+                                : "border-line bg-surface text-ink hover:border-primary"
+                            }`}
+                          >
+                            {label}
+                            {form.gender === value && <Check size={20} />}
+                          </button>
+                        </FadeIn>
+                      ))}
+                    </div>
+                  )}
+
+                  {screen === "3.0" && (
+                    <>
+                      {/* Street with live suggestions: picking one fills city, state and ZIP too */}
+                      <FadeIn delay={reveal}>
+                        <label className={labelCls}>
+                          Street address
+                          <AddressAutocomplete
+                            value={form.street}
+                            onChange={set("street")}
+                            onPick={({ street, city, state, zip }) =>
+                              setForm((f) => ({
+                                ...f,
+                                street: street || f.street,
+                                city: city || f.city,
+                                state: US_STATES.includes(state) ? state : f.state,
+                                zip: zip || f.zip,
+                              }))
+                            }
+                            className={inputCls}
+                          />
+                        </label>
+                      </FadeIn>
+                      <FadeIn delay={reveal + 0.06} className="grid grid-cols-2 gap-4">
+                        <label className={labelCls}>
+                          City
+                          <input value={form.city} onChange={set("city")} autoComplete="address-level2" className={inputCls} />
+                        </label>
+                        <label className={labelCls}>
+                          ZIP code
+                          <input value={form.zip} onChange={set("zip")} autoComplete="postal-code" inputMode="numeric" className={inputCls} />
+                        </label>
+                      </FadeIn>
+                      {/* Blocked states stay in the list rather than being removed from
+                          it: a missing state reads as a broken form. Choosing one swaps
+                          this whole screen for the unavailable notice below. */}
+                      {/* A div, not a label: a label would hand every tap in the open
+                          list back to the toggle and reopen it. */}
+                      <FadeIn delay={reveal + 0.12}>
+                        <div className={labelCls}>
+                          State
+                          <NvSelect value={form.state} onChange={setVal("state")} placeholder="Select your state" options={US_STATES} />
+                        </div>
+                      </FadeIn>
+                    </>
+                  )}
+
+                  {missing && (
+                    <p role="alert" className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-medium leading-relaxed text-ink">
+                      {missing}
+                    </p>
+                  )}
+                  <FadeIn delay={reveal + 0.16} className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className={`flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-4 text-base font-semibold text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow disabled:opacity-50 disabled:hover:translate-y-0 sm:min-w-44 ${
+                        screenValid ? "" : "opacity-60"
+                      }`}
+                    >
+                      {loading ? (
+                        <><Loader2 size={16} className="animate-spin" /> {step === 0 ? "Checking your records…" : "Preparing your intake…"}</>
+                      ) : (
+                        <>Continue <ArrowRight size={16} /></>
+                      )}
+                    </button>
+                    {!loading && (
+                      <span className="hidden text-sm text-muted sm:inline">
+                        or press <kbd className="font-sans font-semibold text-ink">Enter</kbd>
+                      </span>
+                    )}
+                  </FadeIn>
+                </div>
+              )}
+            </Motion.div>
+          </AnimatePresence>
+
           {/* Rendered once and never unmounted, only hidden once the check has
               passed. A Turnstile token is good for 300 seconds, and the patient
               now has the whole email step and step 1 to get through before it is
@@ -1332,7 +1632,7 @@ function PatientInfoModal({
               issues a new token and calls onToken again, so it stays fresh; torn
               down with the step, it could not, and a slow patient would hit
               "verification failed" at submit with nothing to re-run. */}
-          <div className={step === -1 && !verified ? "" : "hidden"}>
+          <div className={checking && !verified ? "mt-6" : "hidden"}>
             <Turnstile
               key={humanKey}
               action="start_visit"
@@ -1360,184 +1660,78 @@ function PatientInfoModal({
               onError={() => setHumanBroken(true)}
             />
             {humanBroken && (
-              <p role="alert" className="mt-2 text-[0.8rem] leading-relaxed text-muted">
+              <p role="alert" className="mt-2 text-sm leading-relaxed text-muted">
                 The security check didn&rsquo;t load. Refresh the page, or turn off an ad blocker
                 for this site, and try again.
               </p>
             )}
           </div>
-
-          {step === 0 && (
-            <>
-              <input
-                type="email"
-                value={form.email}
-                onChange={set("email")}
-                placeholder="Email address"
-                autoComplete="email"
-                autoFocus
-                className={inputCls}
-              />
-              <div className="mt-1 flex flex-col gap-2.5">
-                <ConsentCheck checked={consent.required} onToggle={toggleConsent("required")}>
-                  I agree to the{" "}
-                  <ConsentLink href="/legal/privacy-policy">Privacy Policy</ConsentLink>,{" "}
-                  <ConsentLink href="/legal/terms-and-conditions">Terms &amp; Conditions</ConsentLink>, and{" "}
-                  <ConsentLink href="/legal/telehealth-consent">Telehealth Consent</ConsentLink>.
-                </ConsentCheck>
-                {/* Optional. Never gates Continue, and starts unticked. */}
-                <ConsentCheck checked={consent.marketing} onToggle={toggleConsent("marketing")}>
-                  {MARKETING_CONSENT_COPY}
-                </ConsentCheck>
-              </div>
-            </>
-          )}
-
-          {step === 1 && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <label className={labelCls}>
-                  First name
-                  <input value={form.first_name} onChange={set("first_name")} autoComplete="given-name" className={inputCls} />
-                </label>
-                <label className={labelCls}>
-                  Last name
-                  <input value={form.last_name} onChange={set("last_name")} autoComplete="family-name" className={inputCls} />
-                </label>
-              </div>
-              <label className={labelCls}>
-                Mobile number
-                <input type="tel" inputMode="tel" value={form.phone_number} onChange={set("phone_number")} autoComplete="tel" className={inputCls} />
-              </label>
-              {/* Moved here from the email step (client request, 2026-10-01).
-                  Still required: it discloses a fee, so it has to be an explicit
-                  tick rather than something buried in the documents. */}
-              <ConsentCheck checked={consent.fee} onToggle={toggleConsent("fee")}>
-                {FEE_CONSENT_COPY}
-              </ConsentCheck>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <label className={labelCls}>
-                Date of birth
-                <DobInput value={form.dob} onChange={setVal("dob")} className={inputCls} />
-              </label>
-              {/* Two buttons rather than a dropdown: one tap instead of two.
-                  MDI's codes: 1 = male, 2 = female. */}
-              <div className={labelCls}>
-                <span id="sex-at-birth">Sex at birth</span>
-                <div role="radiogroup" aria-labelledby="sex-at-birth" className="grid grid-cols-2 gap-3">
-                  {[["2", "Female"], ["1", "Male"]].map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      role="radio"
-                      aria-checked={form.gender === value}
-                      onClick={() => setVal("gender")(value)}
-                      className={`rounded-xl border px-4 py-3.5 text-base font-semibold transition-colors ${
-                        form.gender === value
-                          ? "border-primary bg-primary text-on-primary"
-                          : "border-line bg-bg text-ink hover:border-primary"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {/* Stated plainly rather than capping the calendar at 2008: a year
-                  that simply isn't there reads as a broken picker. */}
-              {tooYoung && (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-3.5 py-3 text-[0.82rem] leading-relaxed text-amber-700"
-                >
-                  You need to be {MIN_AGE} or older to start a visit with Nova MDK.
-                </p>
-              )}
-            </>
-          )}
-
-          {step === 3 && (
-            <>
-              {/* Street with live suggestions — picking one fills city/state/ZIP too */}
-              <label className={labelCls}>
-                Street address
-                <AddressAutocomplete
-                  value={form.street}
-                  onChange={set("street")}
-                  onPick={({ street, city, state, zip }) =>
-                    setForm((f) => ({
-                      ...f,
-                      street: street || f.street,
-                      city: city || f.city,
-                      state: US_STATES.includes(state) ? state : f.state,
-                      zip: zip || f.zip,
-                    }))
-                  }
-                  className={inputCls}
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className={labelCls}>
-                  City
-                  <input value={form.city} onChange={set("city")} autoComplete="address-level2" className={inputCls} />
-                </label>
-                <label className={labelCls}>
-                  ZIP code
-                  <input value={form.zip} onChange={set("zip")} autoComplete="postal-code" inputMode="numeric" className={inputCls} />
-                </label>
-              </div>
-              {/* Blocked states stay in the list rather than being removed from
-                  it: a missing state reads as a broken form. Choosing one swaps
-                  this whole modal for the unavailable notice below. */}
-              {/* A div, not a label: a label would hand every tap in the open
-                  list back to the toggle and reopen it. */}
-              <div className={labelCls}>
-                State
-                <NvSelect value={form.state} onChange={setVal("state")} placeholder="Select your state" options={US_STATES} />
-              </div>
-            </>
-          )}
-
-          {/* No buttons on the bot check: it has nothing to confirm and
-              advances on its own. */}
-          <div className={step === -1 ? "hidden" : "mt-1 flex gap-2.5"}>
-            {step > 0 && (
-              <button
-                type="button"
-                onClick={() => setStep(step - 1)}
-                disabled={loading}
-                className="flex items-center justify-center gap-1.5 rounded-full border border-line px-5 py-3.5 text-[0.92rem] font-semibold text-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-60"
-              >
-                <ArrowLeft size={15} /> Back
-              </button>
-            )}
-            <button
-              type="submit"
-              disabled={(step === 0 ? !emailValid || !consentValid || !humanValid : step === 1 ? !step1Valid : step === 2 ? !step2Valid : !step3Valid) || loading}
-              className="flex flex-1 items-center justify-center gap-2 rounded-full bg-primary px-7 py-3.5 text-[0.98rem] font-semibold text-on-primary transition-all hover:-translate-y-0.5 hover:bg-primary-deep nv-shadow disabled:opacity-60 disabled:hover:translate-y-0"
-            >
-              {loading ? (
-                <><Loader2 size={16} className="animate-spin" /> {step === 0 ? "Checking your records…" : "Preparing your intake…"}</>
-              ) : (
-                <>Continue <ArrowRight size={16} /></>
-              )}
-            </button>
-          </div>
         </form>
 
-        {err && (
-          <p className="mt-2.5 rounded-lg bg-surface-2 px-3 py-2 text-center text-[0.74rem] leading-snug text-muted">{err}</p>
-        )}
+        {err && <p className="mt-4 rounded-xl bg-surface-2 px-4 py-3 text-sm leading-snug text-muted">{err}</p>}
 
-        <p className="mt-3 flex items-center justify-center gap-1.5 text-[0.74rem] font-medium text-muted">
+        <p className={`mt-8 flex items-center gap-1.5 text-xs font-medium text-muted ${checking ? "justify-center" : ""}`}>
           <Lock size={12} className="text-primary" /> Encrypted &amp; used only for your medical visit
         </p>
-      </div>
+      </main>
     </div>
+  );
+}
+
+/* Seconds until a question has typed itself out, near enough, so its fields
+   can start fading in just before it finishes. Matches TypeLine's pace. */
+const TYPE_START_MS = 150;
+const typeStepMs = (text) => Math.min(30, 850 / Math.max(1, text.length));
+function typingSeconds(text) {
+  return (TYPE_START_MS + typeStepMs(text) * text.length * 0.8) / 1000;
+}
+
+/* A question that types itself in, a letter at a time, with a gold caret.
+   The untyped rest is already there but invisible, so the line never reflows
+   as it grows, and screen readers get the whole sentence at once. Shown whole
+   for anyone who has asked their device for less motion. */
+function TypeLine({ text }) {
+  const reduce = useReducedMotion();
+  const [n, setN] = useState(() => (reduce ? text.length : 0));
+  useEffect(() => {
+    if (reduce) return undefined;
+    let i = 0;
+    let timer = setTimeout(function tick() {
+      i += 1;
+      setN(i);
+      if (i < text.length) timer = setTimeout(tick, typeStepMs(text));
+    }, TYPE_START_MS);
+    return () => clearTimeout(timer);
+  }, [text, reduce]);
+  const shown = reduce ? text.length : n;
+  return (
+    <>
+      <span className="sr-only">{text}</span>
+      <span aria-hidden="true">
+        {text.slice(0, shown)}
+        {shown < text.length && (
+          <span className="relative">
+            <span className="absolute left-0 animate-pulse font-thin text-primary">|</span>
+          </span>
+        )}
+        <span className="text-transparent">{text.slice(shown)}</span>
+      </span>
+    </>
+  );
+}
+
+/* Fields arrive a beat after their question, rising a little as they fade in. */
+function FadeIn({ delay = 0, className, children }) {
+  const reduce = useReducedMotion();
+  return (
+    <Motion.div
+      className={className}
+      initial={reduce ? false : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {children}
+    </Motion.div>
   );
 }
 
@@ -1546,7 +1740,7 @@ function PatientInfoModal({
    form for the patients we see most. Hands back Y-m-d, MDI's format, only once
    the date is complete and real, and "" until then, which keeps Continue
    disabled. */
-function DobInput({ value, onChange, className }) {
+function DobInput({ value, onChange, className, autoFocus = false }) {
   const fromIso = (v) => {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || "");
     return m ? `${m[2]}/${m[3]}/${m[1]}` : "";
@@ -1576,6 +1770,7 @@ function DobInput({ value, onChange, className }) {
         onChange={onInput}
         inputMode="numeric"
         autoComplete="bday"
+        autoFocus={autoFocus}
         placeholder="MM/DD/YYYY"
         aria-invalid={bad || undefined}
         className={className}
@@ -1588,18 +1783,22 @@ function DobInput({ value, onChange, className }) {
 /* A consent checkbox row, used for both the required agreement and the optional
    marketing opt-in. Legal links open in a new tab so tapping one never
    navigates the patient out of the modal mid-consent. */
-function ConsentCheck({ checked, onToggle, children }) {
+function ConsentCheck({ checked, onToggle, flagged = false, children }) {
   return (
     <button
       type="button"
       onClick={onToggle}
       role="checkbox"
       aria-checked={checked}
-      className="flex items-start gap-2.5 text-left text-[0.8rem] leading-snug text-muted"
+      className="flex items-start gap-3 text-left text-sm leading-relaxed text-muted"
     >
       <span
-        className={`mt-px grid h-4.5 w-4.5 shrink-0 place-items-center rounded-md border transition-colors ${
-          checked ? "border-primary bg-primary text-on-primary" : "border-line-strong bg-bg"
+        className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border transition-colors ${
+          checked
+            ? "border-primary bg-primary text-on-primary"
+            : flagged
+              ? "border-primary bg-bg ring-4 ring-primary/25"
+              : "border-line-strong bg-bg"
         }`}
       >
         {checked && <Check size={12} strokeWidth={3} />}
