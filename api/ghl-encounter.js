@@ -14,6 +14,7 @@ import {
   CHECKOUT_LINK,
 } from "./_ghl.js";
 import { blocked, verifyReleaseToken } from "./_guard.js";
+import { isPlanMonthCard } from "./_fills.js";
 
 /* MDI's case statuses are workflow labels ("pending", "approved"), not clinical
    content, which is what makes them safe to mirror into the CRM. Anything
@@ -96,7 +97,18 @@ export default async function handler(req, res) {
      the checkout opens, so an unpaid submission keeps its current stage and
      /api/pay writes "complete" once the card clears. The intake-submitted tag
      still lands either way, which is what shows the drop-off at payment. */
-  const paid = req.body?.paid === true;
+  /* A later month of a plan is settled whatever the browser reports.
+   *
+   * The browser sends paid:false for one, and truthfully so from where it
+   * stands: no card was charged, because the patient bought the months upfront.
+   * But this visit is not waiting on money, so taking that at face value left
+   * the card with intake_stage "started" and a "finish paying" link, and the
+   * unpaid-intake reminder would then chase someone who owes nothing.
+   *
+   * It cannot be deferred to the prepaid confirmation either: whichever of this
+   * and /api/pay lands second wins, and this one often does. So the rule is
+   * applied here too, from the one definition in _fills.js. */
+  const paid = req.body?.paid === true || isPlanMonthCard(req.body?.treatment);
 
   /* Settled independently. The contact mirror and the per-visit record are
      useful on their own, so one failing must not cost us the other. */

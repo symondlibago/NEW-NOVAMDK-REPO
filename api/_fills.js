@@ -50,6 +50,30 @@ const FOLLOW_ON = new Set(
 /** Is this product only reachable as a later month of a plan? */
 export const isFollowOnRung = (pid) => FOLLOW_ON.has(Number(pid));
 
+/* A visit card's product, from the name the card was created with. The same
+   "Category - Product" shape every writer builds, so it reverses. */
+const CARD_PRODUCT = new Map(
+  Object.entries(PRICES).map(([id, p]) => [
+    [p.categoryName, p.name].filter(Boolean).join(" - "),
+    Number(id),
+  ])
+);
+
+/** Is this visit card a later month of a plan, and so already paid for?
+ *
+ * Lives here, beside isFollowOnRung, because three different writers need the
+ * same answer and had been deciding it separately: api/pay.js on the prepaid
+ * confirmation, api/mdi-webhook.js on case_created, and api/ghl-encounter.js
+ * when the browser reports the encounter. Each of the three can land last, so
+ * one of them disagreeing is enough to leave a prepaid month marked unpaid, and
+ * checkout_link is what the unpaid-intake reminder triggers on. That is exactly
+ * how it went on 2026-10-15: two were fixed, the third put the link straight
+ * back. */
+export const isPlanMonthCard = (name) => {
+  const pid = CARD_PRODUCT.get(String(name || "").trim());
+  return Boolean(pid && isFollowOnRung(pid));
+};
+
 /** The product and questionnaire for a given month of a plan, or null. */
 function monthOf(planProduct, month) {
   const pid = rungFor(planProduct, month);
