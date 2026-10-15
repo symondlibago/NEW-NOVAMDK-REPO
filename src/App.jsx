@@ -10,9 +10,22 @@ import { trackGtmPageView } from "./lib/gtm";
 import { applySupportChat } from "./lib/supportChat";
 import SmoothScroll from "./components/SmoothScroll";
 import RouteTransition from "./components/transition/RouteTransition";
-import Platform from "./pages/Platform";
 import KioskAttractLoop from "./components/kiosk/KioskAttractLoop";
 import { useKioskApp } from "./lib/useKioskMode";
+/* The home page is lazy like every other route, since 2026-10-16.
+ *
+ * It was the one exception, and being the exception put it, and everything it
+ * imports, into the entry chunk: the navbar's whole 53-product catalogue, the
+ * hero, the footer. That is the file a patient waits on at /portal before React
+ * mounts, and none of it is rendered there.
+ *
+ * Nothing is lost by it. scripts/prerender.mjs writes per-route <title>, meta
+ * and JSON-LD into the same empty shell and renders no body at all, so there is
+ * no prerendered content for a lazy boundary to blank, and main.jsx mounts with
+ * createRoot rather than hydrateRoot, so the shell is replaced on every page
+ * regardless. The home page pays one extra chunk fetch; every other route stops
+ * paying for the home page. */
+const Platform = lazy(() => import("./pages/Platform"));
 const TreatmentsPage = lazy(() => import("./pages/Treatments"));
 const SupplementsPage = lazy(() => import("./pages/Supplements"));
 const ContactPage = lazy(() => import("./pages/Contact"));

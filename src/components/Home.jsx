@@ -4,11 +4,6 @@ import Navbar from "./Nav/Navbar";
 import Footer from "./Nav/Footer";
 import HeroVideo from "./home/HeroVideo";
 import HealthFit from "./home/HealthFit";
-import ModernCare from "./home/ModernCare";
-import StartingPoint from "./home/StartingPoint";
-import MattersToYou from "./home/MattersToYou";
-import HowItWorks from "./home/HowItWorks";
-import Articles from "./home/Articles";
 
 /* useKioskVariant and the HeroStage card grid it drove went with the
    2026-09-11 hero redesign. The new hero is one full-bleed clip and reads the
@@ -20,6 +15,31 @@ import Articles from "./home/Articles";
    one glass panel over a single photo (2026-09-11). Same three steps, same
    copy; the per-step links became one "Get Started" per the comp. */
 const FAQ = lazy(() => import("./FAQ"));
+
+/* Lazy for its DATA, not its markup.
+ *
+ * Articles reads src/lib/blog, which imports content/blog/posts.json whole:
+ * every post's body, 160KB of it before minifying. Imported eagerly, that sat
+ * in the entry chunk, so every visitor downloaded the entire blog before React
+ * mounted, on /portal and /intake as much as on the home page. It is the last
+ * band before the FAQ, well below the fold, so nobody sees it arrive. */
+const Articles = lazy(() => import("./home/Articles"));
+
+/* The bands below the fold.
+ *
+ * App.jsx lazy-loads every route except this one, so the home page and
+ * everything it imports was the entry chunk, which is the file a patient waits
+ * for on /portal before React mounts at all. These four are nobody's first
+ * screen: the hero fills the viewport above them, and StartingPoint drags the
+ * whole 53-product catalogue in with it.
+ *
+ * Navbar, HeroVideo and HealthFit stay eager. They are what a visitor actually
+ * looks at first, and loading those in a second step would trade the home
+ * page's first paint for the portal's, which is not the deal. */
+const ModernCare = lazy(() => import("./home/ModernCare"));
+const StartingPoint = lazy(() => import("./home/StartingPoint"));
+const MattersToYou = lazy(() => import("./home/MattersToYou"));
+const HowItWorks = lazy(() => import("./home/HowItWorks"));
 
 const FOOTER_FADE = "linear-gradient(180deg, var(--nv-surface) 0%, var(--nv-surface-2) 100%)";
 
@@ -33,11 +53,20 @@ export default function Home() {
           tiles; MoreWays is not in the outline. ImproveGoals.jsx and
           MoreWays.jsx stay in the tree in case either is wanted back. */}
       <HealthFit />
-      <ModernCare />
-      <StartingPoint />
-      <MattersToYou />
-      <HowItWorks />
-      <Articles />
+      {/* One boundary for the four, not four boundaries: they are fetched in
+          parallel either way, and a single reserved block keeps the page from
+          growing in four separate jerks as each one lands. */}
+      <Suspense fallback={<div className="h-96 bg-bg" aria-hidden="true" />}>
+        <ModernCare />
+        <StartingPoint />
+        <MattersToYou />
+        <HowItWorks />
+      </Suspense>
+      {/* A reserved band rather than null, so the FAQ below it does not jump
+          up and back down as the chunk arrives. */}
+      <Suspense fallback={<div className="h-80 bg-bg" aria-hidden="true" />}>
+        <Articles />
+      </Suspense>
 
       {/* ===== FAQ ===== */}
       <Suspense fallback={<div className="grid h-[200px] place-items-center bg-bg text-muted">Loading…</div>}>

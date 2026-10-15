@@ -536,9 +536,6 @@ export default function PortalTreatments({ onUnauthorized, onMessage, onOpenVisi
   useEffect(load, [load]);
 
   const shell = "nv-scroll min-h-0 flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-10";
-  /* The same width as Home, so moving between the two tabs does not shift the
-   whole page sideways. max-w-3xl left a dead gutter on a laptop and made the
-   fact columns too narrow to sit on one row. */
 const page = "mx-auto w-full max-w-5xl";
 
   if (error) {

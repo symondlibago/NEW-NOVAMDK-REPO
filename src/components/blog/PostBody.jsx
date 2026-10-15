@@ -2,13 +2,6 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 
-/* Renders a post's block array. Long-form typography lives here and nowhere else,
-   so every article reads the same regardless of who wrote it.
-
-   Measure is capped around 68 characters. Wider than that and readers lose their
-   place returning to the start of each line, which is the difference between an
-   article that gets finished and one that gets skimmed. */
-
 export default function PostBody({ blocks = [] }) {
   return (
     <div className="mx-auto max-w-[68ch]">

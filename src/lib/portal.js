@@ -43,6 +43,9 @@ async function call(url, body) {
  */
 const CACHE_MS = 60_000;
 const CACHEABLE = new Set([
+  /* The gating read for Home, and the page's signed-in check. Cached like the
+     rest so coming back to the portal in the same minute is instant. */
+  "bootstrap",
   "cases", "plan", "profile", "notifications", "messages",
   /* Costs an MDI call per unassigned case, so it is worth holding onto for the
      minute. Nothing about it changes except by paying, which clears the cache
@@ -71,15 +74,17 @@ const CACHEABLE = new Set([
  * behaviour as the default for a resource added later.
  */
 const INVALIDATES = {
-  update_profile: ["profile"],
+  // `bootstrap` carries the profile too, so a saved change has to drop both.
+  update_profile: ["profile", "bootstrap"],
   cancel_renewal: ["plan", "notifications"],
   send_message: ["messages", "notifications"],
   /* A read receipt changes the unread count and the message's own read_at, and
      nothing else. It used to clear everything, on every unread message, every
      time the thread polled. */
   read_message: ["messages", "notifications"],
-  /* A new month opens a visit, spends a plan month and is worth a notification. */
-  next_fill: ["plan", "cases", "notifications"],
+  /* A new month opens a visit, spends a plan month and is worth a notification.
+     The visit list it opens is in `bootstrap` as well. */
+  next_fill: ["plan", "cases", "bootstrap", "notifications"],
   // Reads, or writes that no read on this list reflects.
   upload: [],
   file: [],
@@ -88,6 +93,22 @@ const INVALIDATES = {
 
 const fresh = new Map(); // key -> { at, data }
 const inFlight = new Map(); // key -> Promise
+
+/**
+ * Puts an answer already in hand into the cache under another resource's key.
+ *
+ * `bootstrap` returns exactly what `cases` and `profile` return, in one
+ * request. Without this the tabs would each ask again for something the page
+ * is already holding and pay MDI's four seconds a second time over.
+ *
+ * Only ever called with a payload one of this module's own reads produced, and
+ * only for resources on the CACHEABLE list, so it cannot be used to plant an
+ * answer for a write.
+ */
+export function seedPortalCache(body, data) {
+  if (!CACHEABLE.has(body?.resource)) return;
+  fresh.set(JSON.stringify(body), { at: Date.now(), data });
+}
 
 /** Throws the cache away. The portal's Refresh control, and every sign in. */
 export function clearPortalCache() {

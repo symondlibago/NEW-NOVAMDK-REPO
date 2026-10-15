@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
 import { AlertCircle, ArrowRight, CalendarCheck, ChevronRight, MessageSquare, Stethoscope } from "lucide-react";
-import { portalData } from "../../lib/portal";
+import { portalData, seedPortalCache } from "../../lib/portal";
 import { treatmentFor } from "../../lib/portalCatalog";
 import { planStatus, currentVisitForPlan } from "../../lib/planStatus";
 import ResumeIntakeButton from "./ResumeIntakeButton";
@@ -84,18 +84,31 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit, on
       if (alive) fn(value);
     };
 
-    portalData({ resource: "cases" })
-      .then(keep(({ visits: all, cases }) => setVisits(all || cases || [])))
+    /* One request for the visits AND the greeting, where there were two behind
+       a third that only checked the session. It is normally answered from the
+       cache before this even runs, because PatientPortal asks for it on mount
+       to find out whether anyone is signed in. */
+    portalData({ resource: "bootstrap" })
+      .then(
+        keep((data) => {
+          setVisits(data?.visits || data?.cases || []);
+          setName(data?.profile?.first_name || null);
+          /* Exactly what the tabs are about to ask for. Visits and Treatments
+             both read `cases` and the Profile tab reads `profile`, and both
+             answers are in hand here, so they are seeded rather than fetched
+             again at four seconds each. */
+          seedPortalCache(
+            { resource: "cases" },
+            { cases: data?.cases || [], visits: data?.visits || [] }
+          );
+          if (data?.profile) seedPortalCache({ resource: "profile" }, { profile: data.profile });
+        })
+      )
       .catch((err) => {
         if (!alive) return;
         if (err.status === 401) return onUnauthorized();
         setError(err.message);
       });
-
-    // The greeting is decoration, so a failed profile must not blank the page.
-    portalData({ resource: "profile" })
-      .then(keep((p) => setName(p?.profile?.first_name || null)))
-      .catch(() => {});
 
     // Empty for everyone not on a plan, which is most people.
     portalData({ resource: "plan" })
@@ -124,7 +137,10 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit, on
   const shell = "nv-scroll min-h-0 flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-10";
   const page = "mx-auto w-full max-w-5xl";
 
-  if (error) {
+  /* Only when there is nothing to show instead. The two reads can fail
+     independently now, and a list already on screen is worth more to the
+     patient than the message that the other half of it did not arrive. */
+  if (error && visits === null) {
     return (
       <div className={shell} data-lenis-prevent>
         <p role="alert" className={`${page} flex items-center gap-2 text-[0.9rem] text-ink`}>
