@@ -447,6 +447,46 @@ const shapeCase = (c) => {
   };
 };
 
+/* The visit list every screen renders, from MDI's two lists.
+ *
+ * One definition, shared by `cases` and `bootstrap`, so the two cannot drift
+ * into disagreeing about what a patient's visits are.
+ *
+ * Both lists are needed, and the vouchers are the slow one: measured against a
+ * live patient on 2026-10-16, MDI answers /patients/:id/cases in about 3.0s and
+ * /patients/:id/vouchers in 3.5 to 4.7s. Returning without the vouchers was
+ * tried and dropped: a visit still in review has no prescription yet, so its
+ * card takes its name from the voucher's questionnaire, and painting early made
+ * the main card read "Visit #1" with a placeholder image for a few hundred
+ * milliseconds before both changed under the patient. Not worth 400ms.
+ *
+ * Cases are numbered oldest-first so "Visit #1" stays #1 as new ones arrive,
+ * then the combined list is newest-first, which is reading order. */
+function visitsFrom(caseRows, voucherRows) {
+  const questionnaireByCase = new Map(
+    voucherRows.filter((x) => x.case_id).map((x) => [x.case_id, x.partner_questionnaire_id || null])
+  );
+
+  const cases = caseRows
+    .map(shapeCase)
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    .map((c, i) => ({
+      ...c,
+      kind: 'case',
+      id: c.case_id,
+      number: i + 1,
+      bucket: VISIT_BUCKET[String(c.status || '').toLowerCase()] || 'pending',
+      step: stepOf(c.status),
+      questionnaire_id: questionnaireByCase.get(c.case_id) || null,
+    }));
+
+  const drafts = voucherRows.filter((x) => !x.case_id).map(shapeDraft);
+  const visits = [...cases, ...drafts].sort(
+    (a, b) => new Date(b.created_at) - new Date(a.created_at)
+  );
+  return { cases, visits };
+}
+
 /* MDI's chat is one thread per patient, not one per case: there is no
    case-scoped messages endpoint, and a message carries no case or encounter id
    at all (confirmed with MDI 2026-09-23, and checked against their collection).
@@ -548,6 +588,51 @@ async function portal(req, res) {
   const resource = req.body?.resource;
 
   try {
+    /* The first screen, in one request.
+     *
+     * The portal used to open with five POSTs side by side (cases, profile,
+     * plan, notifications, unpaid) behind a sixth that only asked whether the
+     * session was valid. Each POST is its own serverless invocation, and both
+     * the access token and the request sharing in _mdi.js are held per
+     * instance, so almost none of it was shared in practice: the 532ms token
+     * was paid up to five times over and /patients/:id/cases was fetched by
+     * three of them for the same answer.
+     *
+     * So this is the one gating read: the visit list and the profile together,
+     * which is everything the first screen cannot paint without. Its 401 is
+     * also what tells the page that nobody is signed in, which is the only
+     * thing the sixth request ever did.
+     *
+     * It returns exactly what `cases` returns, through the same visitsFrom, so
+     * the answer can be put straight into the cache under the `cases` key and
+     * the tabs find it already there. `cases` stays as it is for the polls and
+     * the Refresh control.
+     *
+     * The other three stay as they are: `plan` and `notifications` answer in
+     * well under a second and gate nothing, and `unpaid` costs a call per
+     * unassigned case and is prefetched on its own. */
+    if (resource === 'bootstrap') {
+      const [p, r, v] = await Promise.all([
+        mdi(`/patients/${id}`, { share: SHARE_MS }),
+        mdi(`/patients/${id}/cases`, { share: SHARE_MS }),
+        mdi(`/patients/${id}/vouchers`, { share: SHARE_MS }),
+      ]);
+      if (!r.ok) {
+        console.error('Portal bootstrap cases failed:', r.status);
+        return res.status(502).json({ error: 'Could not load your visits' });
+      }
+      /* Both are survivable on their own. The greeting is decoration, and a
+         missing voucher list costs the drafts and the questionnaire ids, which
+         is the same thing `cases` does when MDI will not answer that one. */
+      if (!p.ok) console.error('Portal bootstrap profile failed:', p.status);
+      if (!v.ok) console.error('Portal bootstrap vouchers failed:', v.status);
+
+      return res.status(200).json({
+        profile: p.ok ? shapeProfile(p.data?.data || p.data) : null,
+        ...visitsFrom(listOf(r.data), v.ok ? listOf(v.data) : []),
+      });
+    }
+
     if (resource === 'profile') {
       const r = await mdi(`/patients/${id}`);
       if (!r.ok) {
@@ -593,31 +678,7 @@ async function portal(req, res) {
       }
 
       if (!v.ok) console.error('Portal vouchers failed:', v.status);
-      const vouchers = v.ok ? listOf(v.data) : [];
-      const questionnaireByCase = new Map(
-        vouchers.filter((x) => x.case_id).map((x) => [x.case_id, x.partner_questionnaire_id || null])
-      );
-
-      const cases = listOf(r.data)
-        .map(shapeCase)
-        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-        // Numbered oldest-first so "Visit #1" stays #1 as new ones arrive.
-        .map((c, i) => ({
-          ...c,
-          kind: 'case',
-          id: c.case_id,
-          number: i + 1,
-          bucket: VISIT_BUCKET[String(c.status || '').toLowerCase()] || 'pending',
-          step: stepOf(c.status),
-          questionnaire_id: questionnaireByCase.get(c.case_id) || null,
-        }));
-
-      const drafts = vouchers.filter((x) => !x.case_id).map(shapeDraft);
-
-      const visits = [...cases, ...drafts].sort(
-        (a, b) => new Date(b.created_at) - new Date(a.created_at)
-      );
-      return res.status(200).json({ cases, visits });
+      return res.status(200).json(visitsFrom(listOf(r.data), v.ok ? listOf(v.data) : []));
     }
 
     /* The visits this patient finished and never paid for.

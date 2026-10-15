@@ -56,10 +56,26 @@ export default function PatientPortalPage() {
     });
   }, []);
 
+  /* The signed-in check and the first screen's data, in one round trip.
+   *
+   * This used to ask /api/portal-auth whether the session was valid and wait
+   * for the answer before a single read could start: a whole round trip, and a
+   * cold start on a Hobby plan, spent learning one boolean. A read already
+   * answers the same question, because 401 is the signed-out case. So the
+   * gating read goes out immediately instead, lands in the portal cache, and
+   * PortalHome finds it already there when it mounts.
+   *
+   * Only 401 means signed out. A 502 means MDI would not answer, and that
+   * patient IS signed in, so the portal opens and the panel reports it itself,
+   * exactly as it did before. 503 is the portal not being configured at all,
+   * and no status at all is a dead connection; both of those are "down". */
   useEffect(() => {
-    portalAuth({ action: "session" })
-      .then(({ authenticated }) => setState(authenticated ? "in" : "out"))
-      .catch(() => setState("down"));
+    portalData({ resource: "bootstrap" })
+      .then(() => setState("in"))
+      .catch((err) => {
+        if (err.status === 401) return setState("out");
+        setState(err.status && err.status !== 503 ? "in" : "down");
+      });
   }, []);
 
   /* Asked for the moment they are signed in, not when the Treatments tab opens.
