@@ -504,6 +504,102 @@ async function stripeIntent(req, res) {
   });
 }
 
+/* Promotion codes: looked up in Stripe, applied by us.
+ *
+ * Stripe only applies a coupon by itself on its hosted Checkout, invoices and
+ * subscriptions, and this checkout is none of those: it is one PaymentIntent
+ * for an amount we price. So the code is checked against Stripe here and the
+ * discount comes off that amount, the same way the term discount does.
+ *
+ * The client's rules (2026-10-16): a code works on a patient's first order
+ * only and never on top of the 3 month discount. It comes off this payment
+ * alone, whatever the coupon's duration says, because renewals are priced from
+ * quoteFor and never see it. Stripe does not count these as redemptions, so a
+ * use limit set in the dashboard is honoured but never reached; an end date or
+ * switching the code off is what stops one.
+ *
+ * Returns { code, discount, total, months } or { error }. Never throws.
+ */
+const PROMO_RE = /^[A-Za-z0-9_-]{2,40}$/;
+async function promoFor(raw, { pid, months, customerId, intentId }) {
+  const code = clean(raw, 40);
+  if (!PROMO_RE.test(code)) return { error: "invalid" };
+  const charge = chargeFor(pid, months);
+  if (!charge) return { error: "invalid" };
+  if (quoteFor(pid, months)?.saving > 0) return { error: "plan_discount" };
+
+  const found = await stripe(
+    `/promotion_codes?code=${encodeURIComponent(code)}&active=true&limit=1`,
+    { method: "GET" }
+  );
+  if (!found.ok) {
+    console.error("Stripe promotion code lookup failed:", found.status, found.data?.error?.message || "");
+    return { error: "unavailable" };
+  }
+  const promo = found.data?.data?.[0];
+  if (!promo) return { error: "invalid" };
+  /* The coupon moved between API versions: promo.coupon until 2025-09,
+     promo.promotion.coupon since. Either can arrive as an id or the object. */
+  let coupon = promo.coupon ?? promo.promotion?.coupon ?? null;
+  if (typeof coupon === "string") {
+    const got = await stripe(`/coupons/${encodeURIComponent(coupon)}`, { method: "GET" });
+    coupon = got.ok ? got.data : null;
+  }
+  if (!coupon) return { error: "unavailable" };
+
+  const now = Date.now() / 1000;
+  const owner = typeof promo.customer === "string" ? promo.customer : promo.customer?.id;
+  if (
+    !coupon.valid ||
+    (promo.expires_at && promo.expires_at < now) ||
+    (promo.max_redemptions && promo.times_redeemed >= promo.max_redemptions) ||
+    (owner && owner !== customerId)
+  ) {
+    return { error: "invalid" };
+  }
+  const minimum = Number(promo.restrictions?.minimum_amount) || 0;
+  if (minimum && toCents(charge.amount) < minimum) return { error: "minimum" };
+
+  /* First order only, so the patient's card history decides. A hold counts as
+     an order; a released or cancelled one does not, so a visit a provider
+     turned down leaves the code usable. Without a customer there is no history
+     to read, which is refused rather than waved through. */
+  if (!customerId) return { error: "unavailable" };
+  const history = await stripe(
+    `/payment_intents?customer=${encodeURIComponent(customerId)}&limit=100`,
+    { method: "GET" }
+  );
+  if (!history.ok) return { error: "unavailable" };
+  const ordered = (history.data?.data || []).some(
+    (pi) => pi.id !== intentId && (pi.status === "succeeded" || pi.status === "requires_capture")
+  );
+  if (ordered) return { error: "first_order" };
+
+  /* Off the treatment, never the consultation fee. */
+  let discount = 0;
+  if (coupon.percent_off) discount = cents((charge.amount * coupon.percent_off) / 100);
+  else if (coupon.amount_off && coupon.currency === "usd") {
+    discount = Math.min(cents(coupon.amount_off / 100), charge.amount);
+  }
+  if (!(discount > 0)) return { error: "invalid" };
+  const total = cents(charge.total - discount);
+  // Stripe refuses a card payment under $0.50.
+  if (total < 0.5) return { error: "unavailable" };
+  return { code: promo.code || code.toUpperCase(), discount, total, months: charge.months };
+}
+
+/* The code on the payment, so the dashboard shows it and settlement can put
+   the amount actually charged on the card. A code taken off is overwritten
+   rather than deleted: Stripe deletes a key sent empty, and stripe() drops
+   empty values before they are sent. A payment that never had one gets
+   nothing. */
+const promoMetadata = (promo, intent) =>
+  promo
+    ? { promo_code: promo.code, promo_discount: promo.discount.toFixed(2) }
+    : intent?.metadata?.promo_code
+      ? { promo_code: "removed", promo_discount: "0" }
+      : {};
+
 /* Reprices an open payment when the patient changes their plan term.
  *
  * The alternative was to throw the PaymentIntent away and create another, which
@@ -514,18 +610,15 @@ async function stripeIntent(req, res) {
  *
  * Only an intent that has not been confirmed can be repriced, which is exactly
  * the window this is for: once a card is submitted the amount is what the
- * issuer authorised and Stripe refuses to move it. Priced from `pid` and
- * `months` here, never from a figure in the request, same rule as creation. */
+ * issuer authorised and Stripe refuses to move it. Priced from the product
+ * the payment was opened for and the `months` asked for, never from a figure
+ * in the request, same rule as creation. */
 async function stripeRetotal(req, res) {
   if (blocked(req, res, { max: 20 })) return;
   if (!stripeEnabled()) return res.status(503).json({ ok: false, error: "not_configured" });
 
   const id = clean(req.body?.payment_intent_id, 80);
-  const { pid } = req.body || {};
-  const months = checkoutMonths(pid, req.body?.months);
-  const charge = chargeFor(pid, months);
   if (!id) return res.status(400).json({ ok: false, error: "missing_payment_intent" });
-  if (!charge) return res.status(400).json({ ok: false, error: "unknown_product" });
 
   const found = await stripe(`/payment_intents/${encodeURIComponent(id)}`, { method: "GET" });
   const intent = found.data;
@@ -541,13 +634,34 @@ async function stripeRetotal(req, res) {
     return res.status(200).json({ ok: false, error: "already_confirmed" });
   }
 
+  /* The product comes off the payment, not the request. Taken from the request
+     it let anyone open a payment for one treatment, reprice it as a cheaper
+     one, and have the first treatment's case captured at the cheaper amount. */
+  const pid = intent.metadata?.product_id;
+  const months = checkoutMonths(pid, req.body?.months);
+  const charge = chargeFor(pid, months);
+  if (!charge) return res.status(400).json({ ok: false, error: "unknown_product" });
+
+  /* A code the patient applied rides along on every reprice, so moving to the
+     3 month term drops it (no stacking) and moving back puts it on again. */
+  const asked = clean(req.body?.code, 40);
+  const promo = asked
+    ? await promoFor(asked, { pid, months, customerId: intent.customer, intentId: intent.id })
+    : null;
+  const applied = promo && !promo.error ? promo : null;
+  const total = applied ? applied.total : charge.total;
+
   const updated = await stripe(`/payment_intents/${encodeURIComponent(id)}`, {
     method: "POST",
     body: {
-      amount: toCents(charge.total),
+      amount: toCents(total),
       /* Rewritten, not merged: Stripe replaces the whole metadata object, and
          the entitlement is read back off plan_months after the payment. */
-      metadata: { ...(intent.metadata || {}), plan_months: String(charge.months) },
+      metadata: {
+        ...(intent.metadata || {}),
+        plan_months: String(charge.months),
+        ...promoMetadata(applied, intent),
+      },
     },
   });
   if (!updated.ok) {
@@ -555,12 +669,69 @@ async function stripeRetotal(req, res) {
     return res.status(502).json({ ok: false, error: "gateway_unreachable" });
   }
 
-  console.info(`Stripe intent ${id} repriced to ${charge.months} month(s), $${charge.total.toFixed(2)}`);
+  console.info(`Stripe intent ${id} repriced to ${charge.months} month(s), $${total.toFixed(2)}`);
   return res.status(200).json({
     ok: true,
-    amount: charge.total,
+    amount: total,
     shipping: charge.shipping,
     months: charge.months,
+    coupon: applied ? { code: applied.code, discount: applied.discount } : null,
+    couponError: promo?.error || undefined,
+  });
+}
+
+/* Puts a promotion code on the open payment, or takes it off (an empty code).
+ *
+ * Same window and same rules as a reprice: only an unconfirmed payment, priced
+ * from its own product and term. Tighter rate limit than the rest, because
+ * guessing codes costs nothing else. */
+async function stripeCoupon(req, res) {
+  if (blocked(req, res, { max: 10 })) return;
+  if (!stripeEnabled()) return res.status(503).json({ ok: false, error: "not_configured" });
+
+  const id = clean(req.body?.payment_intent_id, 80);
+  if (!id) return res.status(400).json({ ok: false, error: "missing_payment_intent" });
+  const found = await stripe(`/payment_intents/${encodeURIComponent(id)}`, { method: "GET" });
+  const intent = found.data;
+  if (!found.ok || !intent?.id) {
+    console.error("Stripe intent unreadable for a code:", found.status);
+    return res.status(502).json({ ok: false, error: "gateway_unreachable" });
+  }
+  if (intent.status !== "requires_payment_method" && intent.status !== "requires_confirmation") {
+    return res.status(200).json({ ok: false, error: "already_confirmed" });
+  }
+
+  const pid = intent.metadata?.product_id;
+  const months = checkoutMonths(pid, intent.metadata?.plan_months);
+  const charge = chargeFor(pid, months);
+  if (!charge) return res.status(400).json({ ok: false, error: "unknown_product" });
+
+  const asked = clean(req.body?.code, 40);
+  const promo = asked
+    ? await promoFor(asked, { pid, months, customerId: intent.customer, intentId: intent.id })
+    : null;
+  if (promo?.error) return res.status(200).json({ ok: false, error: promo.error });
+  const total = promo ? promo.total : charge.total;
+
+  const updated = await stripe(`/payment_intents/${encodeURIComponent(id)}`, {
+    method: "POST",
+    body: { amount: toCents(total), metadata: promoMetadata(promo, intent) },
+  });
+  if (!updated.ok) {
+    console.error("Stripe code update rejected:", updated.status, updated.data?.error?.message || "");
+    return res.status(502).json({ ok: false, error: "gateway_unreachable" });
+  }
+
+  console.info(
+    promo
+      ? `Stripe intent ${id}: code ${promo.code} takes $${promo.discount.toFixed(2)} off, $${total.toFixed(2)}`
+      : `Stripe intent ${id}: code removed, $${total.toFixed(2)}`
+  );
+  return res.status(200).json({
+    ok: true,
+    amount: total,
+    months: charge.months,
+    coupon: promo ? { code: promo.code, discount: promo.discount } : null,
   });
 }
 
@@ -625,6 +796,7 @@ async function stripeSettle(req, res) {
      authorised. Absent on every payment taken before plans existed, which reads
      as a single month, exactly right. */
   const planMonths = Number(meta.plan_months) || 1;
+  const discount = Number(meta.promo_discount) || 0;
 
   await Promise.allSettled([
     syncTag(contactId, { failed: false }),
@@ -649,9 +821,9 @@ async function stripeSettle(req, res) {
     planMonths >= 1 && orderId ? recordPlan(orderId, planMonths, meta.product_id) : null,
     /* The card was opened with a single month's price, before the patient had
        chosen a term. Put the real total on it now, or a 3 month plan reports
-       as a third of itself for ever. */
-    planMonths > 1 && orderId
-      ? setOpportunityValue(orderId, quoteFor(meta.product_id, planMonths)?.total)
+       as a third of itself for ever. A promotion code comes off it too. */
+    (planMonths > 1 || discount > 0) && orderId && quoteFor(meta.product_id, planMonths)
+      ? setOpportunityValue(orderId, cents(quoteFor(meta.product_id, planMonths).total - discount))
       : null,
   ]);
   console.info(
@@ -1017,6 +1189,7 @@ export default async function handler(req, res) {
   if (req.body?.action === "kurv_confirm") return kurvConfirm(req, res);
   if (req.body?.action === "stripe_intent") return stripeIntent(req, res);
   if (req.body?.action === "stripe_retotal") return stripeRetotal(req, res);
+  if (req.body?.action === "stripe_coupon") return stripeCoupon(req, res);
   if (req.body?.action === "stripe_settle") return stripeSettle(req, res);
   if (req.body?.action === "prepaid_fill") return prepaidFill(req, res);
 
