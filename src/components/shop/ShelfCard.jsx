@@ -63,6 +63,9 @@ export default function ShelfCard({ item, layout = "grid", photo = "sm:aspect-sq
             {item.title}
           </Link>
         </h3>
+        {!blends && item.formula && (
+          <p className="mt-1 text-sm font-semibold text-ks-heading sm:text-base">{item.formula}</p>
+        )}
         {chosen.form && <p className="mt-0.5 truncate text-xs text-muted sm:text-sm">{chosen.form}</p>}
 
         {blends && (

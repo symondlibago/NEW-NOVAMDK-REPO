@@ -8,14 +8,13 @@ import Navbar from "../components/Nav/Navbar";
 import Footer from "../components/Nav/Footer";
 import GoalGrid from "../components/shop/GoalGrid";
 import TreatmentShop from "../components/shop/TreatmentShop";
-import Reveal from "../components/ui/Reveal";
 import { visibleProducts, categoriesOf } from "../components/data/products";
 import { CATEGORY_META, TREATMENTS_META } from "../lib/categoryMeta";
 import { breadcrumbs } from "../lib/seoMeta";
 
 const FAQ = lazy(() => import("../components/FAQ"));
-// Weight-loss only: the tool qualifies you for these treatments specifically.
-const BmiCalculator = lazy(() => import("../components/tools/BmiCalculator"));
+// Weight-loss only: the same calculator as the BMI Calculator page.
+const BmiForm = lazy(() => import("../components/tools/BmiForm"));
 
 // Valid product categories a quiz can land on (everything but pure supplements).
 // Driven by visibility: a category with nothing shoppable is commented out of the
@@ -108,26 +107,22 @@ export default function TreatmentsPage() {
         <>
           <TreatmentShop category={validGoal} />
           {validGoal === "weight-loss" && (
-            /* Wider than the 1180 the rest of the page runs at, with a thinner
-               gutter: the calculator is a two-column instrument and the extra
-               width is what keeps the dial and the scale from squashing. */
-            <section className="mx-auto max-w-[1440px] px-4 pb-[clamp(1rem,3vw,2rem)] md:px-6">
-              <Reveal className="mb-8 max-w-[52ch]">
-                <span className="nv-eyebrow">Free tool</span>
-                <h2 className="mt-2 text-[clamp(1.6rem,3.4vw,2.4rem)] font-extrabold leading-tight">
-                  See where you stand
-                </h2>
-                <p className="mt-3 text-[1.02rem] leading-relaxed text-muted">
-                  Use the sliders to estimate your BMI and see which category it falls into.
-                </p>
-                <p className="mt-3 text-[0.9rem] leading-relaxed text-muted">
-                  This tool is a screening aid only, and does not predict individual outcomes.
-                </p>
-              </Reveal>
+            <section className="mx-auto max-w-[1040px] px-5 pb-[clamp(2rem,5vw,4rem)] md:px-10">
               <Suspense fallback={<div className="grid h-[320px] place-items-center text-muted">Loading calculator…</div>}>
-                <Reveal><BmiCalculator /></Reveal>
+                <BmiForm>
+                  <span className="nv-eyebrow">Free tool</span>
+                  <h2 className="mt-2 text-[clamp(1.6rem,3.4vw,2.4rem)] font-extrabold leading-tight">
+                    See where you stand
+                  </h2>
+                  <p className="mt-3 max-w-[48ch] text-[1.02rem] leading-relaxed text-muted">
+                    Enter your height and weight to see which BMI range you fall into.
+                  </p>
+                  <p className="mt-2 max-w-[48ch] text-[0.9rem] leading-relaxed text-muted">
+                    This tool is a screening aid only, and does not predict individual outcomes.
+                  </p>
+                </BmiForm>
               </Suspense>
-              <p className="mt-6 max-w-[90ch] text-[0.8rem] leading-relaxed text-muted">
+              <p className="mt-8 max-w-[90ch] text-[0.8rem] leading-relaxed text-muted">
                 For general information only. This is not medical advice, does not create a
                 patient-provider relationship, and is not a determination that you will be prescribed
                 anything.{" "}

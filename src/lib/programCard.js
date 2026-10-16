@@ -22,6 +22,10 @@ export const programItem = (program) => {
   const cheapest =
     program.blends.find((b) => b.fromPrice === program.fromPrice) || program.blends[0];
   const starter = cheapest.products[0];
+  /* With one formula there are no pills to pick from, so the card names it
+     instead ("With Glycine and B12"), and every card on the shelf says what
+     the medicine comes as (client, 2026-10-16). */
+  const only = program.blends.length === 1 ? program.blends[0] : null;
   return {
     key: `program-${program.slug}`,
     ribbon: "Subscription",
@@ -57,7 +61,10 @@ export const programItem = (program) => {
     product: starter,
     to: productPath(starter),
     price: program.fromPrice ? `From $${program.fromPrice}/mo` : "",
-    form: starter.dosageForm || "",
+    formula: only?.name || "",
+    /* A blend on a card of its own is named by its form ("Sublingual Drops"),
+       so the line under it gives the blend's note rather than say it twice. */
+    form: (only?.ownCard && only.note) || starter.dosageForm || "",
     startTo: `${productPath(starter)}?start=1`,
   };
 };

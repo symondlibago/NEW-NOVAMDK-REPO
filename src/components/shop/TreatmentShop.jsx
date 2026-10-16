@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { productsData, visibleProducts, inCategory } from "../data/products";
-import { programsFor, programProductIds } from "../data/subscriptions";
+import { shelfProgramsFor, programProductIds } from "../data/subscriptions";
 import { programItem, productItem } from "../../lib/programCard";
 import { stageOf, baseName } from "../../lib/catalog";
 import { CompoundedDisclaimer } from "../Compliance";
@@ -64,7 +64,7 @@ export default function TreatmentShop({ category }) {
      has a heading to show. */
   const name = productsData.find((p) => p.categorySlug === category)?.categoryName || "";
 
-  const programs = programsFor(category);
+  const programs = shelfProgramsFor(category);
   const inProgram = programProductIds(category);
   const standalone = new Set(products.filter((p) => !stageOf(p)).map((p) => baseName(p)));
   const cards = [
@@ -102,6 +102,10 @@ export default function TreatmentShop({ category }) {
      beside the text, so the row never ends on a half-empty line. */
   const layoutOf = (c, i) => {
     if (cards.length === 1) return "wide";
+    /* Three cards would split two across and one wide, two shapes for three
+       choices, so all three stack the same way instead (client, 2026-10-16,
+       weight loss once the drops got a card of their own). */
+    if (cards.length === 3) return "row";
     if (c.formulations?.length > 1) return "row";
     if (cards.length % 2 === 1 && i === cards.length - 1) return "row";
     return "grid";
