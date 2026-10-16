@@ -11,8 +11,8 @@
 /* The products the quiz can land on. Names and format lines are the quiz's
    own; the price, photo and link come from the catalog by slug. */
 export const PICKS = {
-  sema: { name: "Semaglutide + B12", form: "Weight management · weekly injection", slug: "semaglutide-cyanocobalamin-b12-starter" },
-  tirz: { name: "Tirzepatide + Niacinamide", form: "Weight management · weekly injection", slug: "tirzepatide-niacinamide-starter" },
+  sema: { name: "Semaglutide + Glycine + B12", form: "Weight management · weekly injection", slug: "semaglutide-glycine-b12-initial" },
+  tirz: { name: "Tirzepatide + Glycine + B12", form: "Weight management · weekly injection", slug: "tirzepatide-glycine-b12-initial" },
   nadinj: { name: "NAD+ Injection", form: "Longevity · at-home injection", slug: "nad-injection" },
   nadsl: { name: "NAD+ Sublingual Tablet", form: "Longevity · dissolves under the tongue", slug: "nad-sublingual-tablet" },
   serm: { name: "Sermorelin Nasal Spray", form: "Longevity · nasal spray", slug: "sermorelin-nasal-spray" },
