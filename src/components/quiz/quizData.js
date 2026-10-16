@@ -150,6 +150,7 @@ export const SCREENS = {
     opts: [
       { v: "cream", t: "A topical cream" },
       { v: "nasal", t: "A nasal spray" },
+      { v: "tablet", t: "A tablet that dissolves under the tongue" },
       { v: "inj", t: "An at-home injection" },
       { v: "open", t: "Open to my provider’s recommendation" },
     ],
@@ -263,13 +264,14 @@ export function match(a) {
       why.push("You selected performance and confidence goals.", "A tablet that dissolves under the tongue. If prescribed, it ships discreetly.");
     } else {
       const desire = has("sf1", "desire");
-      lead = { cream: "euph", nasal: "bremn", inj: "bremi" }[a.sf2] || (desire ? "bremn" : "euph");
+      lead = { cream: "euph", nasal: "bremn", tablet: "olym", inj: "bremi" }[a.sf2] || (desire ? "bremn" : "euph");
       alt = lead === "euph" ? "bremn" : "euph";
       why.push(desire ? "You put desire and interest on your list." : "You selected arousal, comfort or connection.");
       why.push({
         euph: "A topical cream you apply at home.",
         bremn: "A nasal spray, so there are no needles involved.",
         bremi: "An at-home injection, the format you chose.",
+        olym: "A tablet that dissolves under the tongue. If prescribed, it ships discreetly.",
       }[lead]);
     }
   } else if (p === "skin") {
