@@ -334,6 +334,16 @@ function ago(iso) {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
+/* Somebody whose record was already here well before today's activity, so the
+   row is a patient coming back rather than a new arrival. A day's grace, since
+   an intake that straddles midnight is still one visit. */
+const DAY_MS = 24 * 60 * 60 * 1000;
+function returning(row) {
+  const first = Date.parse(row.first_seen);
+  const last = Date.parse(row.at);
+  return Number.isFinite(first) && Number.isFinite(last) && last - first > DAY_MS;
+}
+
 /* John's question on the day the ads went live (2026-10-16): is there an easy
    way to see whether anyone is in the pipeline recently.
  *
@@ -348,16 +358,16 @@ function Recent({ rows, today }) {
         range={today === 1 ? "1 in the last 24 hours" : `${count(today)} in the last 24 hours`}
       />
       <p className="mt-2 max-w-3xl text-[0.87rem] leading-relaxed text-muted">
-        Everyone who reached the CRM, newest first, with how far they got and
-        where they came from. What they came for is not shown here, that stays in
-        the clinical system.
+        Dated by the last thing that happened on each record, not by when they
+        signed up, so somebody who came back and bought today sits at the top.
+        What they came for is not shown here, that stays in the clinical system.
       </p>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-line">
               <th className={th}>Person</th>
-              <th className={th}>Arrived</th>
+              <th className={th}>Last activity</th>
               <th className={th}>Channel</th>
               <th className={th}>Got as far as</th>
               <th className={`${th} text-right`}>Paid</th>
@@ -366,7 +376,14 @@ function Recent({ rows, today }) {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-b border-line/60 last:border-0">
-                <td className={`${td} font-semibold`}>{r.name}</td>
+                <td className={`${td} font-semibold`}>
+                  {r.name}
+                  {returning(r) && (
+                    <span className="ml-2 font-normal text-[0.76rem] text-muted">
+                      back since {ago(r.first_seen)}
+                    </span>
+                  )}
+                </td>
                 <td className={`${td} text-muted`}>{ago(r.at)}</td>
                 <td className={`${td} text-muted`}>{channelTitle(r)}</td>
                 <td className={td}>

@@ -591,9 +591,18 @@ async function channelsPayload() {
      without searching the opportunity list once per person. */
   const paidByContact = new Map(); // contactId -> { cards, value }
   const openByContact = new Map(); // contactId -> value
+  /* The last time anything happened on a patient's record, which is not the
+     same as when they first appeared. Ryan signed up on 1 October and paid on
+     16 October; dating him by the contact record said "14 days ago" on the day
+     he became the first paying patient. */
+  const lastTouch = new Map(); // contactId -> ms
   for (const o of opportunities) {
     const id = o.contactId;
     if (!id) continue;
+    for (const stamp of [o.updatedAt, o.createdAt]) {
+      const ms = Date.parse(stamp);
+      if (Number.isFinite(ms) && ms > (lastTouch.get(id) || 0)) lastTouch.set(id, ms);
+    }
     const value = Number(o.monetaryValue) || 0;
     if (isPaid(o)) {
       const row = paidByContact.get(id) || { cards: 0, value: 0 };
@@ -650,6 +659,12 @@ async function channelsPayload() {
      * a medication, and the rule in CLAUDE.md is that medication names stay
      * inside MD Integrations. How far they got and where they came from answers
      * "did anyone arrive" without putting a prescription on a dashboard. */
+    /* Dated by the LATEST thing on the record, not the earliest. A returning
+       patient who just paid belongs at the top of this list, and dating them by
+       their sign-up buries them under people who have done nothing since. */
+    const added = Date.parse(contact.dateAdded);
+    const touched = Math.max(Number.isFinite(added) ? added : 0, lastTouch.get(contact.id) || 0);
+
     arrivals.push({
       id: contact.id,
       name:
@@ -657,7 +672,10 @@ async function channelsPayload() {
         contact.contactName ||
         contact.phone ||
         "(no name)",
-      at: contact.dateAdded || null,
+      at: touched ? new Date(touched).toISOString() : null,
+      /* Kept so the page can say whether this is somebody new or somebody
+         coming back, which reads very differently to whoever is watching. */
+      first_seen: contact.dateAdded || null,
       source,
       medium,
       basis,
