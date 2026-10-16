@@ -57,17 +57,19 @@ export const STATE_PRODUCTS = {
     47, 48, // Tirzepatide + Glycine + B12, initial and refill
     13, 14, 15, // Semaglutide sublingual drops (SubMagna), all three doses: Strive ships them here (client, 2026-10-14)
     11, // Sermorelin
+    24, 25, // Sermorelin injection and mini troche (Strive, 2026-10-16)
     23, // NAD+ Sublingual Tablet — the sublingual only, not the injections
     26, 27, 28, // Low-Dose Naltrexone, all three doses
     29, // Luminance Brightening Cream
-    32, // Olympus Peak
-    39, // Bremelanotide nasal spray; the injection can't ship here (table below)
-    44, // being rewritten as Strive's Euphoria Cream O, which California allows
+    30, 31, 32, 33, 34, // Olympus, Olympus +, Olympus Peak, Olympus Max, Olympus Max Peak
+    38, 39, // Bremelanotide mini troche and nasal spray; the injection can't ship here (table below)
+    44, 35, 36, // Euphoria Cream O (44 is the live one, 35 the older card) and Euphoria Cream S
   ],
 };
 
 /* States a product can't ship to, by product id (client's pharmacy table,
- * 2026-10-13). The other way round from STATE_PRODUCTS: the table names a
+ * 2026-10-13, and Strive's confirmed list via Erin, 2026-10-16, which leaves
+ * NAD+ tablets, LDN, the Olympus line and Luminance open in all 50 states). The other way round from STATE_PRODUCTS: the table names a
  * few states per product, so this lists what is ruled out. California repeats
  * where STATE_PRODUCTS already leaves the product out, so each row reads as the
  * table does. A product with no row is limited only by the rules above.
@@ -80,10 +82,12 @@ export const PRODUCT_NO_SHIP = {
   5: NO_AR_IN_SC, 6: NO_AR_IN_SC, 7: NO_AR_IN_SC, // Tirzepatide injection
   8: NO_AR_IN_SC, 9: NO_AR_IN_SC, 10: NO_AR_IN_SC, 47: NO_AR_IN_SC, 48: NO_AR_IN_SC,
   13: NO_AR_IN_SC, 14: NO_AR_IN_SC, 15: NO_AR_IN_SC, // Semaglutide sublingual drops (Strive, 2026-10-14)
-  24: NO_AR_IN_SC, // Sermorelin injection
+  24: NO_AR_IN_SC, 25: NO_AR_IN_SC, // Sermorelin injection and mini troche
   16: NO_AR_CA_IN_SC, 18: NO_AR_CA_IN_SC, 19: NO_AR_CA_IN_SC, 20: NO_AR_CA_IN_SC, // NAD+ injection (503A)
   17: NO_AR_CA_IN_SC, // Glutathione injection (503A)
   37: NO_AR_CA_IN_SC, // Bremelanotide injection
+  38: NO_AR_IN_SC, 39: NO_AR_IN_SC, // Bremelanotide mini troche and nasal spray (Strive, 2026-10-16)
+  44: NO_AR_IN_SC, 35: NO_AR_IN_SC, 36: NO_AR_IN_SC, // Euphoria Cream O and S (Strive, 2026-10-16)
   12: ["California"], // Lipo-C (MediVera)
 };
 
