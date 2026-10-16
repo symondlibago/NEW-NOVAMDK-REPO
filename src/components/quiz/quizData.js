@@ -20,7 +20,7 @@ export const PICKS = {
   lumi: { name: "Luminance Brightening Cream", form: "Skin health · prescription topical", slug: "luminance-brightening-cream" },
   ldn: { name: "Low-Dose Naltrexone (LDN)", form: "Recovery and wellness · oral", slug: "low-dose-naltrexone-ldn-starter" },
   euph: { name: "Euphoria Cream O", form: "Sexual health · topical cream · for women", slug: "euphoria-cream-o" },
-  olym: { name: "Olympus Peak", form: "Sexual health · sublingual tablet · for men", slug: "olympus-peak" },
+  olym: { name: "Olympus Peak", form: "Sexual health · sublingual tablet", slug: "olympus-peak" },
   bremi: { name: "Bremelanotide Injection", form: "Sexual health · at-home injection", slug: "bremelanotide-injection" },
   bremn: { name: "Bremelanotide Nasal Spray", form: "Sexual health · nasal spray", slug: "bremelanotide-nasal-spray" },
 };

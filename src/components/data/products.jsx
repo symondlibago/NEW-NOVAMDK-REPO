@@ -1593,7 +1593,6 @@ export const productsData = [
     categorySlug: "sexual-health",
     categoryName: "Sexual Health",
     name: "Olympus Peak",
-    audience: "For men",
     qrImg: "/qr/Olympus Peak.png",
     size: "20 IU / 1 mg / 20 mg",
     subtitle: "A compounded sublingual tablet containing oxytocin, bremelanotide, and tadalafil.",
@@ -2217,7 +2216,7 @@ const FAQ_SETS = [
     { q: "What if I experience irritation?", a: "Contact your provider if you experience irritation, discomfort, or another unexpected reaction." },
   ]],
   [/olympus (max )?peak/i, [
-    { q: "What is Olympus Peak?", a: "Olympus Peak is a compounded prescription tablet for men that combines tadalafil, bremelanotide, and oxytocin. It dissolves under the tongue." },
+    { q: "What is Olympus Peak?", a: "Olympus Peak is a compounded prescription tablet that combines tadalafil, bremelanotide, and oxytocin. It dissolves under the tongue." },
     { q: "How do I take it?", a: "Use it exactly as prescribed by your provider, including the amount and timing." },
     { q: "Is Olympus Peak right for me?", a: "Your provider will review your health history, medications, and sexual health concerns before deciding if it is appropriate for you." },
     { q: "What should I know before using it?", a: "Because it contains multiple prescription ingredients, side effects and drug interactions are possible. Your provider will review important precautions before treatment starts." },
