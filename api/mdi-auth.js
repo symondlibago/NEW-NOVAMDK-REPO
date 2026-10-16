@@ -166,6 +166,8 @@ export default async function handler(req, res) {
             gender: d.gender ?? null,
             address: d.address ? {
               address: d.address.address || null,
+              // Or a returning patient's next visit would drop the unit from GHL.
+              address2: d.address.address2 || null,
               zip_code: d.address.zip_code || null,
               city_name: d.address.city_name || null,
               // MDI nests the state; GHL wants the plain name.

@@ -455,7 +455,10 @@ export async function upsertContact({ patient = {}, treatment, tags = [], source
     ...(clean(patient.first_name) && { firstName: clean(patient.first_name) }),
     ...(clean(patient.last_name) && { lastName: clean(patient.last_name) }),
     ...(clean(patient.date_of_birth) && { dateOfBirth: clean(patient.date_of_birth) }),
-    ...(clean(address.address) && { address1: clean(address.address) }),
+    /* GHL has one street line, so an apartment or unit rides on the end of it. */
+    ...(clean(address.address) && {
+      address1: [clean(address.address), clean(address.address2)].filter(Boolean).join(", "),
+    }),
     ...(clean(address.city_name) && { city: clean(address.city_name) }),
     ...(clean(address.state_name) && { state: clean(address.state_name) }),
     ...(clean(address.zip_code) && { postalCode: clean(address.zip_code) }),
