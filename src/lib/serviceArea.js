@@ -112,6 +112,9 @@ const ABBR = {
   Wisconsin: "WI", Wyoming: "WY",
 };
 
+/** Every state by name, A to Z, for pickers (the /start quiz). */
+export const STATE_NAMES = Object.keys(ABBR);
+
 /** The states a product can't be sent to, as postal codes in A to Z order,
  *  for the line under a product's description. Leaves out BLOCKED_STATES,
  *  which no treatment reaches. */
