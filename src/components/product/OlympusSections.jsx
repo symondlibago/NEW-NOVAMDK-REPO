@@ -61,7 +61,7 @@ function WhatIs({ startTo }) {
                 What is Olympus Peak?
               </h2>
               <p className="mt-5 max-w-[50ch] text-[1rem] leading-relaxed" style={{ color: CREAM }}>
-                Olympus Peak is a compounded prescription tablet for men. It combines tadalafil, bremelanotide and
+                Olympus Peak is a compounded prescription tablet. It combines tadalafil, bremelanotide and
                 oxytocin in one formula, and it dissolves under the tongue.
               </p>
               <StartLink to={startTo} light className="mt-7" />

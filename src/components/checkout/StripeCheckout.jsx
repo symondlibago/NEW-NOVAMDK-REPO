@@ -87,6 +87,17 @@ const LABEL = "mb-1.5 block text-sm font-medium text-co-ink-2";
    treatment is appropriate is the provider's call, hence "only filled if", and
    there is no refund or delivery promise because neither is something the code
    knows. */
+/* What the patient reads when a code doesn't go on. The server says which rule
+   it failed; the wording is ours. */
+const PROMO_ERRORS = {
+  invalid: "That code isn't valid. Check the spelling and try again.",
+  plan_discount: "Codes can't be combined with the 3-month discount.",
+  first_order: "This code is for first orders only.",
+  minimum: "This order doesn't meet the code's minimum.",
+};
+const promoError = (error) =>
+  PROMO_ERRORS[error] || "We couldn't apply that code just now. Please try again.";
+
 const ASSURANCES = [
   "Reviewed by a licensed provider",
   "Only charged once a provider approves",
@@ -131,6 +142,17 @@ export default function StripeCheckout({
   const [openIntent, setOpenIntent] = useState(null);
   const [priced, setPriced] = useState(null);
 
+  /* A promotion code, as the server priced it onto the open payment:
+     { code, discount, total, months }. `code` is the one the patient applied,
+     kept while they look at a term it can't be used on, so that moving back
+     puts it on again. Every figure here comes from the server. */
+  const [promo, setPromo] = useState(null);
+  const [code, setCode] = useState("");
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  const [codeNote, setCodeNote] = useState("");
+  const [applying, setApplying] = useState(false);
+
   const numberRef = useRef(null);
   const expiryRef = useRef(null);
   const cvcRef = useRef(null);
@@ -152,7 +174,10 @@ export default function StripeCheckout({
 
   const name = product?.name || productName || "Your treatment";
   const image = product?.img || product?.imgDetail || null;
-  const total = quote?.total;
+  /* Only while the code was priced for the term on screen. Between a term
+     change and its reprice the two disagree, and Pay is off anyway. */
+  const promoOn = promo && promo.months === (Number(quote?.months) || 1) ? promo : null;
+  const total = promoOn ? promoOn.total : quote?.total;
 
   /* The term at the moment the payment is opened, read through a ref so that
      changing it afterwards does not re-run the effect below. */
@@ -298,6 +323,7 @@ export default function StripeCheckout({
           payment_intent_id: openIntent,
           pid,
           months,
+          code: code || undefined,
         }),
       })
         .then((res) => res.json())
@@ -306,6 +332,8 @@ export default function StripeCheckout({
       if (r?.ok) {
         setPriced(r.months);
         setMessage("");
+        setPromo(r.coupon ? { ...r.coupon, total: r.amount, months: r.months } : null);
+        setCodeNote(r.couponError ? promoError(r.couponError) : "");
       } else {
         console.error("Stripe retotal failed:", r?.error || r);
         setMessage("We couldn't update your plan. Please refresh the page and try again.");
@@ -314,7 +342,32 @@ export default function StripeCheckout({
     return () => {
       cancelled = true;
     };
-  }, [openIntent, months, priced, pid]);
+  }, [openIntent, months, priced, pid, code]);
+
+  /* Puts a code on the open payment, or takes it off with an empty one. The
+     server reprices the payment itself, so what the summary shows afterwards
+     is what the card would be asked for. */
+  const applyCode = async (next) => {
+    if (!openIntent || applying) return;
+    setApplying(true);
+    setCodeNote("");
+    const r = await fetch("/api/pay", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "stripe_coupon", payment_intent_id: openIntent, code: next }),
+    })
+      .then((res) => res.json())
+      .catch(() => null);
+    if (!alive.current) return;
+    setApplying(false);
+    if (r?.ok) {
+      setCode(next);
+      setPromo(r.coupon ? { ...r.coupon, total: r.amount, months: r.months } : null);
+      if (!next) setCodeInput("");
+    } else {
+      setCodeNote(promoError(r?.error));
+    }
+  };
 
   /* Tells the server the payment landed, so it can tag the contact and move the
      card. Also the source of truth when confirmation times out: it reads the
@@ -549,8 +602,13 @@ export default function StripeCheckout({
   /* How the renewal reads in the authorisation: a one month plan renews every
      month, a longer one renews as a whole on its own cycle, at the same price. */
   const renewalText = planMonths === 1 ? "monthly" : `every ${planMonths} months`;
-  const consent = renewalConsent({ charge: usd(total), renewal: renewalText });
-  const payable = status === "ready" && !repricing && agreed;
+  /* A code only comes off the first payment, so the renewal is at full price
+     and the authorisation has to say so. */
+  const consent = renewalConsent({
+    charge: usd(total),
+    renewal: promoOn ? `${renewalText} at ${usd(quote?.total)}` : renewalText,
+  });
+  const payable = status === "ready" && !repricing && !applying && agreed;
 
   return (
     <form onSubmit={pay} className={`flex-1 font-checkout text-co-ink ${SHELL}`}>
@@ -668,9 +726,11 @@ export default function StripeCheckout({
               {quoted ? <span className="text-base text-co-muted">/month</span> : null}
             </div>
             <p className="mt-1.5 text-sm text-co-muted">
-              {planMonths === 1
-                ? `Billed ${usd(total)} monthly after approval`
-                : `Billed ${usd(total)} every ${planMonths} months after approval`}
+              {promoOn
+                ? `First charge ${usd(total)} after approval, then ${usd(quote?.total)} ${renewalText}`
+                : planMonths === 1
+                  ? `Billed ${usd(total)} monthly after approval`
+                  : `Billed ${usd(total)} every ${planMonths} months after approval`}
             </p>
 
             {/* An itemised receipt, always, not only when there is a second line
@@ -702,6 +762,22 @@ export default function StripeCheckout({
                   <dd className="shrink-0">&minus;{usd(saving)}</dd>
                 </div>
               )}
+              {promoOn && (
+                <div className="flex justify-between gap-3 py-1.5 font-medium text-co-gold">
+                  <dt className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">Code {promoOn.code}</span>
+                    <button
+                      type="button"
+                      onClick={() => applyCode("")}
+                      disabled={status !== "ready" || applying}
+                      className="text-xs font-normal text-co-muted underline underline-offset-2 transition-colors hover:text-co-ink disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </dt>
+                  <dd className="shrink-0">&minus;{usd(promoOn.discount)}</dd>
+                </div>
+              )}
               {hasFee && (
                 <div className="flex justify-between gap-3 py-1.5">
                   <dt>Telehealth consultation fee</dt>
@@ -709,6 +785,58 @@ export default function StripeCheckout({
                 </div>
               )}
             </dl>
+
+            {/* The coupon box, closed until asked for so a patient without a
+                code isn't sent looking for one. Every button here is
+                type=button and Enter is caught, because this sits inside the
+                payment form and a stray submit would try to pay. */}
+            {!promoOn && (
+              <div className="mt-2">
+                {codeOpen ? (
+                  <div className="flex gap-2">
+                    <input
+                      value={codeInput}
+                      onChange={(e) => setCodeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        if (codeInput.trim()) applyCode(codeInput.trim());
+                      }}
+                      aria-label="Coupon code"
+                      placeholder="Coupon code"
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      spellCheck={false}
+                      maxLength={40}
+                      disabled={status !== "ready"}
+                      className="min-w-0 flex-1 rounded-xl border border-co-line-2 bg-white px-3.5 py-2.5 text-base uppercase text-co-ink placeholder:normal-case placeholder:text-co-muted focus:border-co-gold focus:outline-none focus:ring-4 focus:ring-co-gold-hi/15"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => applyCode(codeInput.trim())}
+                      disabled={!codeInput.trim() || applying || repricing || status !== "ready"}
+                      className="flex w-24 flex-none items-center justify-center rounded-xl border border-co-line-2 bg-white text-sm font-semibold text-co-ink transition-colors hover:border-co-gold hover:text-co-gold disabled:opacity-50 disabled:hover:border-co-line-2 disabled:hover:text-co-ink"
+                    >
+                      {applying ? <Loader2 size={15} className="animate-spin" /> : "Apply"}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setCodeOpen(true)}
+                    disabled={status !== "ready"}
+                    className="text-sm font-medium text-co-gold underline-offset-2 hover:underline disabled:opacity-50"
+                  >
+                    Have a coupon code?
+                  </button>
+                )}
+                {codeNote && (
+                  <p role="status" className="mt-2 text-sm leading-relaxed text-co-error">
+                    {codeNote}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* The one number they are agreeing to. min-w-0, or the label
                 refuses to shrink and a four figure total pushes the amount off

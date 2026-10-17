@@ -1009,7 +1009,7 @@ function PatientInfoModal({
   const [form, setForm] = useState({
     first_name: "", last_name: "", email: "", phone_number: "",
     dob: "", gender: "",
-    street: "", city: "", state: "", zip: "",
+    street: "", street2: "", city: "", state: "", zip: "",
   });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const setVal = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
@@ -1176,6 +1176,7 @@ function PatientInfoModal({
       gender: Number(form.gender), // MDI: 1 = male, 2 = female
       address: {
         address: form.street.trim(),
+        address2: form.street2.trim(), // optional; mdi-auth sends null when empty
         zip_code: form.zip.trim(),
         city_name: form.city.trim(),
         state_name: form.state,
@@ -1569,6 +1570,14 @@ function PatientInfoModal({
                             }
                             className={inputCls}
                           />
+                        </label>
+                      </FadeIn>
+                      {/* Optional, so it never holds up Continue. MDI keeps it as the
+                          second address line on the patient file. */}
+                      <FadeIn delay={reveal + 0.03}>
+                        <label className={labelCls}>
+                          Apt, suite or unit (optional)
+                          <input value={form.street2} onChange={set("street2")} autoComplete="address-line2" className={inputCls} />
                         </label>
                       </FadeIn>
                       <FadeIn delay={reveal + 0.06} className="grid grid-cols-2 gap-4">

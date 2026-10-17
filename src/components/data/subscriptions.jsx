@@ -34,7 +34,9 @@ export const PROGRAMS = [
         note: "Muscle retention support plus vitamin B12",
         ids: [45, 46],
       },
-      { slug: "sublingual", name: "Sublingual Drops", note: "No needles required", ids: [13, 14, 15] },
+      /* ownCard: its own card on the category shelf, not a pill on the
+         injection (client, 2026-10-16). See shelfProgramsFor. */
+      { slug: "sublingual", name: "Sublingual Drops", note: "No needles required", ids: [13, 14, 15], ownCard: true },
     ],
   },
 ];
@@ -107,6 +109,32 @@ export const programsFor = (category) =>
       };
     })
     .filter(Boolean);
+
+/** The programs as the category shelf lays them out. A blend marked ownCard
+ *  leaves its molecule's card for a card of its own, priced and pictured from
+ *  that blend alone, so the drops don't sit as a pill on the injection (client,
+ *  2026-10-16: the two pills read as confusing). Shelf only: the portal keeps
+ *  reading programsFor, so a patient's treatment is named there as before. */
+export const shelfProgramsFor = (category) =>
+  programsFor(category).flatMap((program) => {
+    const own = program.blends.filter((b) => b.ownCard);
+    if (!own.length) return [program];
+    const regroup = (slug, blends) => {
+      const prices = blends.map((b) => b.fromPrice).filter(Boolean);
+      return {
+        ...program,
+        slug,
+        blends,
+        fromPrice: prices.length ? Math.min(...prices) : null,
+        image: blends[0].products[0]?.img,
+      };
+    };
+    const rest = program.blends.filter((b) => !b.ownCard);
+    return [
+      ...(rest.length ? [regroup(program.slug, rest)] : []),
+      ...own.map((b) => regroup(`${program.slug}-${b.slug}`, [b])),
+    ];
+  });
 
 /** Every product id already represented by a program in this category. */
 export const programProductIds = (category) =>
