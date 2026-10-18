@@ -557,20 +557,52 @@ const blankRow = (extra) => ({
    who paid is worse than either being slightly narrow. */
 const isPaid = (o) => o.status === "won";
 
+/* Enough to see a quiet day and a busy one without turning the panel into a
+   second CRM. The whole list is already in memory, so this is about what is
+   worth reading, not what is cheap to send. */
+const RECENT_LIMIT = 20;
+
+/* GoHighLevel opens a bare contact for any number it texts, the staff number an
+ * Internal Notification goes to included. John's own mobile turned up as a
+ * "person in the CRM", named after itself, the minute the first Paid
+ * notification fired (2026-10-16), which made the dashboard report two people
+ * when there was one patient.
+ *
+ * Left alone in GoHighLevel rather than deleted: that record holds the
+ * notification thread, and deleting it only invites it back on the next SMS.
+ * It is simply not counted as somebody who arrived.
+ *
+ * All three have to be empty. Our own intake always writes a website-lead tag
+ * and a source, and a kiosk walk-up is phone-only but always carries a kiosk
+ * tag, so a record with no email, no tags AND no source is not a lead that
+ * came to us by any route we have. */
+const isNotificationShell = (c) =>
+  !c.email && !(c.tags || []).length && !c.source && !c.attributionSource?.sessionSource;
+
 async function channelsPayload() {
   const { pipelineId } = await pipelineBoard();
-  const [contacts, opportunities] = await Promise.all([
+  const [everyContact, opportunities] = await Promise.all([
     listContacts(),
     listOpportunities(pipelineId),
   ]);
+  const contacts = everyContact.filter((c) => !isNotificationShell(c));
 
   /* Money first, keyed by contact, so the contact pass below can fold it in
      without searching the opportunity list once per person. */
   const paidByContact = new Map(); // contactId -> { cards, value }
   const openByContact = new Map(); // contactId -> value
+  /* The last time anything happened on a patient's record, which is not the
+     same as when they first appeared. Ryan signed up on 1 October and paid on
+     16 October; dating him by the contact record said "14 days ago" on the day
+     he became the first paying patient. */
+  const lastTouch = new Map(); // contactId -> ms
   for (const o of opportunities) {
     const id = o.contactId;
     if (!id) continue;
+    for (const stamp of [o.updatedAt, o.createdAt]) {
+      const ms = Date.parse(stamp);
+      if (Number.isFinite(ms) && ms > (lastTouch.get(id) || 0)) lastTouch.set(id, ms);
+    }
     const value = Number(o.monetaryValue) || 0;
     if (isPaid(o)) {
       const row = paidByContact.get(id) || { cards: 0, value: 0 };
@@ -586,6 +618,11 @@ async function channelsPayload() {
   const campaigns = new Map(); // campaign name -> row
   const coverage = { utm: 0, tag: 0, ghl: 0, none: 0 };
   const counted = new Set();
+  /* Who arrived lately, John's question of 2026-10-16 the day the ads went on.
+     Built here rather than as its own resource because this pass already holds
+     every contact and every card: it costs no extra API call, no extra cache and
+     no extra request from the browser. */
+  const arrivals = [];
 
   for (const contact of contacts) {
     const { source, medium, campaign, basis } = channelOf(contact);
@@ -614,6 +651,37 @@ async function channelsPayload() {
     }
     row.open_value += openByContact.get(contact.id) || 0;
     counted.add(contact.id);
+
+    /* NO TREATMENT HERE, deliberately.
+     *
+     * The obvious thing to show beside a name is what they came for, and the
+     * card name carries it: "Weight Loss - Tirzepatide + Glycine + B12". That is
+     * a medication, and the rule in CLAUDE.md is that medication names stay
+     * inside MD Integrations. How far they got and where they came from answers
+     * "did anyone arrive" without putting a prescription on a dashboard. */
+    /* Dated by the LATEST thing on the record, not the earliest. A returning
+       patient who just paid belongs at the top of this list, and dating them by
+       their sign-up buries them under people who have done nothing since. */
+    const added = Date.parse(contact.dateAdded);
+    const touched = Math.max(Number.isFinite(added) ? added : 0, lastTouch.get(contact.id) || 0);
+
+    arrivals.push({
+      id: contact.id,
+      name:
+        [contact.firstName, contact.lastName].filter(Boolean).join(" ") ||
+        contact.contactName ||
+        contact.phone ||
+        "(no name)",
+      at: touched ? new Date(touched).toISOString() : null,
+      /* Kept so the page can say whether this is somebody new or somebody
+         coming back, which reads very differently to whoever is watching. */
+      first_seen: contact.dateAdded || null,
+      source,
+      medium,
+      basis,
+      stage: paid ? "paid" : tags.includes(SUBMITTED_TAG) ? "submitted" : tags.includes(STARTED_TAG) ? "started" : "lead",
+      value: paid ? Math.round(paid.value) : 0,
+    });
 
     /* Campaigns are only listed where one is known. An untagged channel has no
        campaign to report and padding the table with "(none)" rows would bury
@@ -674,6 +742,10 @@ async function channelsPayload() {
 
   rows.sort((a, b) => b.revenue - a.revenue || b.contacts - a.contacts);
 
+  /* A contact with no dateAdded cannot be placed on a timeline, and guessing a
+     position for it would be worse than leaving it out of this one panel. */
+  const dated = arrivals.filter((a) => a.at && Number.isFinite(Date.parse(a.at)));
+
   const sum = (key) => rows.reduce((n, r) => n + r[key], 0);
   const totalSpend = Math.round(spendTotal());
   const paidTotal = sum("paid");
@@ -696,6 +768,12 @@ async function channelsPayload() {
        because a channel split built mostly from "none" rows is worth reading
        very differently from one built from tagged links. */
     coverage,
+    /* Newest first, capped. A list is for "has anybody turned up", not for
+       browsing the CRM, and the CRM is one click away for that. */
+    recent: dated.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, RECENT_LIMIT),
+    /* Counted over everyone, not just the twenty shown, so a busy day still
+       reports honestly once the list is full. */
+    recent_24h: dated.filter((a) => Date.now() - Date.parse(a.at) < 24 * 60 * 60_000).length,
     spend: {
       recorded: totalSpend > 0,
       total: totalSpend,

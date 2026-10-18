@@ -83,6 +83,14 @@ function ensureLoaded() {
  *  private ones. */
 export function applyRouteConsent(path) {
   if (!isBrowser) return false;
+  /* On a dev machine or a preview deploy the tag is never fetched at all, which
+     is stronger than letting it load and holding events back: nothing is
+     queued, nothing replays, and the Network tab says plainly that this build
+     is not talking to Google. */
+  if (isDevEnvironment()) {
+    setDisabled(true);
+    return false;
+  }
   const priv = isPrivatePath(path);
   setDisabled(priv);
   if (!priv) ensureLoaded();
@@ -108,6 +116,30 @@ function send(event, props) {
 // Don't record anything inside the Design Studio's `?preview` iframe.
 function isPreview() {
   return isBrowser && new URLSearchParams(window.location.search).has("preview");
+}
+
+/* Development and staging traffic never reaches the client's analytics.
+ *
+ * John asked on 2026-10-17 whether this was done. It was not: the only
+ * exclusions were the private routes and the Design Studio iframe, so every
+ * `npm run dev` session and every Vercel preview deploy counted as a real
+ * visitor in GA4, GTM and the Meta pixel alike.
+ *
+ * Hostname, not import.meta.env.DEV alone. A preview deploy is a production
+ * BUILD served from *.vercel.app, so DEV is false there and an env check would
+ * miss the half of the question that actually matters: previews run the real
+ * api/ functions against real keys, and they are where most of the clicking
+ * happens before a release.
+ *
+ * Exported because GTM and the Meta pixel load themselves and have to ask the
+ * same question. One definition, like isPrivatePath, so the three cannot drift
+ * into disagreeing about what counts as production. */
+const DEV_HOST = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$|\.local$|\.vercel\.app$/i;
+
+export function isDevEnvironment() {
+  if (!isBrowser) return true;
+  if (import.meta?.env?.DEV) return true;
+  return DEV_HOST.test(window.location.hostname);
 }
 
 /* Attached to every event rather than to the kiosk ones alone. Scans were
@@ -145,7 +177,7 @@ function strip(props) {
 
 /** Record a curated event. Unknown event names are allowed but discouraged. */
 export function track(event, props = {}) {
-  if (isPreview()) return;
+  if (isPreview() || isDevEnvironment()) return;
   /* Checked against the live location, not a passed-in path: an event fired
      from a component that happens to be mounted on /intake must stay silent
      even though the caller knows nothing about routes. */
@@ -170,7 +202,7 @@ export function track(event, props = {}) {
  * token, and on the portal can include whatever state a redirect appended.
  */
 export function trackPageView(path) {
-  if (isPreview()) return;
+  if (isPreview() || isDevEnvironment()) return;
   if (isPrivatePath(path)) return;
   const clean = isBrowser ? `${window.location.origin}${path}` : path;
   if (isBrowser && typeof window.gtag === "function") {

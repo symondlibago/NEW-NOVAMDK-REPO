@@ -1,4 +1,4 @@
-import { isPrivatePath } from "./analytics";
+import { isPrivatePath, isDevEnvironment } from "./analytics";
 
 /* The Meta (Facebook) advertising pixel.
  *
@@ -73,6 +73,8 @@ function gpcDeclined() {
 /** Whether the pixel is allowed to fire for this path. */
 export function pixelAllowed(path) {
   if (!isBrowser) return false;
+  // Never from a dev machine or a preview deploy (John, 2026-10-17).
+  if (isDevEnvironment()) return false;
   if (gpcDeclined()) return false;
   /* The same private routes GA4 is held off: intake, patient portal and the
      staff dashboard. Redundant now that the list above has to say yes, and kept

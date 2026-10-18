@@ -1,4 +1,4 @@
-import { isPrivatePath } from "./analytics";
+import { isPrivatePath, isDevEnvironment } from "./analytics";
 
 /* Google Tag Manager.
  *
@@ -56,6 +56,8 @@ function gpcDeclined() {
 export function gtmAllowed(path) {
   if (!isBrowser) return false;
   if (!GTM_ID) return false;
+  // Never from a dev machine or a preview deploy (John, 2026-10-17).
+  if (isDevEnvironment()) return false;
   if (gpcDeclined()) return false;
   /* The same private routes GA4 and the pixel are held off: intake, patient
      portal and the staff dashboard. */

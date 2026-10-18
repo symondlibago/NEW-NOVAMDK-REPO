@@ -305,6 +305,106 @@ function ChannelTable({ rows }) {
   );
 }
 
+const STAGE_LABEL = {
+  paid: "Paid",
+  submitted: "Submitted",
+  started: "Started intake",
+  lead: "Lead only",
+};
+
+const STAGE_TONE = {
+  paid: "border-primary/45 bg-primary text-on-primary",
+  submitted: "border-primary/35 bg-primary/10 text-primary-deep",
+  started: "border-line-strong/50 bg-surface-2 text-ink",
+  lead: "border-line bg-surface-2 text-muted",
+};
+
+/* "40 min ago" rather than a timestamp. The question this panel answers is
+   whether anybody has turned up, and a clock time makes the reader do the
+   subtraction themselves before they can tell. */
+function ago(iso) {
+  const then = Date.parse(iso);
+  if (!Number.isFinite(then)) return "";
+  const mins = Math.round((Date.now() - then) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hr${hrs === 1 ? "" : "s"} ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+/* Somebody whose record was already here well before today's activity, so the
+   row is a patient coming back rather than a new arrival. A day's grace, since
+   an intake that straddles midnight is still one visit. */
+const DAY_MS = 24 * 60 * 60 * 1000;
+function returning(row) {
+  const first = Date.parse(row.first_seen);
+  const last = Date.parse(row.at);
+  return Number.isFinite(first) && Number.isFinite(last) && last - first > DAY_MS;
+}
+
+/* John's question on the day the ads went live (2026-10-16): is there an easy
+   way to see whether anyone is in the pipeline recently.
+ *
+ * It rides on the channel payload, which already holds every contact, so the
+ * panel costs no extra request and no extra cache. */
+function Recent({ rows, today }) {
+  if (!rows?.length) return null;
+  return (
+    <section>
+      <SectionHead
+        label="Who arrived recently"
+        range={today === 1 ? "1 in the last 24 hours" : `${count(today)} in the last 24 hours`}
+      />
+      <p className="mt-2 max-w-3xl text-[0.87rem] leading-relaxed text-muted">
+        Dated by the last thing that happened on each record, not by when they
+        signed up, so somebody who came back and bought today sits at the top.
+        What they came for is not shown here, that stays in the clinical system.
+      </p>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b border-line">
+              <th className={th}>Person</th>
+              <th className={th}>Last activity</th>
+              <th className={th}>Channel</th>
+              <th className={th}>Got as far as</th>
+              <th className={`${th} text-right`}>Paid</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-b border-line/60 last:border-0">
+                <td className={`${td} font-semibold`}>
+                  {r.name}
+                  {returning(r) && (
+                    <span className="ml-2 font-normal text-[0.76rem] text-muted">
+                      back since {ago(r.first_seen)}
+                    </span>
+                  )}
+                </td>
+                <td className={`${td} text-muted`}>{ago(r.at)}</td>
+                <td className={`${td} text-muted`}>{channelTitle(r)}</td>
+                <td className={td}>
+                  <span
+                    className={`inline-block rounded-full border px-2.5 py-0.5 text-[0.72rem] font-semibold ${STAGE_TONE[r.stage]}`}
+                  >
+                    {STAGE_LABEL[r.stage]}
+                  </span>
+                </td>
+                <td className={`${td} text-right font-semibold`}>
+                  {r.value > 0 ? money(r.value) : <span className="text-muted">—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 /* Each step as a share of the step before it, which is the number the client's
    brief asks for and the one that says where people are lost. Share of the
    original total would make every later step look small for the same reason the
@@ -312,7 +412,7 @@ function ChannelTable({ rows }) {
 const pct = (part, whole) => (whole ? `${Math.round((part / whole) * 100)}%` : "—");
 
 function Channels({ data }) {
-  const { channels, campaigns, totals, coverage, spend } = data;
+  const { channels, campaigns, totals, coverage, spend, recent, recent_24h } = data;
   const identified = coverage.utm + coverage.tag;
   const share = totals.contacts ? Math.round((identified / totals.contacts) * 100) : 0;
   const repeat = channels.reduce((n, r) => n + r.repeat, 0);
@@ -337,6 +437,15 @@ function Channels({ data }) {
           hint={spend.recorded ? "Spend divided by paying customers" : "Needs ad spend to calculate"}
         />
       </section>
+
+      {/* First thing under the headline numbers, because on a day the ads are
+          running "has anyone turned up" is the question, and the all-time
+          channel split below is the one you read afterwards. */}
+      {recent?.length > 0 && (
+        <div className={card}>
+          <Recent rows={recent} today={recent_24h} />
+        </div>
+      )}
 
       <div className={card}>
         <SectionHead label="Where customers came from" range="All time" />
