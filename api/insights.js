@@ -1,4 +1,4 @@
-import { createSign } from "node:crypto";
+import { createSign, timingSafeEqual } from "node:crypto";
 import { blocked } from "./_guard.js";
 import {
   adminAuthConfigured,
@@ -23,6 +23,7 @@ import {
 import { mdi, mdiConfigured } from "./_mdi.js";
 import { spendBySource, spendBySourceIn, spendMonths, spendTotal } from "./_spend.js";
 import { stripe, stripeEnabled, stripeMode } from "./_stripe.js";
+import { DIGEST_TAG, digestConfigured, sendDigest } from "./_digest.js";
 
 /* Everything the staff dashboard needs, in one function.
 
@@ -38,6 +39,8 @@ import { stripe, stripeEnabled, stripeMode } from "./_stripe.js";
      GET  ?resource=summary    the morning summary: yesterday, what needs
                                someone today and the month, from Stripe, GHL
                                and GA4
+     GET  ?resource=digest     the same summary emailed, once a day, by
+                               Vercel's cron (vercel.json)
      GET  (default)            website traffic, from the GA4 Data API
 
    Every read is aggregate counts. No patient is identifiable in any response,
@@ -584,9 +587,13 @@ const RECENT_LIMIT = 20;
  * All three have to be empty. Our own intake always writes a website-lead tag
  * and a source, and a kiosk walk-up is phone-only but always carries a kiosk
  * tag, so a record with no email, no tags AND no source is not a lead that
- * came to us by any route we have. */
+ * came to us by any route we have.
+ *
+ * The contact the morning email is sent to is left out the same way, by its
+ * tag: it is somebody we write to, not somebody who arrived. */
 const isNotificationShell = (c) =>
-  !c.email && !(c.tags || []).length && !c.source && !c.attributionSource?.sessionSource;
+  (!c.email && !(c.tags || []).length && !c.source && !c.attributionSource?.sessionSource) ||
+  (c.tags || []).includes(DIGEST_TAG);
 
 async function channelsPayload() {
   const { pipelineId } = await pipelineBoard();
@@ -1233,11 +1240,64 @@ async function handleAuth(req, res) {
   return res.status(200).json({ authenticated: true });
 }
 
+/* The morning email (client, 2026-10-18), sent by Vercel's cron once a day.
+   Cron only runs on the production deployment, and Vercel puts CRON_SECRET in
+   the Authorization header. Without that variable nothing is sent: an open
+   trigger would let anyone make this read every plan card on GHL's quota,
+   which checkout writes share.
+
+   Vercel can deliver one run twice, so an instance sends once per day. */
+let digestSentFor = null;
+
+function fromCron(req) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  const got = Buffer.from(String(req.headers?.authorization || ""));
+  const want = Buffer.from(`Bearer ${secret}`);
+  return got.length === want.length && timingSafeEqual(got, want);
+}
+
+async function handleDigest(req, res) {
+  if (!process.env.CRON_SECRET) {
+    console.warn("Morning email not sent: CRON_SECRET is not set in Vercel");
+    return res.status(503).json({ error: "not_configured" });
+  }
+  if (!fromCron(req)) return res.status(401).json({ error: "Unauthorized" });
+  if (!digestConfigured()) return res.status(503).json({ error: "not_configured" });
+
+  const payload = await summaryPayload();
+  if (payload.complete) cache.set("summary", { at: Date.now(), payload });
+  if (digestSentFor === payload.dates.yesterday) {
+    return res.status(200).json({ sent: false, already: true });
+  }
+
+  try {
+    digestSentFor = payload.dates.yesterday;
+    await sendDigest(payload);
+    return res.status(200).json({ sent: true });
+  } catch (e) {
+    digestSentFor = null;
+    console.error("Morning email failed:", e.message, e.details ?? "");
+    return res.status(502).json({ error: "send_failed" });
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method === "POST") return handleAuth(req, res);
 
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method Not Allowed" });
+  }
+
+  // req.query is missing under the local vite shim, so fall back to the URL.
+  const params = new URL(req.url || "/", "http://localhost").searchParams;
+  const resource = req.query?.resource ?? params.get("resource");
+
+  /* Ahead of the guard: a cron call has no Origin for it to check, and the
+     secret is the stronger test. The schedule header is a fallback in case the
+     query string ever doesn't survive the trip; it routes, it never admits. */
+  if (resource === "digest" || req.headers?.["x-vercel-cron-schedule"]) {
+    return handleDigest(req, res);
   }
 
   if (blocked(req, res)) return;
@@ -1247,10 +1307,6 @@ export default async function handler(req, res) {
   if (!readAdminSession(req)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-
-  // req.query is missing under the local vite shim, so fall back to the URL.
-  const params = new URL(req.url || "/", "http://localhost").searchParams;
-  const resource = req.query?.resource ?? params.get("resource");
 
   if (resource === "channels") {
     if (!ghlConfigured()) return res.status(503).json({ error: "not_configured" });
