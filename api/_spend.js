@@ -27,7 +27,10 @@
      and the point of the number is to decide whether to keep buying them. */
 
 export const AD_SPEND = [
-  // { month: "2026-10", source: "fb_ad", amount: 0 },
+  /* The client's monthly Meta budget as they gave it (2026-10-18), entered as
+     the month's spend so cost per patient has something to divide. Swap in the
+     real figure from Ads Manager once the month closes. */
+  { month: "2026-10", source: "fb_ad", amount: 1000 },
 ];
 
 /* Organic channels have no line here and never will, which is the point: a
@@ -44,6 +47,18 @@ export function spendBySource() {
   for (const row of AD_SPEND) {
     const source = clean(row?.source);
     if (!source) continue;
+    out[source] = (out[source] || 0) + dollars(row?.amount);
+  }
+  return out;
+}
+
+/** Spend per source for one month ("2026-10"), for the morning summary's
+ *  "this month" figures. */
+export function spendBySourceIn(month) {
+  const out = {};
+  for (const row of AD_SPEND) {
+    const source = clean(row?.source);
+    if (!source || clean(row?.month) !== month) continue;
     out[source] = (out[source] || 0) + dollars(row?.amount);
   }
   return out;
