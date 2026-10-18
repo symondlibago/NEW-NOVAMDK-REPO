@@ -382,16 +382,19 @@ export default function StartingPoint() {
               Important safety information
             </button>
 
-            <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Two equal columns, one line each, and the same border on both,
+                so the pair is always the same size (client, 2026-10-18).
+                "View Details" used to wrap to two lines on a phone card. */}
+            <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
               <Link
                 to={`${productPath(p)}?start=1`}
-                className="flex-1 rounded-full bg-[#b39258] px-2 py-2.5 text-center text-[0.78rem] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#a5854f] sm:px-4 sm:py-3 sm:text-[0.88rem]"
+                className="whitespace-nowrap rounded-full border border-[#b39258] bg-[#b39258] px-1 py-2.5 text-center text-[0.78rem] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:border-[#a5854f] hover:bg-[#a5854f] sm:px-4 sm:py-3 sm:text-[0.88rem]"
               >
                 Get Started
               </Link>
               <Link
                 to={productPath(p)}
-                className="flex-1 rounded-full border border-[#c9ab7c] bg-white px-2 py-2.5 text-center text-[0.78rem] font-semibold text-ink transition-colors hover:bg-[#f5efe4] sm:px-4 sm:py-3 sm:text-[0.88rem]"
+                className="whitespace-nowrap rounded-full border border-[#c9ab7c] bg-white px-1 py-2.5 text-center text-[0.78rem] font-semibold text-ink transition-colors hover:bg-[#f5efe4] sm:px-4 sm:py-3 sm:text-[0.88rem]"
               >
                 View Details
               </Link>
