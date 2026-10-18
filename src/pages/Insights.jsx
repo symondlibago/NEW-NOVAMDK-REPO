@@ -15,7 +15,8 @@ import {
 } from "recharts";
 import { ExternalLink, Lock, LogOut, RefreshCw } from "lucide-react";
 import Seo from "../components/Seo";
-import { insightsAuth, insightsChannels, insightsData, insightsOps } from "../lib/insights";
+import MorningSummary from "../components/insights/MorningSummary";
+import { insightsAuth, insightsChannels, insightsData, insightsOps, insightsSummary } from "../lib/insights";
 
 /* Staff analytics, reading GA4 through /api/insights and the CRM through
    /api/insights?resource=ops. Everything on this page is aggregate counts: no patient is
@@ -615,6 +616,11 @@ export default function InsightsPage() {
   const [ops, setOps] = useState(null);
   const [channels, setChannels] = useState(null);
   const [loading, setLoading] = useState(false);
+  /* The morning summary is what opens first (client, 2026-10-18); everything
+     below it on this page lives under Details. */
+  const [view, setView] = useState("summary");
+  const [summary, setSummary] = useState(null);
+  const [summaryFailed, setSummaryFailed] = useState(false);
 
   useEffect(() => {
     insightsAuth({ action: "session" })
@@ -670,9 +676,23 @@ export default function InsightsPage() {
       .catch(() => setChannels(null));
   }, []);
 
+  const loadSummary = useCallback(() => {
+    setSummaryFailed(false);
+    insightsSummary()
+      .then(setSummary)
+      .catch((e) => {
+        if (e.status === 401) setState("out");
+        else setSummaryFailed(true);
+      });
+  }, []);
+
   useEffect(() => {
     if (state === "in") load(days);
   }, [state, days, load]);
+
+  useEffect(() => {
+    if (state === "in") loadSummary();
+  }, [state, loadSummary]);
 
   useEffect(() => {
     if (state === "in") {
@@ -685,6 +705,7 @@ export default function InsightsPage() {
     load(days);
     loadOps();
     loadChannels();
+    loadSummary();
   };
 
   const signOut = async () => {
@@ -692,6 +713,7 @@ export default function InsightsPage() {
     setData(null);
     setOps(null);
     setChannels(null);
+    setSummary(null);
     setState("out");
   };
 
@@ -703,7 +725,9 @@ export default function InsightsPage() {
      numbers come from the same window, so the ratio is honest even though GA4
      can't follow one person from view to visit. */
   const handoff = f?.product_viewed ? Math.round((f.start_visit / f.product_viewed) * 1000) / 10 : null;
-  const updated = clockOf(ops?.updated_at || data?.updated_at);
+  const updated = clockOf(
+    view === "summary" ? summary?.updated_at : ops?.updated_at || data?.updated_at
+  );
 
   return (
     <main className="min-h-dvh bg-bg pb-10 text-ink">
@@ -716,6 +740,24 @@ export default function InsightsPage() {
           <div>
             <p className={sectionLabel}>NovaMDK</p>
             <h1 className="mt-1 text-[1.5rem] font-bold leading-tight">Patient journey insights</h1>
+            <div className="mt-3 flex gap-1 rounded-full border border-line bg-surface p-1" role="tablist">
+              {[
+                ["summary", "Morning summary"],
+                ["details", "Details"],
+              ].map(([key, text]) => (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={view === key}
+                  onClick={() => setView(key)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+                    view === key ? "bg-primary text-on-primary" : "text-muted hover:text-ink"
+                  }`}
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -724,6 +766,7 @@ export default function InsightsPage() {
                 below carries its own date control, so offering them while the
                 panels are off would be three buttons that visibly do nothing. */}
             {data &&
+              view === "details" &&
               WINDOWS.map((w) => (
                 <button
                   key={w.days}
@@ -752,7 +795,21 @@ export default function InsightsPage() {
         </div>
       </header>
 
-      <div className="px-4 md:px-6">
+      {view === "summary" && (
+        <div className="px-4 md:px-6">
+          {summary ? (
+            <MorningSummary data={summary} />
+          ) : (
+            <p className="mx-auto w-full max-w-6xl py-10 text-sm text-muted">
+              {summaryFailed
+                ? "The summary didn't load. Press Refresh to try again."
+                : "Loading this morning's numbers…"}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className={`px-4 md:px-6 ${view === "details" ? "" : "hidden"}`}>
         {err && (
           <p
             className={`${shell} mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[0.87rem] font-medium text-red-700`}

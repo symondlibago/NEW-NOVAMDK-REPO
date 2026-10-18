@@ -87,6 +87,15 @@ const comboTagline = (p) => {
     : "";
 };
 
+/* The 3-month plan as a monthly figure, for a product that sets price3 (client,
+   2026-10-18: "Semaglutide from $196/mo, Tirzepatide from $255/mo"). price3 is
+   the whole term the checkout charges, so the page can never quote a month the
+   plan does not add up to. */
+const threeMonthRate = (p) => {
+  const total = Number(String(p?.price3 || "").replace(/[^0-9.]/g, ""));
+  return total > 0 ? `$${Math.round(total / 3)}` : null;
+};
+
 // Fallback questionnaire used when a product has no questionnaireId yet.
 const DEFAULT_QUESTIONNAIRE_ID = "";
 
@@ -182,6 +191,7 @@ export default function ProductPage() {
   const categoryLabel = product.categoryName;
   const active = product;
   const otc = isOtc(product);
+  const leadPrice = threeMonthRate(active) || active.price;
   const isNad = /nad\+/i.test(product.name);
   const isSublingual = /sublingual/i.test(product.name);
   const isGlutathione = /glutathione/i.test(product.name);
@@ -502,7 +512,7 @@ export default function ProductPage() {
                   <span className="text-[1rem] uppercase tracking-[0.08em] text-ink">Starts at</span>
                 )}
                 <span className="font-display text-[clamp(2.2rem,4vw,2.9rem)] font-extrabold leading-none tracking-tight">
-                  {active.price}
+                  {leadPrice}
                   <span className="font-semibold">{priceUnit(active)}</span>
                 </span>
                 {active.priceNote && (
@@ -756,7 +766,7 @@ export default function ProductPage() {
         <ProductStickyStart
           anchor={heroCta}
           name={product.heroTitle || primaryName(product)}
-          price={`${active.price}${priceUnit(active)}`}
+          price={`${leadPrice}${priceUnit(active)}`}
           note={active.priceNote}
           fromPrice={!active.exactPrice}
           cta={otc ? "Ask about it" : "Start Consultation"}

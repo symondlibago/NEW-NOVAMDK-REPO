@@ -1,4 +1,4 @@
-import { createSign } from "node:crypto";
+import { createSign, timingSafeEqual } from "node:crypto";
 import { blocked } from "./_guard.js";
 import {
   adminAuthConfigured,
@@ -14,9 +14,16 @@ import {
   listContacts,
   fieldValueOf,
   SEARCH_FIELD_ID,
+  STAGE,
+  OPP_FIELD_ID,
+  oppPlansEnabled,
+  opportunityById,
+  planOn,
 } from "./_ghl.js";
 import { mdi, mdiConfigured } from "./_mdi.js";
-import { spendBySource, spendMonths, spendTotal } from "./_spend.js";
+import { spendBySource, spendBySourceIn, spendMonths, spendTotal } from "./_spend.js";
+import { stripe, stripeEnabled, stripeMode } from "./_stripe.js";
+import { DIGEST_TAG, digestConfigured, sendDigest } from "./_digest.js";
 
 /* Everything the staff dashboard needs, in one function.
 
@@ -29,6 +36,11 @@ import { spendBySource, spendMonths, spendTotal } from "./_spend.js";
      GET  ?resource=ops        pipeline and intake funnel, from GHL and MDI
      GET  ?resource=channels   where customers came from and what each channel
                                earned, from GHL joined to the spend on file
+     GET  ?resource=summary    the morning summary: yesterday, what needs
+                               someone today and the month, from Stripe, GHL
+                               and GA4
+     GET  ?resource=digest     the same summary emailed, once a day, by
+                               Vercel's cron (vercel.json)
      GET  (default)            website traffic, from the GA4 Data API
 
    Every read is aggregate counts. No patient is identifiable in any response,
@@ -575,9 +587,13 @@ const RECENT_LIMIT = 20;
  * All three have to be empty. Our own intake always writes a website-lead tag
  * and a source, and a kiosk walk-up is phone-only but always carries a kiosk
  * tag, so a record with no email, no tags AND no source is not a lead that
- * came to us by any route we have. */
+ * came to us by any route we have.
+ *
+ * The contact the morning email is sent to is left out the same way, by its
+ * tag: it is somebody we write to, not somebody who arrived. */
 const isNotificationShell = (c) =>
-  !c.email && !(c.tags || []).length && !c.source && !c.attributionSource?.sessionSource;
+  (!c.email && !(c.tags || []).length && !c.source && !c.attributionSource?.sessionSource) ||
+  (c.tags || []).includes(DIGEST_TAG);
 
 async function channelsPayload() {
   const { pipelineId } = await pipelineBoard();
@@ -784,6 +800,383 @@ async function channelsPayload() {
   };
 }
 
+/* ---------------------------- morning summary ---------------------------- */
+
+/* The one screen the client reads first thing (John, 2026-10-18): how
+   yesterday went, what needs someone today, and how the month is going. The
+   panels above stay as they are, one tap away under Details.
+
+   Each figure comes from the one system that actually knows it:
+
+     money        Stripe, as captured and as refunded, so a hold that is never
+                  captured is never counted as money in
+     patients     GoHighLevel, dated by a contact's first card to be won
+     checkouts    GoHighLevel, the open cards sitting in Intake Submitted and
+                  Payment Failed
+     plans        GoHighLevel, the plan fields on each won card
+     visitors     GA4
+
+   Each source is read on its own and may be missing; the page says which.
+   Days are Pacific days, the business's own, not UTC ones. Every value is a
+   count or a sum: no person, no name and nothing clinical is in the response. */
+
+const TZ = "America/Los_Angeles";
+const DAY_MS = 86_400_000;
+
+const ymdFormat = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const ymdOf = (ms) => ymdFormat.format(new Date(ms));
+
+const clockParts = new Intl.DateTimeFormat("en-US", {
+  timeZone: TZ,
+  hourCycle: "h23",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
+/* Pacific wall clock minus UTC at one instant: -7 or -8 hours, in ms. */
+function tzOffset(ms) {
+  const at = Math.floor(ms / 1000) * 1000;
+  const p = Object.fromEntries(clockParts.formatToParts(new Date(at)).map((x) => [x.type, x.value]));
+  return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - at;
+}
+
+/* Midnight Pacific at the start of "YYYY-MM-DD", as epoch ms. The second pass
+   settles the two nights a year the offset changes. */
+function startOf(ymd) {
+  const utc = Date.parse(`${ymd}T00:00:00Z`);
+  return utc - tzOffset(utc - tzOffset(utc));
+}
+
+const shiftDay = (ymd, n) =>
+  new Date(Date.parse(`${ymd}T12:00:00Z`) + n * DAY_MS).toISOString().slice(0, 10);
+
+/* Every window the summary reads, as [from, to) in epoch ms. "Last week" is
+   the same weekday a week earlier, so a quiet Sunday is never compared with a
+   busy Monday. */
+function summaryWindows(now = Date.now()) {
+  const today = ymdOf(now);
+  const yesterday = shiftDay(today, -1);
+  const lastWeek = shiftDay(yesterday, -7);
+  const month = today.slice(0, 7);
+  const span = (from, to) => ({ from: startOf(from), to: startOf(to) });
+  return {
+    today,
+    yesterday,
+    lastWeek,
+    month,
+    day: span(yesterday, today),
+    dayLastWeek: span(lastWeek, shiftDay(lastWeek, 1)),
+    last7: span(shiftDay(today, -7), today),
+    prev7: span(shiftDay(today, -14), shiftDay(today, -7)),
+    monthToDate: { from: startOf(`${month}-01`), to: now },
+    pastWeek: { from: now - 7 * DAY_MS, to: now },
+    // Today and the seven days after it.
+    nextWeek: span(today, shiftDay(today, 8)),
+  };
+}
+
+const inside = (ms, w) => Number.isFinite(ms) && ms >= w.from && ms < w.to;
+const cents = (n) => Math.round(Number(n) || 0) / 100;
+
+/* ------------------------------ Stripe money ------------------------------ */
+
+/* A month of a small practice is a page or two. The cap is there for the day
+   it isn't, and says so rather than stalling. */
+const STRIPE_PAGE_CAP = 10;
+
+async function stripeList(path) {
+  const all = [];
+  let after = null;
+  for (let page = 0; page < STRIPE_PAGE_CAP; page++) {
+    const r = await stripe(`${path}&limit=100${after ? `&starting_after=${after}` : ""}`, {
+      method: "GET",
+    });
+    if (!r.ok) {
+      const err = new Error(`Stripe list failed: ${r.status}`);
+      err.details = r.data?.error?.message || null;
+      throw err;
+    }
+    const rows = r.data?.data || [];
+    all.push(...rows);
+    if (!r.data?.has_more || !rows.length) return all;
+    after = rows[rows.length - 1].id;
+  }
+  console.warn(
+    `Stripe list hit the ${STRIPE_PAGE_CAP}-page cap for ${path.split("?")[0]}; the summary covers the newest ${all.length}.`
+  );
+  return all;
+}
+
+/* Balance transactions rather than charges or payment intents, because they
+   are dated when money actually moved. A card is held at checkout and captured
+   when a provider approves, often days later, and a refund lands whenever it
+   is issued. A charge is dated at the hold, which would put money on the wrong
+   day and count holds that later expired.
+
+   Cards only, which is all checkout takes (payment_method_types: ["card"]), so
+   "charge" and "refund" are the two types there are. The payment intent is
+   expanded for its product_id, the only thing read off it. */
+async function moneySummary(w) {
+  const since = Math.floor(Math.min(w.monthToDate.from, w.dayLastWeek.from) / 1000);
+  const expand = "&expand[]=data.source&expand[]=data.source.payment_intent";
+  const [charges, refunds] = await Promise.all([
+    stripeList(`/balance_transactions?type=charge&created[gte]=${since}${expand}`),
+    stripeList(`/balance_transactions?type=refund&created[gte]=${since}${expand}`),
+  ]);
+  const moved = [...charges, ...refunds];
+  // A refund's amount is already negative, so one sum nets them off.
+  const net = (win) => cents(moved.filter((t) => inside(t.created * 1000, win)).reduce((n, t) => n + t.amount, 0));
+
+  const byProduct = new Map();
+  for (const t of moved) {
+    if (!inside(t.created * 1000, w.monthToDate)) continue;
+    const pid = t.source?.payment_intent?.metadata?.product_id;
+    if (!pid) continue;
+    const row = byProduct.get(pid) || { product_id: pid, revenue: 0, sales: 0 };
+    row.revenue += t.amount;
+    if (t.type === "charge") row.sales += 1;
+    byProduct.set(pid, row);
+  }
+
+  return {
+    // "test" on a preview deploy with test keys, which the page says out loud.
+    mode: stripeMode(),
+    yesterday: net(w.day),
+    last_week: net(w.dayLastWeek),
+    month: net(w.monthToDate),
+    /* Every product sold this month, not just three: the page folds dose
+       steps of one treatment together before it ranks them. */
+    by_product: [...byProduct.values()]
+      .map((r) => ({ ...r, revenue: cents(r.revenue) }))
+      .filter((r) => r.revenue > 0)
+      .sort((a, b) => b.revenue - a.revenue),
+  };
+}
+
+/* ------------------------------ CRM figures ------------------------------- */
+
+const FAILED_STAGE = process.env.GHL_FAILED_STAGE_NAME || "Payment Failed";
+
+/* Only won cards can carry a live plan, and each has to be read on its own:
+   /opportunities/search hands the plan fields back empty (see plansFor in
+   _ghl.js). Newest first and capped, so a busy year costs a bounded read. */
+const PLAN_READ_CAP = 150;
+const PLAN_READ_PARALLEL = 6;
+
+async function inBatches(items, size, fn) {
+  const out = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(...(await Promise.all(items.slice(i, i + size).map(fn))));
+  }
+  return out;
+}
+
+/* When a card was won. GoHighLevel stamps the status change; updatedAt is the
+   fallback for a card that came back without one. */
+const wonAt = (o) => Date.parse(o.lastStatusChangeAt || o.updatedAt || o.createdAt);
+
+/* Which of the three rows a new patient counts towards. Paid is any source
+   with spend entered this month, or a medium that says it was bought. */
+function groupOf(contact, paidSources) {
+  const { source, medium, campaign } = channelOf(contact);
+  if (source === "kiosk") return { group: "kiosk", campaign };
+  if (paidSources.has(source) || /^(paid|cpc|ppc|display)/.test(medium)) return { group: "ads", campaign };
+  return { group: "other", campaign };
+}
+
+async function crmSummary(w) {
+  const { pipelineId, stages } = await pipelineBoard();
+  const [everyContact, opportunities] = await Promise.all([
+    listContacts(),
+    listOpportunities(pipelineId),
+  ]);
+  const contacts = new Map(
+    everyContact.filter((c) => !isNotificationShell(c)).map((c) => [c.id, c])
+  );
+  const stageOf = new Map(stages.map((s) => [s.id, (s.name || "").toLowerCase()]));
+  const sitting = (stage) =>
+    opportunities.filter(
+      (o) => o.status === "open" && stageOf.get(o.pipelineStageId) === stage.toLowerCase()
+    );
+  const tally = (cards) => ({
+    count: cards.length,
+    value: Math.round(cards.reduce((n, o) => n + (Number(o.monetaryValue) || 0), 0)),
+  });
+
+  /* A patient is new on the day their first card was won, which is the day the
+     money was captured. A later purchase by the same person is not a new
+     patient, which is the number ad spend is divided by. */
+  const firstPaid = new Map();
+  for (const o of opportunities) {
+    if (o.status !== "won" || !o.contactId) continue;
+    const at = wonAt(o);
+    if (Number.isFinite(at) && at < (firstPaid.get(o.contactId) ?? Infinity)) firstPaid.set(o.contactId, at);
+  }
+  const newIn = (win) => [...firstPaid.values()].filter((at) => inside(at, win)).length;
+  const startedIn = (win) => opportunities.filter((o) => inside(Date.parse(o.createdAt), win)).length;
+
+  const spendNow = spendBySourceIn(w.month);
+  const paidSources = new Set(Object.keys(spendNow));
+  const groups = { ads: 0, kiosk: 0, other: 0 };
+  const kioskPatients = {};
+  for (const [contactId, at] of firstPaid) {
+    if (!inside(at, w.monthToDate)) continue;
+    const contact = contacts.get(contactId);
+    const { group, campaign } = contact ? groupOf(contact, paidSources) : { group: "other" };
+    groups[group] += 1;
+    if (group === "kiosk" && campaign) kioskPatients[campaign] = (kioskPatients[campaign] || 0) + 1;
+  }
+  const adSpend = Object.values(spendNow).reduce((n, v) => n + v, 0);
+
+  let plans = [];
+  if (oppPlansEnabled()) {
+    const won = opportunities
+      .filter((o) => o.status === "won")
+      .sort((a, b) => (wonAt(b) || 0) - (wonAt(a) || 0))
+      .slice(0, PLAN_READ_CAP);
+    const cards = await inBatches(won, PLAN_READ_PARALLEL, (o) => opportunityById(o.id));
+    plans = cards.filter(Boolean).map((card) => ({ card, plan: planOn(card) })).filter((p) => p.plan);
+  }
+  const renewing = plans.filter((p) => p.plan.autoRenew);
+  const dueSoon = renewing.filter((p) => p.plan.renewsOn && inside(startOf(p.plan.renewsOn), w.nextWeek));
+  /* Turned off this past week. Only the switch is written when a patient
+     cancels (cancelRenewal), so the card's own update time is the date. An
+     empty field is a plan that never had renewal on, not a cancellation. */
+  const cancelled = plans.filter(
+    (p) =>
+      !p.plan.autoRenew &&
+      fieldValueOf(p.card, OPP_FIELD_ID.AUTO_RENEW) === "0" &&
+      inside(Date.parse(p.card.updatedAt), w.pastWeek)
+  );
+
+  return {
+    patients: {
+      yesterday: newIn(w.day),
+      last_week: newIn(w.dayLastWeek),
+      last7: newIn(w.last7),
+      prev7: newIn(w.prev7),
+      month: newIn(w.monthToDate),
+    },
+    visits: { yesterday: startedIn(w.day), last_week: startedIn(w.dayLastWeek) },
+    unpaid: tally(sitting(STAGE.INTAKE_SUBMITTED)),
+    failed: tally(sitting(FAILED_STAGE)),
+    renewals_due: tally(dueSoon.map((p) => p.card)),
+    cancelled: cancelled.length,
+    subscribers: new Set(renewing.map((p) => p.card.contactId)).size,
+    /* A plan's card holds what was paid for the whole term, so a month of it
+       is that over the term's length. */
+    mrr: Math.round(
+      renewing.reduce((n, p) => n + (Number(p.card.monetaryValue) || 0) / p.plan.months, 0)
+    ),
+    channels: [
+      {
+        key: "ads",
+        patients: groups.ads,
+        spend: Math.round(adSpend),
+        cac: adSpend > 0 && groups.ads > 0 ? Math.round(adSpend / groups.ads) : null,
+      },
+      { key: "kiosk", patients: groups.kiosk, spend: 0, cac: null },
+      { key: "other", patients: groups.other, spend: 0, cac: null },
+    ],
+    kiosk_patients: kioskPatients,
+  };
+}
+
+/* ------------------------------ GA4 visitors ------------------------------ */
+
+/* One call. Several date ranges on one report come back as rows tagged with
+   each range's name, which is what `ranges` reads them by. */
+async function trafficSummary(w) {
+  const dayRanges = [
+    { name: "day", startDate: w.yesterday, endDate: w.yesterday },
+    { name: "day_last_week", startDate: w.lastWeek, endDate: w.lastWeek },
+    { name: "last7", startDate: shiftDay(w.today, -7), endDate: w.yesterday },
+    { name: "prev7", startDate: shiftDay(w.today, -14), endDate: shiftDay(w.today, -8) },
+  ];
+  const [visitors, kiosks] = await runBatch([
+    { dateRanges: dayRanges, metrics: [{ name: "totalUsers" }] },
+    {
+      dateRanges: [{ startDate: `${w.month}-01`, endDate: "today" }],
+      dimensions: [{ name: CUSTOM.kiosk }],
+      metrics: [{ name: "eventCount" }],
+      dimensionFilter: eventIs("kiosk_scan"),
+      orderBys: byCount,
+      limit: 20,
+    },
+  ]);
+  const ranges = Object.fromEntries((visitors?.rows || []).map((r) => [label(r), num(r)]));
+  return {
+    visitors: {
+      yesterday: ranges.day || 0,
+      last_week: ranges.day_last_week || 0,
+      last7: ranges.last7 || 0,
+      prev7: ranges.prev7 || 0,
+    },
+    kiosk_scans: Object.fromEntries(named(kiosks?.rows).map((r) => [r.name, r.count])),
+  };
+}
+
+const rate = (part, whole) =>
+  whole > 0 && Number.isFinite(part) ? Math.round((part / whole) * 1000) / 10 : null;
+
+async function summaryPayload() {
+  const w = summaryWindows();
+  const [money, crm, traffic] = await Promise.allSettled([
+    stripeEnabled() ? moneySummary(w) : Promise.resolve(null),
+    ghlConfigured() ? crmSummary(w) : Promise.resolve(null),
+    ga4Configured() ? trafficSummary(w) : Promise.resolve(null),
+  ]);
+  const settled = (r, name) => {
+    if (r.status === "fulfilled") return r.value;
+    console.error(`Insights summary: ${name} failed:`, r.reason?.message, r.reason?.details ?? "");
+    return null;
+  };
+  const m = settled(money, "Stripe");
+  const c = settled(crm, "GoHighLevel");
+  const t = settled(traffic, "GA4");
+  const state = (enabled, value) => (!enabled ? "off" : value ? "ok" : "failed");
+
+  /* Locations from either side, so a kiosk with scans and no patient yet, or
+     a patient whose kiosk GA4 hasn't reported, still gets its row. */
+  const scans = t?.kiosk_scans || {};
+  const kioskPatients = c?.kiosk_patients || {};
+  const kiosks = [...new Set([...Object.keys(scans), ...Object.keys(kioskPatients)])]
+    .map((id) => ({ id, scans: scans[id] || 0, patients: kioskPatients[id] || 0 }))
+    .sort((a, b) => b.patients - a.patients || b.scans - a.scans);
+
+  const { kiosk_patients: _unused, ...crmOut } = c || {};
+  const sources = {
+    stripe: state(stripeEnabled(), m),
+    ghl: state(ghlConfigured(), c),
+    ga4: state(ga4Configured(), t),
+  };
+  return {
+    dates: { today: w.today, yesterday: w.yesterday, last_week: w.lastWeek, month: w.month },
+    money: m,
+    crm: c ? crmOut : null,
+    visitors: t?.visitors || null,
+    /* Seven days, not one: a day of a few dozen visitors and no sale reads
+       0% and says nothing. */
+    conversion:
+      c && t
+        ? { last7: rate(c.patients.last7, t.visitors.last7), prev7: rate(c.patients.prev7, t.visitors.prev7) }
+        : null,
+    kiosks,
+    sources,
+    complete: !Object.values(sources).includes("failed"),
+    updated_at: new Date().toISOString(),
+  };
+}
+
 /* --------------------------------- cache --------------------------------- */
 
 /* One entry per view, held briefly. The dashboard is a page people leave open
@@ -800,6 +1193,9 @@ const OPS_CACHE_MS = 30 * 60_000;
    moves on every payment, which is exactly what someone presses Refresh to see.
 */
 const CHANNELS_CACHE_MS = 10 * 60_000;
+/* The morning summary reads all three sources, the plan cards one by one
+   among them, so it is held as long as the channel view. */
+const SUMMARY_CACHE_MS = 10 * 60_000;
 const cache = new Map();
 
 // Said once per instance, not once per request: the page re-asks whenever the
@@ -844,11 +1240,64 @@ async function handleAuth(req, res) {
   return res.status(200).json({ authenticated: true });
 }
 
+/* The morning email (client, 2026-10-18), sent by Vercel's cron once a day.
+   Cron only runs on the production deployment, and Vercel puts CRON_SECRET in
+   the Authorization header. Without that variable nothing is sent: an open
+   trigger would let anyone make this read every plan card on GHL's quota,
+   which checkout writes share.
+
+   Vercel can deliver one run twice, so an instance sends once per day. */
+let digestSentFor = null;
+
+function fromCron(req) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  const got = Buffer.from(String(req.headers?.authorization || ""));
+  const want = Buffer.from(`Bearer ${secret}`);
+  return got.length === want.length && timingSafeEqual(got, want);
+}
+
+async function handleDigest(req, res) {
+  if (!process.env.CRON_SECRET) {
+    console.warn("Morning email not sent: CRON_SECRET is not set in Vercel");
+    return res.status(503).json({ error: "not_configured" });
+  }
+  if (!fromCron(req)) return res.status(401).json({ error: "Unauthorized" });
+  if (!digestConfigured()) return res.status(503).json({ error: "not_configured" });
+
+  const payload = await summaryPayload();
+  if (payload.complete) cache.set("summary", { at: Date.now(), payload });
+  if (digestSentFor === payload.dates.yesterday) {
+    return res.status(200).json({ sent: false, already: true });
+  }
+
+  try {
+    digestSentFor = payload.dates.yesterday;
+    await sendDigest(payload);
+    return res.status(200).json({ sent: true });
+  } catch (e) {
+    digestSentFor = null;
+    console.error("Morning email failed:", e.message, e.details ?? "");
+    return res.status(502).json({ error: "send_failed" });
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method === "POST") return handleAuth(req, res);
 
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method Not Allowed" });
+  }
+
+  // req.query is missing under the local vite shim, so fall back to the URL.
+  const params = new URL(req.url || "/", "http://localhost").searchParams;
+  const resource = req.query?.resource ?? params.get("resource");
+
+  /* Ahead of the guard: a cron call has no Origin for it to check, and the
+     secret is the stronger test. The schedule header is a fallback in case the
+     query string ever doesn't survive the trip; it routes, it never admits. */
+  if (resource === "digest" || req.headers?.["x-vercel-cron-schedule"]) {
+    return handleDigest(req, res);
   }
 
   if (blocked(req, res)) return;
@@ -858,10 +1307,6 @@ export default async function handler(req, res) {
   if (!readAdminSession(req)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-
-  // req.query is missing under the local vite shim, so fall back to the URL.
-  const params = new URL(req.url || "/", "http://localhost").searchParams;
-  const resource = req.query?.resource ?? params.get("resource");
 
   if (resource === "channels") {
     if (!ghlConfigured()) return res.status(503).json({ error: "not_configured" });
@@ -878,6 +1323,17 @@ export default async function handler(req, res) {
       console.error("Insights channels failed:", e.message, e.details ?? "");
       return res.status(502).json({ error: "upstream_failed" });
     }
+  }
+
+  if (resource === "summary") {
+    const hit = cache.get("summary");
+    if (hit && Date.now() - hit.at < SUMMARY_CACHE_MS) {
+      return res.status(200).json({ ...hit.payload, cached: true });
+    }
+    const payload = await summaryPayload();
+    // Same rule as ops: a half-answer is never held on screen.
+    if (payload.complete) cache.set("summary", { at: Date.now(), payload });
+    return res.status(200).json(payload);
   }
 
   if (resource === "ops") {

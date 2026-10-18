@@ -1,5 +1,6 @@
 {
   "trailingSlash": false,
+  "crons": [{ "path": "/api/insights?resource=digest", "schedule": "0 14 * * *" }],
   "redirects": [
     { "source": "/treatments/mens-health", "destination": "/treatments/sexual-health", "permanent": true },
     { "source": "/treatments/unisex-sports-medicine", "destination": "/treatments/recovery-wellness", "permanent": true },
