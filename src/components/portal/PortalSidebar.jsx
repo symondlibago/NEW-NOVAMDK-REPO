@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { ChevronsLeft, ChevronsRight, LogOut, X } from "lucide-react";
+import { LogOut, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 
 export default function PortalSidebar({
   tabs,
@@ -57,15 +57,17 @@ export default function PortalSidebar({
             <X size={18} />
           </button>
 
+          {/* A panel icon, not arrows: the client read « as a Back button
+              (2026-10-22). Exit in the header is the way out. */}
           <button
             onClick={onToggleCollapse}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? "Show menu" : "Hide menu"}
+            title={collapsed ? "Show menu" : "Hide menu"}
             className={`hidden h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink md:grid ${
               collapsed ? "" : "md:ml-auto"
             }`}
           >
-            {collapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
           </button>
         </div>
 
