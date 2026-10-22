@@ -28,11 +28,14 @@ export default function KioskTopBar({ onBack, backLabel = "Back", onStartOver })
   );
 }
 
-/* The site's brass gradient heading, as on the category shelves. */
+/* The site's brass gradient heading, as on the category shelves. The gradient
+   is clipped to the box, so the bottom padding has to clear the descenders:
+   at pb-1 the tail of the "g" in "Weight Loss" was cut off (client,
+   2026-10-22). */
 export function GoldTitle({ className = "", children }) {
   return (
     <h1
-      className={`bg-linear-to-br from-ks-gold-hi via-ks-gold to-ks-gold-lo bg-clip-text pb-1 font-display font-extrabold tracking-tight text-transparent ${className}`}
+      className={`bg-linear-to-br from-ks-gold-hi via-ks-gold to-ks-gold-lo bg-clip-text pb-2 lg:pb-3 font-display font-extrabold tracking-tight text-transparent ${className}`}
     >
       {children}
     </h1>

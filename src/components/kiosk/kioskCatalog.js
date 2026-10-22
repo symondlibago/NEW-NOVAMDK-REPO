@@ -35,10 +35,16 @@ const isNeedleFree = (product) => !/inject/i.test(product?.dosageForm || "");
  * other two there. By category, as a list of ids: a new
  * weight loss product stays off a California kiosk until it is added here. A
  * category or state with no entry follows serviceArea alone.
+ *
+ * The list is also the order the kiosk shows them in: Tirzepatide ahead of
+ * Semaglutide (client, 2026-10-22).
  */
 const KIOSK_ONLY = {
-  California: { "weight-loss": [45, 47, 13] },
+  California: { "weight-loss": [47, 45, 13] },
 };
+
+// Position in the state's list above; everything else keeps catalogue order.
+const kioskRank = (state, category) => (p) => KIOSK_ONLY[state]?.[category]?.indexOf(p.id) ?? 0;
 
 const onKiosk = (state, category) => (p) => {
   if (!availableInState(state, p.id)) return false;
@@ -64,12 +70,16 @@ const onKiosk = (state, category) => (p) => {
  */
 export function shelf(category, state) {
   const seen = new Set();
+  const rank = kioskRank(state, category);
   return visibleProducts
     .filter((p) => inCategory(p, category))
     .filter(onKiosk(state, category))
-    // The category's own treatments lead, cross-listed ones follow. Stable, so
-    // equals keep catalogue order.
-    .sort((a, b) => (a.categorySlug === category ? 0 : 1) - (b.categorySlug === category ? 0 : 1))
+    // The category's own treatments lead, cross-listed ones follow, then the
+    // state's own kiosk order. Stable, so equals keep catalogue order.
+    .sort(
+      (a, b) =>
+        (a.categorySlug === category ? 0 : 1) - (b.categorySlug === category ? 0 : 1) || rank(a) - rank(b),
+    )
     .filter((p) => !stageOf(p) || stageOf(p) === "Starter")
     .filter((p) => {
       const t = displayTitle(p);
