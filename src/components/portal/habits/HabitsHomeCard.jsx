@@ -1,29 +1,37 @@
 import React, { useState } from "react";
 import { format } from "date-fns";
-import { ArrowRight, Check, Dumbbell, Flame, Syringe } from "lucide-react";
+import { ArrowRight, Award, Check, Dumbbell, Flame, Syringe } from "lucide-react";
 import { STRENGTH_PER_WEEK, useHabits, usePatientId } from "../../../lib/habits";
+import { lessonState } from "../../../lib/lessons";
+import { useMilestones } from "../../../lib/milestones";
 import { nextSpot, shotStatus, spotLabel, useBodySex, useWeeklyShot } from "../../../lib/shots";
 import HabitCheckin from "./HabitCheckin";
+import { LessonSheet } from "./Lessons";
 import ShotLogSheet from "./ShotLogSheet";
 import StrengthSession from "./StrengthSession";
 
 /* Home's one card for the week. It shows the next thing to do, in this order:
    the shot (patients on a weekly injection only), the check-in, then the two
    strength sessions. One card rather than three, because Home has to fit a
-   phone screen with a visit already on it (client, 2026-10-14). */
+   phone screen with a visit already on it (client, 2026-10-14). Once those are
+   done it offers the week's lesson, and a new milestone gets a chip. */
 export default function HabitsHomeCard({ onNavigate }) {
   const pid = usePatientId();
   const habits = useHabits(pid);
   const shot = useWeeklyShot();
   const sex = useBodySex();
-  const [open, setOpen] = useState(null); // "checkin" | "shot" | "strength"
+  const [open, setOpen] = useState(null); // "checkin" | "shot" | "strength" | "lesson"
+  const [session, setSession] = useState(0);
+  const milestones = useMilestones(habits, pid);
   if (!pid) return null;
 
   const shots = habits.data.shots || [];
   const s = shotStatus(shots, habits.data.shotDay);
   const shotDone = Boolean(shot) && !s.due;
   const strengthDone = habits.strengthDone >= STRENGTH_PER_WEEK;
-  const next = shot && s.due ? "shot" : !habits.done ? "checkin" : !strengthDone ? "strength" : "done";
+  const lessons = lessonState(habits.data, habits.thisWeek);
+  const lessonDue = !lessons.read.has(lessons.current.title);
+  const next = shot && s.due ? "shot" : !habits.done ? "checkin" : !strengthDone ? "strength" : lessonDue ? "lesson" : "done";
 
   const streak =
     habits.streak > 0 ? (
@@ -46,6 +54,7 @@ export default function HabitsHomeCard({ onNavigate }) {
       text: `Session ${habits.strengthDone + 1} of ${STRENGTH_PER_WEEK} this week. About 10 minutes.`,
       action: "Start",
     },
+    lesson: { icon: Check, title: "All done this week", badge: streak, text: `New lesson: ${lessons.current.title}. 2 min.`, action: "Read lesson" },
     done: {
       icon: Check,
       title: "All done this week",
@@ -88,7 +97,10 @@ export default function HabitsHomeCard({ onNavigate }) {
           ) : (
             <button
               type="button"
-              onClick={() => setOpen(next)}
+              onClick={() => {
+                setSession((n) => n + 1);
+                setOpen(next);
+              }}
               className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-deep sm:w-auto sm:py-2.5"
             >
               {view.action} <ArrowRight size={15} />
@@ -112,6 +124,17 @@ export default function HabitsHomeCard({ onNavigate }) {
               {st.label}
             </li>
           ))}
+          {milestones.fresh.length > 0 && (
+            <li>
+              <button
+                type="button"
+                onClick={() => onNavigate("progress")}
+                className="inline-flex items-center gap-1 rounded-full border border-primary bg-surface px-3 py-1 text-xs font-semibold text-primary-deep hover:bg-primary/10"
+              >
+                <Award size={12} /> New milestone
+              </button>
+            </li>
+          )}
         </ul>
       </div>
 
@@ -124,6 +147,16 @@ export default function HabitsHomeCard({ onNavigate }) {
       />
       <ShotLogSheet habits={habits} open={open === "shot"} onClose={() => setOpen(null)} sex={sex} />
       <StrengthSession habits={habits} open={open === "strength"} onClose={() => setOpen(null)} />
+      <LessonSheet
+        lesson={lessons.current}
+        session={session}
+        open={open === "lesson"}
+        onClose={() => setOpen(null)}
+        onDone={() => {
+          habits.markRead(lessons.current.title, lessons.start);
+          setOpen(null);
+        }}
+      />
     </section>
   );
 }

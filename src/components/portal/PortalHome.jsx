@@ -8,6 +8,7 @@ import { planStatus, currentVisitForPlan } from "../../lib/planStatus";
 import ResumeIntakeButton from "./ResumeIntakeButton";
 import NextFillButton from "./NextFillButton";
 import HabitsHomeCard from "./habits/HabitsHomeCard";
+import InstallAppCard from "./InstallAppCard";
 
 /* The same pill tones the Treatments tab uses, so one status cannot look
    reassuring on one screen and alarming on the next. */
@@ -576,6 +577,8 @@ export default function PortalHome({ onUnauthorized, onNavigate, onOpenVisit, on
           </span>
           <ChevronRight size={17} className="shrink-0 text-muted transition-colors group-hover:text-primary" />
         </Link>
+
+        <InstallAppCard />
       </div>
     </div>
   );

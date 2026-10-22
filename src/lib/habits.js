@@ -90,88 +90,22 @@ export const FEELING_TIPS = {
 
 export const STRENGTH_PER_WEEK = 2;
 
-/* General wellness only: no doses, no promises, nothing that reads as medical
-   advice. Anything about treatment goes to the care team through Messages. */
-export const LESSONS = [
-  {
-    title: "Make water easy",
-    points: [
-      "Keep a bottle where you can see it.",
-      "Have a glass with each meal.",
-      "Add lemon or cucumber if plain water feels boring.",
-    ],
-  },
-  {
-    title: "Start with protein",
-    points: [
-      "Eat the protein on your plate first.",
-      "Easy options: eggs, Greek yogurt, chicken, fish, beans, tofu.",
-      "Ask your care team what amount is right for you.",
-    ],
-  },
-  {
-    title: "Short walks count",
-    points: [
-      "A 10 minute walk after a meal is a simple start.",
-      "Pick the same time each day so it becomes routine.",
-      "Bring a friend or a podcast.",
-    ],
-  },
-  {
-    title: "A steady bedtime",
-    points: [
-      "Aim for the same bedtime most nights.",
-      "Dim screens 30 minutes before bed.",
-      "Keep the bedroom cool and dark.",
-    ],
-  },
-  {
-    title: "Slow down at meals",
-    points: [
-      "Put your fork down between bites.",
-      "Stop when you feel comfortably full.",
-      "A smaller plate makes a portion look generous.",
-    ],
-  },
-  {
-    title: "Keep your strength",
-    points: [
-      "Two short sessions a week is a good start.",
-      "Squats, wall push-ups and bands need no gym.",
-      "Check with your care team before anything new and strenuous.",
-    ],
-  },
-  {
-    title: "Plan your week",
-    points: [
-      "Shop with a list.",
-      "Prep two or three easy meals on the weekend.",
-      "Keep a snack with protein on hand.",
-    ],
-  },
-  {
-    title: "Be kind to yourself",
-    points: [
-      "One off day doesn't undo a good week.",
-      "Notice what got in the way, without judging it.",
-      "Start again at the next meal.",
-    ],
-  },
-];
-
-export const MILESTONES = [
-  { at: 1, label: "First check-in" },
-  { at: 4, label: "1 month" },
-  { at: 8, label: "2 months" },
-  { at: 12, label: "3 months" },
-  { at: 26, label: "6 months" },
-];
-
-export const REMIND_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
 /* shots: [{ at, spot }], newest first. strength: sessions per week key.
-   measures: { waist, hips } in inches per month key ("2026-10"). */
-const EMPTY = { weeks: {}, goal: null, read: [], remind: null, shots: [], shotDay: null, strength: {}, measures: {} };
+   measures: { waist, hips } in inches per month key ("2026-10"). read: lesson
+   titles (lessons.js). earned: milestone id to the date it was first reached;
+   seen: milestones already celebrated (milestones.js). */
+const EMPTY = {
+  weeks: {},
+  goal: null,
+  read: [],
+  lessonStart: null,
+  shots: [],
+  shotDay: null,
+  strength: {},
+  measures: {},
+  earned: {},
+  seen: [],
+};
 
 const storageKey = (pid) => `${KEY}:${pid || "me"}`;
 
@@ -259,12 +193,15 @@ export function useHabits(pid) {
     streak: streakOf(data.weeks),
     total,
     goal: goalById(data.goal),
-    lesson: LESSONS[Math.max(0, total - (data.weeks[thisWeek] ? 1 : 0)) % LESSONS.length],
     saveWeek: (entry) =>
       update((d) => ({ ...d, weeks: { ...d.weeks, [thisWeek]: { ...entry, at: new Date().toISOString() } } })),
     setGoal: (id) => update((d) => ({ ...d, goal: id })),
-    markRead: (title) => update((d) => ({ ...d, read: [...new Set([...(d.read || []), title])] })),
-    setRemind: (day) => update((d) => ({ ...d, remind: day })),
+    // The first lesson read fixes the week lessons count from.
+    markRead: (title, start) =>
+      update((d) => ({ ...d, read: [...new Set([...(d.read || []), title])], lessonStart: d.lessonStart || start || null })),
+    saveEarned: (ids) =>
+      update((d) => ({ ...d, earned: { ...Object.fromEntries(ids.map((id) => [id, new Date().toISOString()])), ...d.earned } })),
+    markSeen: (ids) => update((d) => ({ ...d, seen: [...new Set([...(d.seen || []), ...ids])] })),
     strengthDone: data.strength?.[thisWeek] || 0,
     addStrength: () =>
       update((d) => ({ ...d, strength: { ...d.strength, [thisWeek]: (d.strength?.[thisWeek] || 0) + 1 } })),
