@@ -1,4 +1,4 @@
-import { visibleProducts, inCategory } from "../data/products";
+import { visibleProducts, inCategory, priceUnit } from "../data/products";
 import { priceValue } from "../data/subscriptions";
 import { CONSULTS, CONSULT_ORDER } from "../data/consultations";
 import { productItem } from "../../lib/programCard";
@@ -27,6 +27,20 @@ export const GOAL_ANSWERS = {
 };
 
 const isNeedleFree = (product) => !/inject/i.test(product?.dosageForm || "");
+
+/* The 3-month plan as a monthly figure, the price the product page leads with
+   (client, 2026-10-23: the kiosk still quoted $320 and $250). The same sum as
+   ProductPage's threeMonthRate: price3 is the whole term the checkout charges. */
+const threeMonthRate = (product) => {
+  const total = Number(String(product?.price3 || "").replace(/[^0-9.]/g, ""));
+  return total > 0 ? Math.round(total / 3) : null;
+};
+
+/** The price a kiosk screen leads with, without its unit. */
+export const leadPrice = (product) => {
+  const rate = threeMonthRate(product);
+  return rate ? `$${rate}` : product.price;
+};
 
 /* What a kiosk in a state may show, on top of the site's own state rules.
  * California launches with Strive's weight loss formulations only, Semaglutide
@@ -88,17 +102,23 @@ export function shelf(category, state) {
       return true;
     })
     .map(productItem)
-    .map((card) => ({
-      ...card,
-      /* The same pill the nav card carries, read off the record rather than
-         assumed: it marks the ones sold as a plan. */
-      ribbon: card.product.audience || "",
-      /* The row prints the dosage form on its own line, so drop it from the
-         chips and leave the price there alone. */
-      chips: card.chips.filter((c) => c && c !== card.product.dosageForm),
-      needleFree: isNeedleFree(card.product),
-      from: priceValue(card.product),
-    }));
+    .map((card) => {
+      const rate = threeMonthRate(card.product);
+      return {
+        ...card,
+        /* The same pill the nav card carries, read off the record rather than
+           assumed: it marks the ones sold as a plan. */
+        ribbon: card.product.audience || "",
+        /* The row prints the dosage form on its own line, so drop it from the
+           chips and leave the price there alone, as the 3-month rate where
+           there is one. */
+        chips: card.chips
+          .filter((c) => c && c !== card.product.dosageForm)
+          .map((c, i) => (i === 0 && rate ? `From $${rate}${priceUnit(card.product)}` : c)),
+        needleFree: isNeedleFree(card.product),
+        from: rate || priceValue(card.product),
+      };
+    });
 }
 
 /* The quiz only asks about needles where the answer changes something. */

@@ -7,7 +7,7 @@ export const PILL =
 
 export default function KioskTopBar({ onBack, backLabel = "Back", onStartOver }) {
   return (
-    <header className="grid flex-none grid-cols-3 items-center gap-4 px-8 pb-4 pt-8 lg:px-16 lg:pb-6 lg:pt-14">
+    <header className="grid flex-none grid-cols-3 items-center gap-4 px-8 pb-4 pt-8 lg:px-16 lg:pb-5 lg:pt-10">
       <div>
         {onBack && (
           <button type="button" onClick={onBack} className={`${PILL} pl-4 lg:pl-6`}>
@@ -16,7 +16,9 @@ export default function KioskTopBar({ onBack, backLabel = "Back", onStartOver })
           </button>
         )}
       </div>
-      <img src="/logo-2026.png" alt="Nova MDK" className="h-16 w-auto justify-self-center lg:h-24" />
+      {/* Contained, so a narrow middle column shrinks the logo rather than
+          squeezing it (client, 2026-10-23: it looked stretched). */}
+      <img src="/logo-2026.png" alt="Nova MDK" className="h-16 w-auto min-w-0 justify-self-center object-contain lg:h-24" />
       <div className="justify-self-end">
         {onStartOver && (
           <button type="button" onClick={onStartOver} className={PILL}>

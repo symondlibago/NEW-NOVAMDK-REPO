@@ -1,13 +1,13 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect } from "react";
 import { FlaskConical, Lock, MessageSquareText, Stethoscope, Truck } from "lucide-react";
 import KioskTopBar from "./KioskTopBar";
 import KioskQr from "./KioskQr";
 import KioskFaq from "./KioskFaq";
-import KioskSiteSections from "./KioskSiteSections";
 import { ComplianceBadges, CompoundedDisclaimer } from "../Compliance";
 import { STEPS } from "../product/ProductJourney";
 import { closingLine } from "../product/ProductSafety";
 import { isCompounded, priceUnit } from "../data/products";
+import { leadPrice } from "./kioskCatalog";
 import { scanUrl } from "../../lib/kioskLocations";
 import { track, EVENTS } from "../../lib/analytics";
 
@@ -23,45 +23,36 @@ const SECTION_TITLE = "font-display text-3xl font-extrabold tracking-tight text-
 
 /* The code panel. Light champagne like the website's price cards (client,
    2026-10-13: the near-black panel didn't match the site), and kept short so
-   the tabs and the code take no more than the top third of the screen.
-   Trimmed again on 2026-10-21 (client: "a tad smaller, not too small"): a
-   smaller code and title, and the "scroll for details" line gone. */
-function QrDock({ card, locId, onTextMe, flash }) {
+   the treatment reads first. Trimmed on 2026-10-21 (client: "a tad smaller,
+   not too small") and again on 2026-10-23 to one row, code, title and Text me,
+   after it took a third of the Fiteye's screen. */
+function QrDock({ card, locId, onTextMe }) {
   return (
-    <div
-      className={`mx-8 flex flex-none items-center gap-5 rounded-3xl bg-linear-to-br from-ks-champagne to-ks-champagne-deep p-4 text-ks-heading ring-ks-brass transition-shadow duration-300 lg:mx-16 lg:gap-7 lg:p-5 ${
-        flash ? "ring-8" : "ring-0"
-      }`}
-    >
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5 lg:gap-2">
+    <div className="mx-8 flex flex-none items-center gap-4 rounded-3xl bg-linear-to-br from-ks-champagne to-ks-champagne-deep p-3 text-ks-heading lg:mx-16 lg:gap-6 lg:p-4">
+      {/* Drawn once the placement is read, so a scan is always tagged with
+          this kiosk; see KioskQrModal on the product page. */}
+      {/* KioskQr draws at a fixed pixel size, so the box is one size everywhere. */}
+      <div className="grid size-36 flex-none place-items-center rounded-2xl bg-white p-2">
+        {locId !== undefined && <KioskQr value={scanUrl(card.product, locId)} size={128} />}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="font-display text-2xl font-extrabold leading-tight lg:text-3xl">Scan to start your visit</span>
         <span className="text-base leading-snug text-ks-heading/80 lg:text-lg">
           {card.title} · {card.chips[0]}
         </span>
-        <span className="flex flex-wrap items-center gap-3 pt-2">
-          {/* The easier way in for most people at the kiosk, so it is the
-              loudest thing on the panel (client, 2026-10-21): dark on the
-              champagne, and no longer worded as a fallback. */}
-          {onTextMe && (
-            <button
-              type="button"
-              onClick={onTextMe}
-              className="inline-flex items-center gap-2.5 rounded-full bg-ink px-6 py-3 text-lg font-bold text-white shadow-lg ring-4 ring-white/70 active:bg-ks-heading lg:px-8 lg:py-4 lg:text-2xl"
-            >
-              <MessageSquareText className="size-6 lg:size-7" /> Text me the link
-            </button>
-          )}
-          <span className="inline-flex items-center gap-2 text-base text-ks-heading/80 lg:text-lg">
-            <Lock className="size-4 lg:size-5" /> Private to your own device
-          </span>
-        </span>
       </div>
-      {/* Drawn once the placement is read, so a scan is always tagged with
-          this kiosk; see KioskQrModal on the product page. */}
-      {/* KioskQr draws at a fixed pixel size, so the box is one size everywhere. */}
-      <div className="grid size-44 flex-none place-items-center rounded-2xl bg-white p-2">
-        {locId !== undefined && <KioskQr value={scanUrl(card.product, locId)} size={160} />}
-      </div>
+      {/* The easier way in for most people at the kiosk, so it is the loudest
+          thing on the panel, in the dark gold of the chosen treatment
+          (client, 2026-10-23). */}
+      {onTextMe && (
+        <button
+          type="button"
+          onClick={onTextMe}
+          className="inline-flex flex-none items-center gap-2.5 rounded-full bg-ks-brass px-5 py-3 text-lg font-bold text-white shadow-lg ring-4 ring-white/70 active:bg-ks-heading lg:px-7 lg:py-4 lg:text-2xl"
+        >
+          <MessageSquareText className="size-6 lg:size-7" /> Text me the link
+        </button>
+      )}
     </div>
   );
 }
@@ -85,7 +76,7 @@ function Hero({ card }) {
         <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-line pt-5">
           {!p.exactPrice && <span className="text-lg uppercase tracking-wider text-ink lg:text-2xl">Starts at</span>}
           <span className="font-display text-5xl font-extrabold leading-none tracking-tight text-ink lg:text-6xl">
-            {p.price}
+            {leadPrice(p)}
             <span className="font-semibold">{priceUnit(p)}</span>
           </span>
           {p.priceNote && <span className="text-lg text-muted lg:text-2xl">· {p.priceNote}</span>}
@@ -97,26 +88,6 @@ function Hero({ card }) {
 
 export default function KioskProduct({ cards, card, locId, onSelect, onTextMe, onBack, onStartOver }) {
   const p = card.product;
-  const scroller = useRef(null);
-  const tabs = useRef(null);
-
-  // Brings the chosen treatment's tab into view when it sits off the row.
-  useEffect(() => {
-    const row = tabs.current;
-    const on = row?.querySelector("[data-on]");
-    if (on) row.scrollLeft = on.offsetLeft - (row.clientWidth - on.offsetWidth) / 2;
-  }, [card.key]);
-
-  /* A tap on one of the site's own buttons lights the code instead, since the
-     visit starts on the patient's phone, not here. */
-  const [flash, setFlash] = useState(false);
-  const flashTimer = useRef(null);
-  const pointToQr = () => {
-    setFlash(true);
-    clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => setFlash(false), 1600);
-  };
-  useEffect(() => () => clearTimeout(flashTimer.current), []);
 
   /* Counted once per product the kiosk shows a code for, like the product
      page's QR modal. The id stands in for the name. */
@@ -133,18 +104,17 @@ export default function KioskProduct({ cards, card, locId, onSelect, onTextMe, o
     <div className="flex h-full flex-col">
       <KioskTopBar onBack={onBack} onStartOver={onStartOver} />
 
-      {/* The category's other treatments, one row that swipes sideways. It
-          wrapped onto four rows for weight loss and, with the code, filled
-          half the screen (client, 2026-10-13). */}
+      {/* The category's other treatments, side by side in equal buttons. A
+          row that swiped sideways hid the third (client, 2026-10-23); a
+          California goal has three at most, and a fourth starts a new row. */}
       {cards.length > 1 && (
-        <nav ref={tabs} data-lenis-prevent className="no-scrollbar relative flex flex-none gap-3 overflow-x-auto px-8 pb-4 lg:px-16 lg:pb-5">
+        <nav className={`grid flex-none gap-3 px-8 pb-4 lg:gap-4 lg:px-16 lg:pb-5 ${cards.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
           {cards.map((c) => (
             <button
               key={c.key}
               type="button"
-              data-on={c.key === card.key || undefined}
               onClick={() => onSelect(c.key)}
-              className={`h-14 flex-none whitespace-nowrap rounded-full px-6 text-lg font-semibold ${
+              className={`flex min-h-16 items-center justify-center rounded-2xl px-3 py-2 text-center text-base font-semibold leading-tight lg:min-h-20 lg:px-4 lg:text-xl ${
                 c.key === card.key ? "bg-ks-brass text-white" : "border-2 border-line bg-surface text-ink"
               }`}
             >
@@ -154,9 +124,9 @@ export default function KioskProduct({ cards, card, locId, onSelect, onTextMe, o
         </nav>
       )}
 
-      <QrDock card={card} locId={locId} onTextMe={onTextMe} flash={flash} />
+      <QrDock card={card} locId={locId} onTextMe={onTextMe} />
 
-      <main ref={scroller} key={card.key} data-lenis-prevent className="mt-4 flex-1 overflow-y-auto pb-16 lg:mt-5 lg:pb-24">
+      <main key={card.key} data-lenis-prevent className="mt-4 flex-1 overflow-y-auto pb-16 lg:mt-5 lg:pb-24">
         <div className="space-y-12 px-8 lg:space-y-16 lg:px-16">
           <Hero card={card} />
 
@@ -182,14 +152,10 @@ export default function KioskProduct({ cards, card, locId, onSelect, onTextMe, o
               </ul>
             </section>
           )}
-        </div>
 
-        {/* The product page's own sections, full width as on the site. */}
-        <div className="my-12 lg:my-16">
-          <KioskSiteSections product={p} onLink={pointToQr} scrollRoot={scroller} />
-        </div>
-
-        <div className="space-y-12 px-8 lg:space-y-16 lg:px-16">
+          {/* The website's own sections used to follow here. Laid out for a
+              computer, they read small on the kiosk, so the screen keeps to
+              the kiosk's own large type (client, 2026-10-23). */}
           <KioskFaq product={p} />
 
           <section>
