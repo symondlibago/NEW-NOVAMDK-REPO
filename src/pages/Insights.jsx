@@ -1011,9 +1011,33 @@ export default function InsightsPage() {
               />
             </section>
 
+            {/* Our own count, beside Google's below rather than replacing it.
+                Ours counts every phone that opened a code, GA4 only the ones
+                that accepted the cookie banner, so swapping one for the other
+                inside a single chart would read as a jump in scans that never
+                happened. */}
             <section className="grid gap-4 lg:grid-cols-2">
               <Bars
-                title="Kiosk scans by location"
+                title="Kiosk scans, our own count"
+                rows={data.kiosks_counted || []}
+                empty={
+                  data.kiosks_counted
+                    ? "No kiosk scans counted in this window."
+                    : "The counter is not reachable right now."
+                }
+              />
+              <p className="rounded-xl border border-line bg-bg px-4 py-3 text-[0.82rem] text-muted">
+                Every phone that opened a kiosk code, counted on our own server with nothing about
+                the person attached. Google&apos;s figure below counts only the visitors who
+                accepted the cookie banner, so it reads lower, and it is the one with history behind
+                it. Expect a gap between the two: that is the share of people who decline tracking,
+                not a change in how busy the kiosks are.
+              </p>
+            </section>
+
+            <section className="grid gap-4 lg:grid-cols-2">
+              <Bars
+                title="Kiosk scans in Google Analytics"
                 rows={data.kiosks}
                 empty="No kiosk scans in this window."
               />

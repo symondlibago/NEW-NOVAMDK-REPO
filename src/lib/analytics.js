@@ -194,6 +194,30 @@ export function track(event, props = {}) {
   }
 }
 
+/* Our own count of the same scan the event above reports to GA4.
+ *
+ * GA4 only ever hears from someone who accepted the cookie banner, so its
+ * kiosk numbers count consenters rather than scans. This counts the opens
+ * themselves (client, 2026-10-23). The whole request is one kiosk id: no
+ * cookie, no identifier, nothing about the person, and the server never reads
+ * the address it arrives from.
+ *
+ * Behind the same dev and preview check as track(), so clicking around on a
+ * laptop or a preview link cannot land in the numbers John reads. Failure is
+ * silent: a count is worth nothing next to the page loading. */
+export function countKioskScan(kioskId) {
+  if (isPreview() || isDevEnvironment()) return;
+  if (!isBrowser || !kioskId) return;
+  /* keepalive, because a scan is often followed straight away by the start
+     flow and an ordinary fetch dies with the page that sent it. */
+  fetch("/api/insights?resource=scan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kiosk: kioskId }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
 /**
  * Convenience helper for route changes.
  *
