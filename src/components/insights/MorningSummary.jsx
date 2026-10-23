@@ -126,7 +126,9 @@ const SOURCE_NAMES = { stripe: "Stripe", ghl: "GoHighLevel", ga4: "Google Analyt
 const SOURCE_COVERS = {
   stripe: "money in and top treatments",
   ghl: "patients, visits, checkouts and plans",
-  ga4: "the visitor rate and kiosk scans",
+  /* Kiosk scans used to be listed here too. They are counted on our own server
+     now (2026-10-23), so they survive Google being off. */
+  ga4: "the visitor rate",
 };
 
 export default function MorningSummary({ data }) {
@@ -135,6 +137,7 @@ export default function MorningSummary({ data }) {
   const month = monthName(dates.month);
   const top = topTreatments(m?.by_product);
   const down = Object.entries(sources || {}).filter(([, s]) => s !== "ok");
+  const hasGoogleScans = (kiosks || []).some((k) => k.scans > 0);
 
   const tasks = crm
     ? [
@@ -370,6 +373,11 @@ export default function MorningSummary({ data }) {
                   <tr className="text-left text-muted">
                     <th className="pb-2 font-medium">Location</th>
                     <th className="pb-2 text-right font-medium">Scans</th>
+                    {/* Only where Google has something to say. It counts the
+                        people who accepted the banner, so it reads lower, and
+                        a column of zeroes beside our own count would look like
+                        a fault rather than a setting. */}
+                    {hasGoogleScans && <th className="pb-2 text-right font-medium">In Google</th>}
                     <th className="pb-2 text-right font-medium">Paying patients</th>
                   </tr>
                 </thead>
@@ -377,7 +385,8 @@ export default function MorningSummary({ data }) {
                   {kiosks.map((k) => (
                     <tr key={k.id} className="border-t border-line">
                       <td className="py-3 pr-3 font-medium text-ink">{locationById(k.id)?.label || k.id}</td>
-                      <td className="py-3 text-right text-ink">{count(k.scans)}</td>
+                      <td className="py-3 text-right text-ink">{count(k.counted)}</td>
+                      {hasGoogleScans && <td className="py-3 text-right text-muted">{count(k.scans)}</td>}
                       <td className="py-3 text-right font-semibold text-ink">{count(k.patients)}</td>
                     </tr>
                   ))}
@@ -399,8 +408,8 @@ export default function MorningSummary({ data }) {
         ))}
         <p>
           Money comes from Stripe, before Stripe&rsquo;s fees. Patients, visits, checkouts and plans come from
-          GoHighLevel. Visitors and kiosk scans come from Google Analytics. Days run midnight to midnight,
-          Pacific time.
+          GoHighLevel. Visitors come from Google Analytics. Kiosk scans are counted on our own server, so
+          they do not depend on anyone accepting cookies. Days run midnight to midnight, Pacific time.
         </p>
       </footer>
     </div>

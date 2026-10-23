@@ -24,6 +24,7 @@ import { mdi, mdiConfigured } from "./_mdi.js";
 import { spendBySource, spendBySourceIn, spendMonths, spendTotal } from "./_spend.js";
 import { stripe, stripeEnabled, stripeMode } from "./_stripe.js";
 import { DIGEST_TAG, digestConfigured, sendDigest } from "./_digest.js";
+import { kvConfigured, kvCommand, kvPipeline } from "./_kv.js";
 
 /* Everything the staff dashboard needs, in one function.
 
@@ -32,6 +33,9 @@ import { DIGEST_TAG, digestConfigured, sendDigest } from "./_digest.js";
    deployment and api/ was at 13, which failed the build. These three were the
    obvious merge — same page, same session, same access rules.
 
+     POST ?resource=scan       +1 on a kiosk's count for the day, sent by the
+                               phone that just opened its QR. The only route
+                               here that is not behind the admin session
      POST                      login / logout / session check
      GET  ?resource=ops        pipeline and intake funnel, from GHL and MDI
      GET  ?resource=channels   where customers came from and what each channel
@@ -213,12 +217,89 @@ const named = (rows) =>
 
 const countsByName = (rows) => Object.fromEntries((rows || []).map((r) => [label(r), num(r)]));
 
+/* --------------------------- kiosk scan counts --------------------------- */
+
+/* GA4 hears about a scan only from a phone that accepted the cookie banner, so
+   its kiosk numbers count consenters rather than scans. These are the opens
+   themselves, kept by us: +1 per kiosk per day in Upstash (client, 2026-10-23).
+   No cookie, no identifier, nothing about the person, and the address the
+   request arrives from is neither read nor stored.
+
+   Deliberately a separate number rather than a replacement. It counts everyone
+   where GA4 counted a subset, so the two will never agree, and overwriting the
+   old figure would read as a jump in scans that never happened. */
+
+/* A little over a year, so a chart can look back over one and the keys of a
+   kiosk that was moved or retired clear themselves out. */
+const SCAN_TTL_S = 400 * 24 * 60 * 60;
+
+/* Which kiosks to total up. The ids live in src/lib/kioskLocations.js, which
+   api/ cannot import, so the store keeps its own set as counts arrive. */
+const KIOSK_SET = "kiosk:ids";
+
+/* Shaped like a placement, so a forged request cannot write arbitrary keys.
+   A well formed id we don't recognise is still counted: a kiosk that lost its
+   placement is worth seeing rather than silently dropping. */
+const KIOSK_ID = /^[a-z0-9-]{2,40}$/;
+
+const scanKey = (id, ymd) => `kiosk:${id}:${ymd}`;
+
+async function handleScan(req, res) {
+  /* A kiosk in a busy clinic can genuinely scan often, and _guard already
+     counts per route per IP, so this ceiling is its own. */
+  if (blocked(req, res, { max: 60 })) return;
+
+  const id = String(req.body?.kiosk || "").trim().toLowerCase();
+  if (!KIOSK_ID.test(id)) {
+    return res.status(400).json({ error: "kiosk id required" });
+  }
+  if (!kvConfigured()) {
+    return res.status(200).json({ ok: false, skipped: "not_configured" });
+  }
+
+  const key = scanKey(id, ymdOf(Date.now()));
+  const out = await kvPipeline([
+    ["INCR", key],
+    ["EXPIRE", key, String(SCAN_TTL_S)],
+    ["SADD", KIOSK_SET, id],
+  ]);
+  // 200 either way: the phone has a visit to get on with.
+  return res.status(200).json({ ok: Boolean(out && out[0] !== null) });
+}
+
+/* Each kiosk's total over the same window the GA4 figures use. One MGET for
+   the whole grid, so the cost is two round trips however many kiosks there
+   are. Null, never a zero, when the store cannot be reached: a chart that
+   says nothing is better than one that says none. */
+async function kioskCounts(days) {
+  if (!kvConfigured()) return null;
+
+  const ids = await kvCommand("SMEMBERS", KIOSK_SET);
+  if (!Array.isArray(ids) || !ids.length) return ids ? [] : null;
+
+  const today = Date.now();
+  const ymds = Array.from({ length: days }, (_, i) => ymdOf(today - i * DAY_MS));
+  const values = await kvCommand("MGET", ...ids.flatMap((id) => ymds.map((ymd) => scanKey(id, ymd))));
+  if (!Array.isArray(values)) return null;
+
+  return ids
+    .map((id, i) => ({
+      name: id,
+      count: values.slice(i * ymds.length, (i + 1) * ymds.length).reduce((sum, v) => sum + (Number(v) || 0), 0),
+    }))
+    .filter((row) => row.count > 0)
+    .sort((a, b) => b.count - a.count);
+}
+
 async function trafficPayload(days) {
   /* batchRunReports takes at most five reports, so this is two calls rather
-     than seven. They don't depend on each other, hence in parallel. */
-  const [main, extra] = await Promise.all([
+     than seven. They don't depend on each other, hence in parallel. The kiosk
+     counts are a different store altogether and resolve to null on their own
+     if Upstash is unreachable, so they ride along here. */
+  const [main, extra, counted] = await Promise.all([
     runBatch(reportsFor(days)),
     runBatch(trendAndSources(days)),
+    kioskCounts(days),
   ]);
 
   const totals = main[0]?.rows?.[0];
@@ -242,6 +323,7 @@ async function trafficPayload(days) {
     products: named(main[2]?.rows),
     categories: named(main[3]?.rows),
     kiosks: named(main[4]?.rows),
+    kiosks_counted: counted,
     sources: (extra[0]?.rows || []).map((r) => ({
       name: label(r),
       users: num(r, 0),
@@ -1130,10 +1212,15 @@ const rate = (part, whole) =>
 
 async function summaryPayload() {
   const w = summaryWindows();
-  const [money, crm, traffic] = await Promise.allSettled([
+  /* The kiosk counter is read here as well as in the traffic view, and on
+     purpose: the traffic view returns early without a GA4 service key, and
+     these counts are ours, so they must not disappear with Google's. Month to
+     date, the window this whole summary covers. */
+  const [money, crm, traffic, counted] = await Promise.allSettled([
     stripeEnabled() ? moneySummary(w) : Promise.resolve(null),
     ghlConfigured() ? crmSummary(w) : Promise.resolve(null),
     ga4Configured() ? trafficSummary(w) : Promise.resolve(null),
+    kioskCounts(Number(w.today.slice(8, 10))),
   ]);
   const settled = (r, name) => {
     if (r.status === "fulfilled") return r.value;
@@ -1145,13 +1232,19 @@ async function summaryPayload() {
   const t = settled(traffic, "GA4");
   const state = (enabled, value) => (!enabled ? "off" : value ? "ok" : "failed");
 
-  /* Locations from either side, so a kiosk with scans and no patient yet, or
-     a patient whose kiosk GA4 hasn't reported, still gets its row. */
+  /* Locations from any of the three, so a kiosk we counted but Google hasn't,
+     or one with a patient and no scan reported, still gets its row. */
   const scans = t?.kiosk_scans || {};
   const kioskPatients = c?.kiosk_patients || {};
-  const kiosks = [...new Set([...Object.keys(scans), ...Object.keys(kioskPatients)])]
-    .map((id) => ({ id, scans: scans[id] || 0, patients: kioskPatients[id] || 0 }))
-    .sort((a, b) => b.patients - a.patients || b.scans - a.scans);
+  const ours = Object.fromEntries((settled(counted, "kiosk counter") || []).map((r) => [r.name, r.count]));
+  const kiosks = [...new Set([...Object.keys(ours), ...Object.keys(scans), ...Object.keys(kioskPatients)])]
+    .map((id) => ({
+      id,
+      counted: ours[id] || 0,
+      scans: scans[id] || 0,
+      patients: kioskPatients[id] || 0,
+    }))
+    .sort((a, b) => b.patients - a.patients || b.counted - a.counted || b.scans - a.scans);
 
   const { kiosk_patients: _unused, ...crmOut } = c || {};
   const sources = {
@@ -1283,15 +1376,22 @@ async function handleDigest(req, res) {
 }
 
 export default async function handler(req, res) {
-  if (req.method === "POST") return handleAuth(req, res);
+  // req.query is missing under the local vite shim, so fall back to the URL.
+  const params = new URL(req.url || "/", "http://localhost").searchParams;
+  const resource = req.query?.resource ?? params.get("resource");
+
+  if (req.method === "POST") {
+    /* Read before the login handler, so a kiosk count can never fall through
+       into it. It is the one route here that no session guards, which is the
+       point: the phone that just scanned has not identified itself and never
+       will. _guard still checks the origin and the rate. */
+    if (resource === "scan") return handleScan(req, res);
+    return handleAuth(req, res);
+  }
 
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
-
-  // req.query is missing under the local vite shim, so fall back to the URL.
-  const params = new URL(req.url || "/", "http://localhost").searchParams;
-  const resource = req.query?.resource ?? params.get("resource");
 
   /* Ahead of the guard: a cron call has no Origin for it to check, and the
      secret is the stronger test. The schedule header is a fallback in case the

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion as Motion, useReducedMotion } from "framer-motion";
 import { useParams, useNavigate, useSearchParams, Navigate, Link } from "react-router-dom";
-import { track, EVENTS } from "../lib/analytics";
+import { track, countKioskScan, EVENTS } from "../lib/analytics";
 import {
   ArrowRight, ArrowLeft, Check, ShieldCheck, Truck, Stethoscope, Lock, Loader2,
   QrCode, X, ChevronDown, MapPin, Home, Info,
@@ -161,6 +161,9 @@ export default function ProductPage() {
       product_name: product?.name,
       treatment_category: product?.categorySlug,
     });
+    /* The same scan on our own books, which the cookie banner cannot thin out.
+       Just the kiosk and the day; see countKioskScan. */
+    countKioskScan(from);
 
     const next = new URLSearchParams(search);
     next.delete(SCAN_PARAM);
