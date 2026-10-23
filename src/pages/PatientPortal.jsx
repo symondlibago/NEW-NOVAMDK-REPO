@@ -16,6 +16,7 @@ import PortalProgress from "../components/portal/PortalProgress";
 import { getLenis } from "../lib/smoothScroll";
 import { portalAuth, portalData, clearPortalCache } from "../lib/portal";
 import { resumeIntakeUrl } from "../lib/resumeIntake";
+import { useAppManifest } from "../lib/installApp";
 
 /* John's five, in his order (2026-10-06): Home, Treatments, Visits, Messages,
    Profile. No separate tab for billing, orders, pharmacy or subscriptions; all
@@ -146,6 +147,9 @@ export default function PatientPortalPage() {
       alive = false;
     };
   }, [state, resumed, navigate]);
+
+  // Installable from here only; see installApp.js.
+  useAppManifest();
 
   useEffect(() => {
     const lenis = getLenis();

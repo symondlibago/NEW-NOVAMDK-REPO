@@ -23,40 +23,44 @@ const SECTION_TITLE = "font-display text-3xl font-extrabold tracking-tight text-
 
 /* The code panel. Light champagne like the website's price cards (client,
    2026-10-13: the near-black panel didn't match the site), and kept short so
-   the tabs and the code take no more than the top third of the screen. */
+   the tabs and the code take no more than the top third of the screen.
+   Trimmed again on 2026-10-21 (client: "a tad smaller, not too small"): a
+   smaller code and title, and the "scroll for details" line gone. */
 function QrDock({ card, locId, onTextMe, flash }) {
   return (
     <div
-      className={`mx-8 flex flex-none items-center gap-6 rounded-3xl bg-linear-to-br from-ks-champagne to-ks-champagne-deep p-5 text-ks-heading ring-ks-brass transition-shadow duration-300 lg:mx-16 lg:gap-8 lg:p-6 ${
+      className={`mx-8 flex flex-none items-center gap-5 rounded-3xl bg-linear-to-br from-ks-champagne to-ks-champagne-deep p-4 text-ks-heading ring-ks-brass transition-shadow duration-300 lg:mx-16 lg:gap-7 lg:p-5 ${
         flash ? "ring-8" : "ring-0"
       }`}
     >
-      <div className="flex min-w-0 flex-1 flex-col gap-2 lg:gap-3">
-        <span className="font-display text-3xl font-extrabold leading-tight lg:text-4xl">Scan to start your visit</span>
-        <span className="text-lg leading-snug text-ks-heading/80 lg:text-xl">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 lg:gap-2">
+        <span className="font-display text-2xl font-extrabold leading-tight lg:text-3xl">Scan to start your visit</span>
+        <span className="text-base leading-snug text-ks-heading/80 lg:text-lg">
           {card.title} · {card.chips[0]}
         </span>
-        <span className="flex flex-wrap items-center gap-3 pt-1">
+        <span className="flex flex-wrap items-center gap-3 pt-2">
+          {/* The easier way in for most people at the kiosk, so it is the
+              loudest thing on the panel (client, 2026-10-21): dark on the
+              champagne, and no longer worded as a fallback. */}
           {onTextMe && (
             <button
               type="button"
               onClick={onTextMe}
-              className="inline-flex items-center gap-2 rounded-full bg-ks-brass px-5 py-2 text-base font-semibold text-white active:bg-ks-brass-deep lg:px-6 lg:py-3 lg:text-xl"
+              className="inline-flex items-center gap-2.5 rounded-full bg-ink px-6 py-3 text-lg font-bold text-white shadow-lg ring-4 ring-white/70 active:bg-ks-heading lg:px-8 lg:py-4 lg:text-2xl"
             >
-              <MessageSquareText className="size-5 lg:size-6" /> Text me the link instead
+              <MessageSquareText className="size-6 lg:size-7" /> Text me the link
             </button>
           )}
-          <span className="inline-flex items-center gap-2 rounded-full border border-ks-heading/25 px-4 py-2 text-base lg:text-lg">
+          <span className="inline-flex items-center gap-2 text-base text-ks-heading/80 lg:text-lg">
             <Lock className="size-4 lg:size-5" /> Private to your own device
           </span>
         </span>
-        <span className="text-base text-ks-heading/70 lg:text-lg">Scroll for details. The code stays here.</span>
       </div>
       {/* Drawn once the placement is read, so a scan is always tagged with
           this kiosk; see KioskQrModal on the product page. */}
       {/* KioskQr draws at a fixed pixel size, so the box is one size everywhere. */}
-      <div className="grid size-52 flex-none place-items-center rounded-2xl bg-white p-3">
-        {locId !== undefined && <KioskQr value={scanUrl(card.product, locId)} size={184} />}
+      <div className="grid size-44 flex-none place-items-center rounded-2xl bg-white p-2">
+        {locId !== undefined && <KioskQr value={scanUrl(card.product, locId)} size={160} />}
       </div>
     </div>
   );

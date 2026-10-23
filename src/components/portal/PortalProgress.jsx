@@ -1,10 +1,13 @@
 import React, { useState } from "react";
 import { format } from "date-fns";
-import { Award, Bell, BookOpen, Check, Droplet, Dumbbell, Flame, Footprints, Lock, MessageSquare, Moon, Scale, Smile, Target } from "lucide-react";
-import { GOALS, MILESTONES, QUESTIONS, REMIND_DAYS, STRENGTH_PER_WEEK, recentWeeks, useHabits, usePatientId, weekStart } from "../../lib/habits";
+import { Check, Droplet, Dumbbell, Flame, Footprints, Lock, MessageSquare, Moon, Scale, Smile, Target } from "lucide-react";
+import { GOALS, QUESTIONS, STRENGTH_PER_WEEK, recentWeeks, useHabits, usePatientId, weekStart } from "../../lib/habits";
+import { useMilestones } from "../../lib/milestones";
 import { useBodySex, useWeeklyShot } from "../../lib/shots";
 import HabitCheckin from "./habits/HabitCheckin";
 import InchesCard from "./habits/InchesCard";
+import LessonsCard from "./habits/Lessons";
+import MilestonesCard, { MilestoneCelebration } from "./habits/Milestones";
 import MealIdeas from "./habits/MealIdeas";
 import PhotosCard from "./habits/PhotosCard";
 import ShotsPanel from "./habits/ShotsPanel";
@@ -133,8 +136,8 @@ export default function PortalProgress({ onNavigate }) {
   const [strength, setStrength] = useState(false);
   const [picking, setPicking] = useState(false);
   const [tab, setTab] = useState("week");
+  const milestones = useMilestones(habits, pid);
   const weeks = recentWeeks(habits.data.weeks, 8);
-  const read = (habits.data.read || []).includes(habits.lesson.title);
   const next = format(weekStart(habits.thisWeek).getTime() + 7 * 864e5, "EEEE, MMM d");
   // Shots shows for a weekly injection, or once anything has been logged.
   const tabs = TAB_LIST.filter((t) => t.key !== "shots" || shot || habits.data.shots?.length);
@@ -164,6 +167,8 @@ export default function PortalProgress({ onNavigate }) {
 
         {tab === "week" && (
           <>
+            <MilestoneCelebration state={milestones} onSeen={habits.markSeen} />
+
             {/* The check-in leads: it is the one thing to do here. */}
             <section className="mt-6 flex flex-wrap items-center gap-5 rounded-3xl border border-primary/25 bg-linear-to-br from-primary/15 to-primary/5 p-6 sm:flex-nowrap md:p-8">
               <span className="grid size-14 shrink-0 place-items-center rounded-full bg-primary text-on-primary sm:size-16">
@@ -254,69 +259,12 @@ export default function PortalProgress({ onNavigate }) {
                 )}
               </section>
 
-              <section className={card}>
-                <div className="flex items-center gap-3">
-                  <span className="grid size-10 place-items-center rounded-full bg-surface-2 text-primary">
-                    <BookOpen size={18} />
-                  </span>
-                  <p className="flex-1 text-base font-semibold text-ink">This week&rsquo;s read</p>
-                  <span className="text-sm text-muted">1 min</span>
-                </div>
-                <p className="mt-4 text-xl font-semibold tracking-tight text-ink">{habits.lesson.title}</p>
-                <ul className="mt-3 space-y-2">
-                  {habits.lesson.points.map((pt) => (
-                    <li key={pt} className="flex gap-2.5 text-base leading-snug text-muted">
-                      <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
-                      {pt}
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  type="button"
-                  onClick={() => habits.markRead(habits.lesson.title)}
-                  disabled={read}
-                  className="mt-5 inline-flex items-center gap-2 rounded-full border border-line-strong px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-primary disabled:border-primary/30 disabled:text-primary-deep"
-                >
-                  {read ? (
-                    <>
-                      <Check size={15} /> Read
-                    </>
-                  ) : (
-                    "Mark as read"
-                  )}
-                </button>
-              </section>
+              <LessonsCard habits={habits} className={card} />
             </div>
 
-            {/* The reminder is the only part that would leave this device, and only
-                as "it's time": never an answer. */}
-            <section className={`${card} mt-8 md:mt-10`}>
-              <div className="flex items-center gap-3">
-                <span className="grid size-10 place-items-center rounded-full bg-surface-2 text-primary">
-                  <Bell size={18} />
-                </span>
-                <div className="flex-1">
-                  <p className="text-base font-semibold text-ink">Weekly reminder</p>
-                  <p className="text-sm text-muted">
-                    {habits.data.remind ? `A text every ${habits.data.remind} morning.` : "Off."} Reminders never include your answers.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {[...REMIND_DAYS, null].map((d) => (
-                  <button
-                    key={d || "off"}
-                    type="button"
-                    onClick={() => habits.setRemind(d)}
-                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-                      habits.data.remind === d ? "border-primary bg-primary text-on-primary" : "border-line text-ink hover:border-primary"
-                    }`}
-                  >
-                    {d ? d.slice(0, 3) : "Off"}
-                  </button>
-                ))}
-              </div>
-            </section>
+            {/* The weekly text reminder that sat here sent nothing: there is no
+                server side for it yet (client told, 2026-10-22). */}
+            <MilestonesCard state={milestones} className={`${card} mt-4`} />
           </>
         )}
 
@@ -350,26 +298,6 @@ export default function PortalProgress({ onNavigate }) {
                       <p className="mt-2 text-base font-semibold leading-snug text-ink">{latest != null ? value(latest) : "No entries yet"}</p>
                       <Bars weeks={weeks} field={key} />
                     </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="mt-8 md:mt-10">
-              <Label>Milestones</Label>
-              <div className="mt-4 flex flex-wrap gap-3">
-                {MILESTONES.map((m) => {
-                  const got = habits.total >= m.at;
-                  return (
-                    <span
-                      key={m.at}
-                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${
-                        got ? "border-primary/40 bg-primary/10 text-primary-deep" : "border-line text-muted"
-                      }`}
-                    >
-                      {got ? <Award size={16} className="text-primary" /> : <Lock size={14} />}
-                      {m.label}
-                    </span>
                   );
                 })}
               </div>
