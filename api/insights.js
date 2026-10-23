@@ -1212,10 +1212,15 @@ const rate = (part, whole) =>
 
 async function summaryPayload() {
   const w = summaryWindows();
-  const [money, crm, traffic] = await Promise.allSettled([
+  /* The kiosk counter is read here as well as in the traffic view, and on
+     purpose: the traffic view returns early without a GA4 service key, and
+     these counts are ours, so they must not disappear with Google's. Month to
+     date, the window this whole summary covers. */
+  const [money, crm, traffic, counted] = await Promise.allSettled([
     stripeEnabled() ? moneySummary(w) : Promise.resolve(null),
     ghlConfigured() ? crmSummary(w) : Promise.resolve(null),
     ga4Configured() ? trafficSummary(w) : Promise.resolve(null),
+    kioskCounts(Number(w.today.slice(8, 10))),
   ]);
   const settled = (r, name) => {
     if (r.status === "fulfilled") return r.value;
@@ -1227,13 +1232,19 @@ async function summaryPayload() {
   const t = settled(traffic, "GA4");
   const state = (enabled, value) => (!enabled ? "off" : value ? "ok" : "failed");
 
-  /* Locations from either side, so a kiosk with scans and no patient yet, or
-     a patient whose kiosk GA4 hasn't reported, still gets its row. */
+  /* Locations from any of the three, so a kiosk we counted but Google hasn't,
+     or one with a patient and no scan reported, still gets its row. */
   const scans = t?.kiosk_scans || {};
   const kioskPatients = c?.kiosk_patients || {};
-  const kiosks = [...new Set([...Object.keys(scans), ...Object.keys(kioskPatients)])]
-    .map((id) => ({ id, scans: scans[id] || 0, patients: kioskPatients[id] || 0 }))
-    .sort((a, b) => b.patients - a.patients || b.scans - a.scans);
+  const ours = Object.fromEntries((settled(counted, "kiosk counter") || []).map((r) => [r.name, r.count]));
+  const kiosks = [...new Set([...Object.keys(ours), ...Object.keys(scans), ...Object.keys(kioskPatients)])]
+    .map((id) => ({
+      id,
+      counted: ours[id] || 0,
+      scans: scans[id] || 0,
+      patients: kioskPatients[id] || 0,
+    }))
+    .sort((a, b) => b.patients - a.patients || b.counted - a.counted || b.scans - a.scans);
 
   const { kiosk_patients: _unused, ...crmOut } = c || {};
   const sources = {
