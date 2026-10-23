@@ -54,7 +54,9 @@ function GoalCard({ goal, state, hero = false, onPick, className = "" }) {
           </span>
         )}
         {price && <span className="text-xl font-bold text-ink lg:text-3xl">{price}</span>}
-        <span className={`ml-auto grid place-items-center rounded-full bg-white text-ks-heading shadow-md ${hero ? "size-16 lg:size-20" : "size-12 lg:size-16"}`}>
+        {/* On the text side, off the photo: at the right it sat on the
+            people (client, 2026-10-23). */}
+        <span className={`grid place-items-center rounded-full bg-white text-ks-heading shadow-md ${hero ? "size-16 lg:size-20" : "size-12 lg:size-16"}`}>
           <ArrowRight className="size-6 lg:size-8" strokeWidth={2.4} />
         </span>
       </span>

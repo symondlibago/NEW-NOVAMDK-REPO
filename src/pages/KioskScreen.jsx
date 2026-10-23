@@ -33,6 +33,22 @@ export default function KioskScreen() {
   const go = useCallback((next) => setView(next), []);
   const reset = useCallback(() => setView(STANDBY), []);
 
+  /* Laid out 1080 wide on every portrait screen, the size the kiosk is drawn
+     for. The Fiteye has the same 32" panel as the Apollo but its browser lays
+     pages out about 620 wide, which gave it the tablet sizes: a squeezed logo,
+     a list that ran off the screen and a code panel a third of the screen tall
+     (client, 2026-10-23). Fully Kiosk follows this only with "Use Wide
+     Viewport" on. */
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (!meta || !window.matchMedia("(orientation: portrait)").matches) return undefined;
+    const was = meta.content;
+    meta.content = "width=1080";
+    return () => {
+      meta.content = was;
+    };
+  }, []);
+
   /* undefined until read, so a code is never drawn untagged first. */
   const [locId, setLocId] = useState(undefined);
   useEffect(() => setLocId(readKioskLocation()), []);
