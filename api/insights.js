@@ -1025,7 +1025,10 @@ async function moneySummary(w) {
     if (!pid) continue;
     const row = byProduct.get(pid) || { product_id: pid, revenue: 0, sales: 0 };
     row.revenue += t.amount;
-    if (t.type === "charge") row.sales += 1;
+    /* A charge refunded in full is not a sale, whenever the refund came: the
+       client's refunded test payments showed up as sales (2026-10-24). A
+       partly refunded one still counts. */
+    if (t.type === "charge" && !t.source?.refunded) row.sales += 1;
     byProduct.set(pid, row);
   }
 

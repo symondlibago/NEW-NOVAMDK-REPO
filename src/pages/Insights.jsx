@@ -1,47 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { ExternalLink, Lock, LogOut, RefreshCw } from "lucide-react";
+import { Lock, LogOut, RefreshCw } from "lucide-react";
 import Seo from "../components/Seo";
 import MorningSummary from "../components/insights/MorningSummary";
-import { insightsAuth, insightsChannels, insightsData, insightsOps, insightsSummary } from "../lib/insights";
+import InsightsDetails from "../components/insights/InsightsDetails";
+import { insightsAuth, insightsChannels, insightsData, insightsSummary } from "../lib/insights";
 
 /* Staff analytics, reading GA4 through /api/insights and the CRM through
-   /api/insights?resource=ops. Everything on this page is aggregate counts: no patient is
+   /api/insights?resource=channels. Everything on this page is aggregate counts: no patient is
    identifiable here, and nothing clinical is in either source to begin with. */
-
-const WINDOWS = [
-  { days: 7, label: "7 days" },
-  { days: 28, label: "28 days" },
-  { days: 90, label: "90 days" },
-];
-
-const ACCENT = "#A97D24";
-
-/* The Looker Studio report, embedded rather than rebuilt. Looker reads GA4 as
-   the signed-in Google user, so it needs none of the service-account setup the
-   summary panels depend on: this section works the moment embedding is switched
-   on in Looker's File menu. Report id from the report's own URL. */
-const LOOKER_REPORT_ID =
-  import.meta.env.VITE_LOOKER_REPORT_ID || "cbdba9bd-0264-48d9-82ef-ae37bc7f02b0";
-const LOOKER_EMBED = LOOKER_REPORT_ID
-  ? `https://lookerstudio.google.com/embed/reporting/${LOOKER_REPORT_ID}/page/Hp18F`
-  : null;
-const LOOKER_FULL = LOOKER_REPORT_ID
-  ? `https://lookerstudio.google.com/reporting/${LOOKER_REPORT_ID}`
-  : null;
 
 /* Near full width with a small gutter: these panels are tables and funnels, and
    a 1180px column wasted half of a laptop screen on empty margin. */
@@ -51,13 +17,6 @@ const sectionLabel = "font-mono text-[11px] uppercase tracking-[0.14em] text-mut
 const chip =
   "flex items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-2 text-[0.82rem] font-semibold text-muted transition-colors hover:border-primary hover:text-ink";
 
-const nf = new Intl.NumberFormat("en-US");
-const count = (n) => nf.format(Number(n || 0));
-const money = (n) => `$${nf.format(Math.round(Number(n || 0)))}`;
-
-/* GA4 dates arrive as 2026-09-16; the axis only has room for the day. */
-const shortDate = (iso) => (iso || "").slice(5).replace("-", "/");
-
 const clockOf = (iso) => {
   if (!iso) return null;
   const d = new Date(iso);
@@ -65,486 +24,6 @@ const clockOf = (iso) => {
     ? null
     : d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 };
-
-function Metric({ label, value, hint }) {
-  return (
-    <div className={card}>
-      <p className={sectionLabel}>{label}</p>
-      <p className="mt-2 text-[1.9rem] font-bold leading-none">{value}</p>
-      {hint && <p className="mt-1.5 text-[0.8rem] text-muted">{hint}</p>}
-    </div>
-  );
-}
-
-/* A section title with the period it covers. Added because the two halves of
-   this page cover different windows: the CRM board and the intake funnel are
-   every record ever, while the traffic panels follow the day buttons. Without
-   the period on the card, the numbers got compared across windows. */
-function SectionHead({ label, range }) {
-  return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-      <p className={sectionLabel}>{label}</p>
-      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted/70">{range}</p>
-    </div>
-  );
-}
-
-function Bars({ title, rows, empty }) {
-  return (
-    <div className={card}>
-      <p className={sectionLabel}>{title}</p>
-      {rows.length === 0 ? (
-        <p className="mt-3 text-[0.85rem] text-muted">{empty}</p>
-      ) : (
-        <div className="mt-3" style={{ height: Math.max(140, rows.length * 34) }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={rows} layout="vertical" margin={{ left: 8, right: 16 }}>
-              <XAxis type="number" hide />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={140}
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 12 }}
-              />
-              <Tooltip formatter={(v) => count(v)} />
-              <Bar dataKey="count" fill={ACCENT} radius={[0, 6, 6, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* The board as a funnel rather than a bar chart: the columns are a sequence, so
-   what matters is each one's share of the board, and the bar is there to make
-   the shape readable at a glance rather than to be measured.
-
-   Each column's share is of every card on the board, not of the first column.
-   It was the first column until 2026-10-15, which read as nonsense the moment
-   there was any history: a board is not a funnel that drains, cards pile up in
-   the columns at the end of it, and against a New Lead column of 5 that made
-   Completed show as 840%. Share of the board always totals 100% and says the
-   useful thing, which is where the work is sitting. */
-function Funnel({ rows }) {
-  const total = rows.reduce((n, r) => n + r.count, 0);
-  const max = Math.max(1, ...rows.map((r) => r.count));
-
-  return (
-    <ol className="mt-4 space-y-2.5">
-      {rows.map((r) => (
-        <li key={r.name} className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="truncate text-[0.87rem] font-medium">{r.name}</span>
-              <span className="shrink-0 text-[0.76rem] text-muted">
-                {total ? Math.round((r.count / total) * 100) : 0}%
-                {r.value > 0 && <span className="ml-2">{money(r.value)}</span>}
-              </span>
-            </div>
-            <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-surface-2">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${(r.count / max) * 100}%`, background: ACCENT }}
-              />
-            </div>
-          </div>
-          <span className="w-10 shrink-0 text-right text-[1rem] font-bold">{count(r.count)}</span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function Tile({ label, value }) {
-  return (
-    <div className="rounded-xl border border-line bg-bg p-3.5">
-      <p className="text-[0.75rem] text-muted">{label}</p>
-      <p className="mt-1 text-[1.35rem] font-bold leading-none">{count(value)}</p>
-    </div>
-  );
-}
-
-/* Brand shades rather than a default chart palette, and one neutral: expired is
-   the "nothing happened" slice and shouldn't compete with the gold. Unknown
-   statuses fall back so a new MDI status never renders as an invisible slice. */
-const STATUS_COLOR = {
-  completed: "#A97D24",
-  in_progress: "#D2A94E",
-  pending: "#E0C88B",
-  expired: "#A8A29A",
-};
-const FALLBACK_COLORS = ["#8C6A2F", "#C2B49A", "#6F6658", "#DDD3BF"];
-const prettyStatus = (s) => String(s).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-
-function StatusDonut({ rows }) {
-  const total = rows.reduce((sum, r) => sum + r.count, 0);
-  const colorFor = (name, i) => STATUS_COLOR[name] || FALLBACK_COLORS[i % FALLBACK_COLORS.length];
-
-  return (
-    <div className="mt-3 flex flex-wrap items-center gap-5">
-      <div className="relative h-[184px] w-[184px] shrink-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={rows}
-              dataKey="count"
-              nameKey="name"
-              innerRadius={54}
-              outerRadius={88}
-              paddingAngle={2}
-              stroke="none"
-            >
-              {rows.map((r, i) => (
-                <Cell key={r.name} fill={colorFor(r.name, i)} />
-              ))}
-            </Pie>
-            <Tooltip formatter={(v, n) => [count(v), prettyStatus(n)]} />
-          </PieChart>
-        </ResponsiveContainer>
-
-        {/* The total belongs in the hole: it's the number every slice is a share
-            of, and repeating it as a fifth legend row would read as a category. */}
-        <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className="text-center">
-            <p className="text-[1.4rem] font-bold leading-none">{count(total)}</p>
-            <p className="mt-1 text-[0.72rem] text-muted">intakes</p>
-          </div>
-        </div>
-      </div>
-
-      <ul className="min-w-[160px] flex-1 space-y-2.5">
-        {rows.map((r, i) => (
-          <li key={r.name} className="flex items-center gap-2.5 text-[0.85rem]">
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ background: colorFor(r.name, i) }}
-            />
-            <span className="min-w-0 flex-1 truncate">{prettyStatus(r.name)}</span>
-            <span className="font-semibold">{count(r.count)}</span>
-            <span className="w-10 text-right text-muted">
-              {total ? Math.round((r.count / total) * 100) : 0}%
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/* --------------------------- channel performance ------------------------- */
-
-/* How a channel row was identified, in the words someone reading the table
-   needs rather than the key the API uses. Shown per row because these are not
-   equally trustworthy and a guess must not sit in the same column as a fact. */
-const BASIS_LABEL = {
-  utm: "Tagged link",
-  tag: "Kiosk tag",
-  ghl: "GoHighLevel guess",
-  none: "Not identified",
-};
-
-const CHANNEL_NAME = {
-  unknown: "Not identified",
-  fb_ad: "Meta ads",
-  instagram: "Instagram",
-  email: "Email",
-  ghl: "Text messages",
-  kiosk: "Kiosks",
-};
-
-const channelTitle = (row) => CHANNEL_NAME[row.source] || prettyStatus(row.source);
-
-const th = "px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted";
-const td = "whitespace-nowrap px-3 py-2.5 text-[0.87rem]";
-
-function ChannelTable({ rows }) {
-  return (
-    <div className="mt-4 overflow-x-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="border-b border-line">
-            <th className={th}>Channel</th>
-            <th className={`${th} text-right`}>People</th>
-            <th className={`${th} text-right`}>Started</th>
-            <th className={`${th} text-right`}>Submitted</th>
-            <th className={`${th} text-right`}>Paid</th>
-            <th className={`${th} text-right`}>Revenue</th>
-            <th className={`${th} text-right`}>Ad spend</th>
-            <th className={`${th} text-right`}>Cost per customer</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.key} className="border-b border-line/60 last:border-0">
-              <td className={td}>
-                <span className="font-semibold">{channelTitle(r)}</span>
-                <span className="ml-2 text-[0.76rem] text-muted">
-                  {r.medium || BASIS_LABEL[r.basis]}
-                </span>
-              </td>
-              <td className={`${td} text-right`}>{count(r.contacts)}</td>
-              <td className={`${td} text-right text-muted`}>{count(r.started)}</td>
-              <td className={`${td} text-right text-muted`}>{count(r.submitted)}</td>
-              <td className={`${td} text-right font-semibold`}>{count(r.paid)}</td>
-              <td className={`${td} text-right font-semibold`}>{money(r.revenue)}</td>
-              <td className={`${td} text-right text-muted`}>
-                {r.spend > 0 ? money(r.spend) : "—"}
-              </td>
-              {/* A dash, never a zero: no spend on file means the number isn't
-                  known, and a zero there reads as a free customer. */}
-              <td className={`${td} text-right font-semibold`}>
-                {r.cac === null ? <span className="text-muted">—</span> : money(r.cac)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-const STAGE_LABEL = {
-  paid: "Paid",
-  submitted: "Submitted",
-  started: "Started intake",
-  lead: "Lead only",
-};
-
-const STAGE_TONE = {
-  paid: "border-primary/45 bg-primary text-on-primary",
-  submitted: "border-primary/35 bg-primary/10 text-primary-deep",
-  started: "border-line-strong/50 bg-surface-2 text-ink",
-  lead: "border-line bg-surface-2 text-muted",
-};
-
-/* "40 min ago" rather than a timestamp. The question this panel answers is
-   whether anybody has turned up, and a clock time makes the reader do the
-   subtraction themselves before they can tell. */
-function ago(iso) {
-  const then = Date.parse(iso);
-  if (!Number.isFinite(then)) return "";
-  const mins = Math.round((Date.now() - then) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs} hr${hrs === 1 ? "" : "s"} ago`;
-  const days = Math.round(hrs / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
-}
-
-/* Somebody whose record was already here well before today's activity, so the
-   row is a patient coming back rather than a new arrival. A day's grace, since
-   an intake that straddles midnight is still one visit. */
-const DAY_MS = 24 * 60 * 60 * 1000;
-function returning(row) {
-  const first = Date.parse(row.first_seen);
-  const last = Date.parse(row.at);
-  return Number.isFinite(first) && Number.isFinite(last) && last - first > DAY_MS;
-}
-
-/* John's question on the day the ads went live (2026-10-16): is there an easy
-   way to see whether anyone is in the pipeline recently.
- *
- * It rides on the channel payload, which already holds every contact, so the
- * panel costs no extra request and no extra cache. */
-function Recent({ rows, today }) {
-  if (!rows?.length) return null;
-  return (
-    <section>
-      <SectionHead
-        label="Who arrived recently"
-        range={today === 1 ? "1 in the last 24 hours" : `${count(today)} in the last 24 hours`}
-      />
-      <p className="mt-2 max-w-3xl text-[0.87rem] leading-relaxed text-muted">
-        Dated by the last thing that happened on each record, not by when they
-        signed up, so somebody who came back and bought today sits at the top.
-        What they came for is not shown here, that stays in the clinical system.
-      </p>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="border-b border-line">
-              <th className={th}>Person</th>
-              <th className={th}>Last activity</th>
-              <th className={th}>Channel</th>
-              <th className={th}>Got as far as</th>
-              <th className={`${th} text-right`}>Paid</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-b border-line/60 last:border-0">
-                <td className={`${td} font-semibold`}>
-                  {r.name}
-                  {returning(r) && (
-                    <span className="ml-2 font-normal text-[0.76rem] text-muted">
-                      back since {ago(r.first_seen)}
-                    </span>
-                  )}
-                </td>
-                <td className={`${td} text-muted`}>{ago(r.at)}</td>
-                <td className={`${td} text-muted`}>{channelTitle(r)}</td>
-                <td className={td}>
-                  <span
-                    className={`inline-block rounded-full border px-2.5 py-0.5 text-[0.72rem] font-semibold ${STAGE_TONE[r.stage]}`}
-                  >
-                    {STAGE_LABEL[r.stage]}
-                  </span>
-                </td>
-                <td className={`${td} text-right font-semibold`}>
-                  {r.value > 0 ? money(r.value) : <span className="text-muted">—</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-/* Each step as a share of the step before it, which is the number the client's
-   brief asks for and the one that says where people are lost. Share of the
-   original total would make every later step look small for the same reason the
-   board funnel used to: the losses compound. */
-const pct = (part, whole) => (whole ? `${Math.round((part / whole) * 100)}%` : "—");
-
-function Channels({ data }) {
-  const { channels, campaigns, totals, coverage, spend, recent, recent_24h } = data;
-  const identified = coverage.utm + coverage.tag;
-  const share = totals.contacts ? Math.round((identified / totals.contacts) * 100) : 0;
-  const repeat = channels.reduce((n, r) => n + r.repeat, 0);
-
-  return (
-    <div className={`${shell} mt-5 space-y-5`}>
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric
-          label="Paying customers"
-          value={count(totals.paid)}
-          hint={`of ${count(totals.contacts)} people in the CRM`}
-        />
-        <Metric label="Revenue" value={money(totals.revenue)} hint="Paid cards only" />
-        <Metric
-          label="Ad spend on file"
-          value={spend.recorded ? money(totals.spend) : "Not entered"}
-          hint={spend.months.length ? spend.months.join(", ") : "api/_spend.js"}
-        />
-        <Metric
-          label="Cost per customer"
-          value={totals.cac === null ? "—" : money(totals.cac)}
-          hint={spend.recorded ? "Spend divided by paying customers" : "Needs ad spend to calculate"}
-        />
-      </section>
-
-      {/* First thing under the headline numbers, because on a day the ads are
-          running "has anyone turned up" is the question, and the all-time
-          channel split below is the one you read afterwards. */}
-      {recent?.length > 0 && (
-        <div className={card}>
-          <Recent rows={recent} today={recent_24h} />
-        </div>
-      )}
-
-      <div className={card}>
-        <SectionHead label="Where customers came from" range="All time" />
-        <p className="mt-1.5 text-[0.82rem] text-muted">
-          One row per channel. People is everyone credited to it, Paid is how many of them bought,
-          and Revenue is what they paid. Started and Submitted count people, not questionnaires, so
-          they will not match the intake funnel above.
-        </p>
-
-        <ChannelTable rows={channels} />
-
-        {/* The stage to stage rates, which the counts above imply but nobody
-            should be made to divide in their head. */}
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Tile label="Started an intake" value={totals.started} />
-          <div className="rounded-xl border border-line bg-bg p-3.5">
-            <p className="text-[0.75rem] text-muted">Submitted it</p>
-            <p className="mt-1 text-[1.35rem] font-bold leading-none">
-              {pct(totals.submitted, totals.started)}
-            </p>
-            <p className="mt-1 text-[0.75rem] text-muted">
-              {count(totals.submitted)} of those who started
-            </p>
-          </div>
-          <div className="rounded-xl border border-line bg-bg p-3.5">
-            <p className="text-[0.75rem] text-muted">Then paid</p>
-            <p className="mt-1 text-[1.35rem] font-bold leading-none">
-              {pct(totals.paid, totals.submitted)}
-            </p>
-            <p className="mt-1 text-[0.75rem] text-muted">
-              {count(totals.paid)} of those who submitted
-            </p>
-          </div>
-          <div className="rounded-xl border border-line bg-bg p-3.5">
-            <p className="text-[0.75rem] text-muted">Bought again</p>
-            <p className="mt-1 text-[1.35rem] font-bold leading-none">
-              {pct(repeat, totals.paid)}
-            </p>
-            {/* Not the same as "still subscribed", and the wording has to keep
-                saying so: this counts a second paid treatment, which is the
-                only retention signal the CRM can answer on its own. */}
-            <p className="mt-1 text-[0.75rem] text-muted">
-              {count(repeat)} paid for more than one
-            </p>
-          </div>
-        </div>
-
-        {/* The honesty line. A channel split built mostly from unidentified
-            visitors is worth reading very differently from one built from
-            tagged links, and that difference has to be on the card rather than
-            in someone's head. */}
-        <p className="mt-4 rounded-xl border border-line bg-bg px-4 py-3 text-[0.82rem] text-muted">
-          <span className="font-semibold text-ink">
-            {count(identified)} of {count(totals.contacts)} people ({share}%)
-          </span>{" "}
-          are identified from a link we tagged or a kiosk. The rest arrived before the tagging went
-          live, or through a link that carries no campaign on it. That share rises as the tagged ad
-          and email links replace the untagged ones, and nothing already recorded changes.
-        </p>
-      </div>
-
-      {campaigns.length > 0 && (
-        <div className={card}>
-          <SectionHead label="Campaigns" range="All time" />
-          <p className="mt-1.5 text-[0.82rem] text-muted">
-            Each campaign named on an incoming link, with what it brought in. Kiosk campaigns are
-            the location the machine stands in.
-          </p>
-
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b border-line">
-                  <th className={th}>Campaign</th>
-                  <th className={th}>Channel</th>
-                  <th className={`${th} text-right`}>People</th>
-                  <th className={`${th} text-right`}>Paid</th>
-                  <th className={`${th} text-right`}>Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaigns.map((c) => (
-                  <tr key={`${c.source}-${c.name}`} className="border-b border-line/60 last:border-0">
-                    <td className={`${td} font-semibold`}>{c.name}</td>
-                    <td className={`${td} text-muted`}>{CHANNEL_NAME[c.source] || c.source}</td>
-                    <td className={`${td} text-right`}>{count(c.contacts)}</td>
-                    <td className={`${td} text-right font-semibold`}>{count(c.paid)}</td>
-                    <td className={`${td} text-right font-semibold`}>{money(c.revenue)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function Login({ onDone }) {
   const [password, setPassword] = useState("");
@@ -613,8 +92,8 @@ export default function InsightsPage() {
   /* Kept apart from `err`: "the key isn't set up" is a state of the plan, not a
      fault, and a red banner over a working report trains people to ignore red. */
   const [notice, setNotice] = useState("");
-  const [ops, setOps] = useState(null);
   const [channels, setChannels] = useState(null);
+  const [channelsFailed, setChannelsFailed] = useState(false);
   const [loading, setLoading] = useState(false);
   /* The morning summary is what opens first (client, 2026-10-18); everything
      below it on this page lives under Details. */
@@ -646,7 +125,7 @@ export default function InsightsPage() {
              service account env vars are set, so there is nothing to remove
              later. */
           setNotice(
-            "The traffic summary tiles need a Google service key, which is not added yet. Everything else on this page, including the report below, is live."
+            "The website numbers need a Google service key, which is not added yet. Everything else on this page is live."
           );
           return;
         }
@@ -660,20 +139,15 @@ export default function InsightsPage() {
   }, []);
 
   /* Separate from the GA4 load: no date window applies, and a slow CRM call
-     shouldn't delay the traffic panels (or the reverse). Failure is silent by
-     design — the section just doesn't render. */
-  const loadOps = useCallback(() => {
-    insightsOps()
-      .then(setOps)
-      .catch(() => setOps(null));
-  }, []);
-
-  /* Its own call for the same reasons as the ops one, and separate from it so a
-     slow MDI voucher read can't hold up a panel that only needs GoHighLevel. */
+     shouldn't delay the traffic panels (or the reverse). */
   const loadChannels = useCallback(() => {
+    setChannelsFailed(false);
     insightsChannels()
       .then(setChannels)
-      .catch(() => setChannels(null));
+      .catch(() => {
+        setChannels(null);
+        setChannelsFailed(true);
+      });
   }, []);
 
   const loadSummary = useCallback(() => {
@@ -695,15 +169,11 @@ export default function InsightsPage() {
   }, [state, loadSummary]);
 
   useEffect(() => {
-    if (state === "in") {
-      loadOps();
-      loadChannels();
-    }
-  }, [state, loadOps, loadChannels]);
+    if (state === "in") loadChannels();
+  }, [state, loadChannels]);
 
   const refresh = () => {
     load(days);
-    loadOps();
     loadChannels();
     loadSummary();
   };
@@ -711,7 +181,6 @@ export default function InsightsPage() {
   const signOut = async () => {
     await insightsAuth({ action: "logout" }).catch(() => {});
     setData(null);
-    setOps(null);
     setChannels(null);
     setSummary(null);
     setState("out");
@@ -720,13 +189,8 @@ export default function InsightsPage() {
   if (state === "checking") return <div className="min-h-dvh bg-bg" />;
   if (state === "out") return <Login onDone={() => setState("in")} />;
 
-  const f = data?.funnel;
-  /* Of the people who looked at a treatment, how many opened an intake. Both
-     numbers come from the same window, so the ratio is honest even though GA4
-     can't follow one person from view to visit. */
-  const handoff = f?.product_viewed ? Math.round((f.start_visit / f.product_viewed) * 1000) / 10 : null;
   const updated = clockOf(
-    view === "summary" ? summary?.updated_at : ops?.updated_at || data?.updated_at
+    view === "summary" ? summary?.updated_at : channels?.updated_at || data?.updated_at
   );
 
   return (
@@ -761,26 +225,6 @@ export default function InsightsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Only shown when the GA4 panels are live: these buttons drive that
-                request alone. The CRM panels have no date window, and the report
-                below carries its own date control, so offering them while the
-                panels are off would be three buttons that visibly do nothing. */}
-            {data &&
-              view === "details" &&
-              WINDOWS.map((w) => (
-                <button
-                  key={w.days}
-                  onClick={() => setDays(w.days)}
-                  className={`rounded-full border px-3.5 py-2 text-[0.82rem] font-semibold transition-colors ${
-                    w.days === days
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-line bg-surface text-muted hover:text-ink"
-                  }`}
-                >
-                  {w.label}
-                </button>
-              ))}
-
             {updated && <span className="mr-1 hidden text-[0.78rem] text-muted sm:inline">Updated {updated}</span>}
 
             <button onClick={refresh} className={chip} aria-label="Refresh">
@@ -810,280 +254,14 @@ export default function InsightsPage() {
       )}
 
       <div className={`px-4 md:px-6 ${view === "details" ? "" : "hidden"}`}>
-        {err && (
-          <p
-            className={`${shell} mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[0.87rem] font-medium text-red-700`}
-          >
-            {err}
-          </p>
-        )}
-
-        {notice && (
-          <p className={`${shell} mt-6 rounded-xl border border-line bg-surface px-4 py-3 text-[0.85rem] text-muted`}>
-            {notice}
-          </p>
-        )}
-
-        {ops?.board && (
-          <div className={`${shell} mt-6 space-y-5`}>
-            {/* Total and Lost are here so the tiles reconcile against the columns
-                below. Without them the board added up to more than open + won and
-                the missing card looked like a bug, which it isn't: a lost card
-                still sits in whichever column it was denied at. */}
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              <Metric
-                label="Total patient journeys"
-                value={count(ops.board.total)}
-                hint={`${count(ops.board.open)} open + ${count(ops.board.won)} won + ${count(
-                  ops.board.lost
-                )} lost`}
-              />
-              <Metric
-                label="Open patient journeys"
-                value={count(ops.board.open)}
-                hint={ops.board.pipeline}
-              />
-              <Metric label="Won" value={count(ops.board.won)} hint="Paid" />
-              {/* Status, not the Denied column: they're separate fields in GHL and
-                  a card in Denied can still be status open. */}
-              <Metric
-                label="Lost or abandoned"
-                value={count(ops.board.lost)}
-                hint="Either status, both terminal"
-              />
-              <Metric label="Won revenue" value={money(ops.board.won_value)} hint="Collected" />
-              <Metric label="Open value" value={money(ops.board.open_value)} hint="Not yet paid" />
-            </section>
-
-            {/* Asked for by the client (2026-09-19) after the two halves were read
-                as one funnel. They count different things and cannot be summed. */}
-            <p className="rounded-xl border border-line bg-surface px-4 py-3 text-[0.82rem] text-muted">
-              GoHighLevel counts opportunities. MD Integrations counts questionnaires. The two
-              totals will not necessarily match.
-            </p>
-
-            <section className="grid gap-4 lg:grid-cols-5">
-              <div className={`${card} lg:col-span-3`}>
-                <SectionHead label="Where patient journeys sit" range="All time" />
-                <p className="mt-1.5 text-[0.82rem] text-muted">
-                  Every card on the {ops.board.pipeline}, by column, won and lost ones included.
-                  Each percentage is that column's share of the whole board.
-                </p>
-                <Funnel rows={ops.board.stages} />
-              </div>
-
-              {ops.intake && (
-                <div className={`${card} lg:col-span-2`}>
-                  <SectionHead label="Intake funnel" range="All time" />
-                  <p className="mt-1.5 text-[0.82rem] text-muted">
-                    From MDI, one per questionnaire issued to a patient. Started means they opened
-                    it at any point, including ones that later expired. Submitted means they
-                    finished and a case exists.
-                  </p>
-
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <Tile label="Questionnaires issued" value={ops.intake.total} />
-                    <Tile label="Started" value={ops.intake.started} />
-                    <Tile label="Submitted" value={ops.intake.submitted} />
-                    <Tile label="Expired" value={ops.intake.expired} />
-                  </div>
-
-                  {/* The line that stops "Expired" being read as patients giving
-                      up. Almost all of it is issued and never touched, which is a
-                      different problem with a different fix. */}
-                  {ops.intake.expired_untouched !== null && (
-                    <p className="mt-3 text-[0.8rem] text-muted">
-                      Of the {count(ops.intake.expired)} expired,{" "}
-                      <span className="font-semibold text-ink">
-                        {count(ops.intake.expired_untouched)} were never opened
-                      </span>{" "}
-                      and {count(ops.intake.expired_opened)} were opened but not finished.
-                    </p>
-                  )}
-                  {ops.intake.started_exact === false && (
-                    <p className="mt-3 text-[0.8rem] text-muted">
-                      Started excludes expired questionnaires this time: MDI did not answer quickly
-                      enough to check them. Press Refresh to try again.
-                    </p>
-                  )}
-
-                  {ops.intake.by_status.length > 0 && (
-                    <>
-                      <p className={`${sectionLabel} mt-6`}>By status</p>
-                      <StatusDonut rows={ops.intake.by_status} />
-                    </>
-                  )}
-                </div>
-              )}
-            </section>
-          </div>
-        )}
-
-        {/* Renders whenever GoHighLevel answered, independently of the panels
-            above: this one needs no GA4 key and no MDI read, so it should not
-            disappear because either of those is having a bad morning. */}
-        {channels && <Channels data={channels} />}
-
-        {LOOKER_EMBED && (
-          <section className={`${shell} mt-5`}>
-            <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
-                <div>
-                  <SectionHead label="Website traffic" range="Set inside the report" />
-                  <p className="mt-1.5 text-[0.82rem] text-muted">
-                    Live from Google Analytics. Use the tabs and the date control inside the report.
-                  </p>
-                </div>
-                {LOOKER_FULL && (
-                  <a href={LOOKER_FULL} target="_blank" rel="noreferrer" className={chip}>
-                    <ExternalLink size={14} />
-                    Open full screen
-                  </a>
-                )}
-              </div>
-
-              {/* White backdrop on purpose: the report renders on white, so
-                  without it the frame reads as a pale rectangle floating on the
-                  page in dark mode. Tall enough that Looker's own page doesn't
-                  sit in a letterbox, since an embedded report doesn't scroll
-                  inside its frame. */}
-              <div className="bg-white">
-                {/* Deliberately not loading="lazy": this frame is the point of
-                    the panel, and a deferred frame can stay unrequested when a
-                    re-render inserts it off-screen, which shows as a blank box. */}
-                <iframe
-                  src={LOOKER_EMBED}
-                  title="NovaMDK analytics report"
-                  className="block w-full border-0"
-                  style={{ height: 1500 }}
-                  allow="fullscreen"
-                />
-              </div>
-            </div>
-          </section>
-        )}
-
-        {data && (
-          <div className={`${shell} mt-5 space-y-5`}>
-            <SectionHead label="Traffic summary" range={`Last ${data.days} days`} />
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Metric label="Visitors" value={count(data.totals.users)} hint={`Last ${data.days} days`} />
-              <Metric label="Sessions" value={count(data.totals.sessions)} />
-              <Metric label="Treatment views" value={count(f.product_viewed)} />
-              <Metric
-                label="Intakes started"
-                value={count(f.start_visit)}
-                hint={handoff === null ? undefined : `${handoff}% of treatment views`}
-              />
-            </section>
-
-            <section className={card}>
-              <SectionHead label="Visitors per day" range={`Last ${data.days} days`} />
-              <div className="mt-3 h-[260px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.trend} margin={{ left: 0, right: 12, top: 6 }}>
-                    <CartesianGrid vertical={false} stroke="rgba(128,128,128,0.18)" />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={shortDate}
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 11 }}
-                    />
-                    <YAxis tickLine={false} axisLine={false} width={34} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v) => count(v)} />
-                    <Line type="monotone" dataKey="users" stroke={ACCENT} strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
-
-            <section className="grid gap-4 lg:grid-cols-2">
-              <Bars
-                title="Most viewed treatments"
-                rows={data.products}
-                empty="No named treatment views yet in this window."
-              />
-              <Bars
-                title="Most viewed categories"
-                rows={data.categories}
-                empty="No named categories yet in this window."
-              />
-            </section>
-
-            {/* Our own count, beside Google's below rather than replacing it.
-                Ours counts every phone that opened a code, GA4 only the ones
-                that accepted the cookie banner, so swapping one for the other
-                inside a single chart would read as a jump in scans that never
-                happened. */}
-            <section className="grid gap-4 lg:grid-cols-2">
-              <Bars
-                title="Kiosk scans, our own count"
-                rows={data.kiosks_counted || []}
-                empty={
-                  data.kiosks_counted
-                    ? "No kiosk scans counted in this window."
-                    : "The counter is not reachable right now."
-                }
-              />
-              <p className="rounded-xl border border-line bg-bg px-4 py-3 text-[0.82rem] text-muted">
-                Every phone that opened a kiosk code, counted on our own server with nothing about
-                the person attached. Google&apos;s figure below counts only the visitors who
-                accepted the cookie banner, so it reads lower, and it is the one with history behind
-                it. Expect a gap between the two: that is the share of people who decline tracking,
-                not a change in how busy the kiosks are.
-              </p>
-            </section>
-
-            <section className="grid gap-4 lg:grid-cols-2">
-              <Bars
-                title="Kiosk scans in Google Analytics"
-                rows={data.kiosks}
-                empty="No kiosk scans in this window."
-              />
-
-              <div className={card}>
-                <SectionHead label="Where visitors came from" range={`Last ${data.days} days`} />
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full text-[0.87rem]">
-                    <thead>
-                      <tr className="text-left text-muted">
-                        <th className="pb-2 font-medium">Source</th>
-                        <th className="pb-2 text-right font-medium">Visitors</th>
-                        <th className="pb-2 text-right font-medium">Sessions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.sources.map((s) => (
-                        <tr key={s.name} className="border-t border-line">
-                          <td className="py-2 pr-3">{s.name}</td>
-                          <td className="py-2 text-right font-medium">{count(s.users)}</td>
-                          <td className="py-2 text-right font-medium">{count(s.sessions)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
-
-            <section className="grid gap-4 sm:grid-cols-3">
-              <Metric label="Calculator uses" value={count(f.calculator_used)} />
-              <Metric label="Category picks" value={count(f.category_selected)} />
-              <Metric
-                label="Contact submissions"
-                value={count(f.contact_submitted)}
-                hint="Not tracked yet"
-              />
-            </section>
-          </div>
-        )}
-
-        <p className={`${shell} mt-6 text-[0.78rem] text-muted`}>
-          Google Analytics processes events a few hours behind, so today is usually incomplete.
-          Pipeline and intake figures are live. Payment, provider and pharmacy figures come from MDI
-          and the payment processor in the next phase.
-        </p>
+        <InsightsDetails
+          channels={channels}
+          channelsFailed={channelsFailed}
+          traffic={data}
+          trafficNote={notice || err}
+          days={days}
+          onDays={setDays}
+        />
       </div>
     </main>
   );

@@ -76,7 +76,7 @@ function Change({ now, then, format = count, against }) {
   );
 }
 
-function Stat({ icon, label, value, missing, children, note, className = "" }) {
+export function Stat({ icon, label, value, missing, children, note, className = "" }) {
   const Icon = icon;
   return (
     <div className={`${card} flex flex-col ${className}`}>
@@ -113,7 +113,7 @@ function Task({ icon, number, title, detail }) {
   );
 }
 
-function SectionTitle({ title, sub }) {
+export function SectionTitle({ title, sub }) {
   return (
     <div>
       <h2 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">{title}</h2>
