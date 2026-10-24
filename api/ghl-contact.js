@@ -16,6 +16,8 @@ import { blocked, readReleaseToken, releaseTokensEnabled } from "./_guard.js";
 import { checkHuman } from "./_turnstile.js";
 import { PRICES } from "./_prices.js";
 import { mdi, mdiConfigured } from "./_mdi.js";
+import { kvPipeline } from "./_kv.js";
+import { createHmac } from "node:crypto";
 
 /* ------------------------------ contact form ----------------------------- */
 
@@ -160,12 +162,22 @@ const KIOSK_ID_RE = /^[a-z0-9-]{1,40}$/;
 const textBody = (link) =>
   `NovaMDK: here's your link to start your visit.\n${link}\nReply STOP to opt out.`;
 
-/* At most three texts to one number in fifteen minutes on a warm instance,
-   on top of the per-IP limit, so the form can't be used to flood a stranger. */
+/* At most three texts to one number in fifteen minutes, on top of the per-IP
+   limit, so the form can't be used to flood a stranger. Counted in the shared
+   store since 2026-10-24, because a count kept per instance started again on
+   every cold start. The store sees a keyed hash, never the number, and the
+   in-memory count still applies when the store can't be reached. */
 const TEXT_WINDOW_MS = 15 * 60_000;
 const TEXT_MAX = 3;
 const textsSent = new Map();
-function tooManyTexts(phone) {
+async function tooManyTexts(phone) {
+  const key = `textme:${createHmac("sha256", process.env.API_SIGNING_SECRET || "textme").update(phone).digest("hex").slice(0, 24)}`;
+  // The window starts with the first text and INCR keeps its expiry.
+  const out = await kvPipeline([
+    ["SET", key, "0", "EX", String(TEXT_WINDOW_MS / 1000), "NX"],
+    ["INCR", key],
+  ]);
+  if (out && Number(out[1]) > TEXT_MAX) return true;
   const now = Date.now();
   const recent = (textsSent.get(phone) || []).filter((t) => now - t < TEXT_WINDOW_MS);
   if (recent.length >= TEXT_MAX) return true;
@@ -195,7 +207,7 @@ async function kioskTextLink(req, res) {
     return res.status(503).json({ ok: false, error: "not_configured" });
   }
 
-  if (tooManyTexts(digits)) {
+  if (await tooManyTexts(digits)) {
     return res.status(429).json({ ok: false, error: "too_many" });
   }
 
@@ -344,8 +356,8 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: false, skipped: "not_configured" });
   }
 
-  /* Environments without API_SIGNING_SECRET mint no tokens at all, so there
-     the old, browser-supplied path still runs, as release tokens always have. */
+  /* A local dev server without API_SIGNING_SECRET mints no tokens, so there
+     the old, browser-supplied path still runs. */
   let patient = req.body?.patient;
   let mdiPatientId = req.body?.mdiPatientId;
   if (releaseTokensEnabled()) {

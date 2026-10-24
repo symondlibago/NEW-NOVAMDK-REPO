@@ -100,7 +100,16 @@ const SIGNING_SECRET = process.env.API_SIGNING_SECRET || null;
    token stopped working as a portal login (2026-10-24, below). */
 const TOKEN_TTL_MS = 2 * 60 * 60_000;
 
-export const releaseTokensEnabled = () => Boolean(SIGNING_SECRET);
+/* Deployed copies of the site, previews included, run against the real MDI,
+   CRM and Stripe, so there a missing secret refuses every token instead of
+   waving everything through (2026-10-24). Only a local dev server without one
+   keeps the old open behaviour. */
+const DEPLOYED = ["production", "preview"].includes(process.env.VERCEL_ENV);
+if (DEPLOYED && !SIGNING_SECRET) {
+  console.error("API_SIGNING_SECRET is not set: sign-ups, payments and case releases are refused until it is.");
+}
+
+export const releaseTokensEnabled = () => Boolean(SIGNING_SECRET) || DEPLOYED;
 
 /* Security fix, 2026-10-24. A release token used to be `patient.time.sig`,
    signed with the same secret and in the same shape as the portal's session
@@ -140,7 +149,7 @@ export function readReleaseToken(token) {
 }
 
 export function verifyReleaseToken(token) {
-  if (!SIGNING_SECRET) return true; // not enforcing yet
+  if (!releaseTokensEnabled()) return true; // a local dev server with no secret
   return Boolean(readReleaseToken(token));
 }
 

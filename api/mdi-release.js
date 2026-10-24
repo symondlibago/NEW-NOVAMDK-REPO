@@ -99,8 +99,8 @@ export default async function handler(req, res) {
 
   try {
     let hold = null;
-    /* Environments without API_SIGNING_SECRET mint no tokens, so there the old
-       release-on-request behaviour stands, as it always has. */
+    /* A local dev server without API_SIGNING_SECRET mints no tokens, so there
+       the old release-on-request behaviour stands. */
     if (releaseTokensEnabled()) {
       const visit = readReleaseToken(req.body.release_token);
       if (!visit?.patientId) {

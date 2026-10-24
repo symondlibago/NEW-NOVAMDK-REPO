@@ -990,12 +990,14 @@ export async function opportunityById(opportunityId) {
    mdi_patient_id must match, and the card must hang off that contact. The intake
    sync writes that id from the token, so a patient's own visit always passes. */
 export async function ownsVisit(patientId, { contactId, opportunityId } = {}) {
-  if (!patientId || !contactId) return false;
-  const contact = await contactById(contactId);
-  if (!contact || fieldValueOf(contact, SEARCH_FIELD_ID.MDI_PATIENT_ID) !== String(patientId)) return false;
-  if (!opportunityId) return true;
-  const opp = await opportunityById(opportunityId);
-  return Boolean(opp) && (opp.contactId || opp.contact?.id) === contactId;
+  if (!patientId || (!contactId && !opportunityId)) return false;
+  const opp = opportunityId ? await opportunityById(opportunityId) : null;
+  if (opportunityId && !opp) return false;
+  // A card on its own is checked through the contact it hangs off.
+  const owner = opp ? opp.contactId || opp.contact?.id : null;
+  if (opp && contactId && owner !== contactId) return false;
+  const contact = await contactById(contactId || owner);
+  return Boolean(contact) && fieldValueOf(contact, SEARCH_FIELD_ID.MDI_PATIENT_ID) === String(patientId);
 }
 
 /* The plan recorded on an opportunity GHL already handed us, or null.

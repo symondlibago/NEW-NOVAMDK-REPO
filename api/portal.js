@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { blocked, signReleaseToken } from './_guard.js';
 import { mdi, mdiUpload, mdiConfigured, listOf } from './_mdi.js';
 import { readSession, sessionsEnabled } from './_session.js';
@@ -89,7 +90,26 @@ const ADDRESS_FIELDS = ['address', 'address2', 'zip_code', 'city_name', 'state_n
 /** MDI stamps authorship as a PHP class name: App\Models\Patient, …\Clinician. */
 const isPatient = (userType) => /\\Patient$/.test(String(userType || ''));
 
-const shapeMessage = (m) => ({
+/* Security fix, 2026-10-24. Attachments are MDI file ids that the browser hands
+ * back to open a file or attach it to a message, and any id used to work. Every
+ * id the portal gives out is now signed for the patient it was shown to, and
+ * only a signed id is accepted back, so nobody can open a file from another
+ * chart, or attach one to their own message and open it from there. */
+const FILE_SECRET = process.env.API_SIGNING_SECRET || '';
+const fileSig = (patientId, fileId) =>
+  createHmac('sha256', FILE_SECRET).update(`file:${patientId}.${fileId}`).digest('hex').slice(0, 32);
+const signFile = (patientId, fileId) => `${fileId}.${fileSig(patientId, fileId)}`;
+function readFileId(patientId, signed) {
+  const s = typeof signed === 'string' ? signed : '';
+  const at = s.lastIndexOf('.');
+  if (!FILE_SECRET || at < 1) return null;
+  const fileId = s.slice(0, at);
+  const a = Buffer.from(s.slice(at + 1));
+  const b = Buffer.from(fileSig(patientId, fileId));
+  return a.length === b.length && timingSafeEqual(a, b) ? fileId : null;
+}
+
+const shapeMessage = (m, patientId) => ({
   id: m.id,
   text: m.text || '',
   created_at: m.created_at,
@@ -97,7 +117,7 @@ const shapeMessage = (m) => ({
   author: isPatient(m.user_type) ? null : m.user_name || 'Care team',
   read_at: m.read_at || null,
   files: (m.files || []).map((f) => ({
-    id: f.file_id || f.id,
+    id: signFile(patientId, f.file_id || f.id),
     name: f.name || f.file_name || 'Attachment',
     mime_type: f.mime_type || null,
   })),
@@ -1346,7 +1366,7 @@ async function portal(req, res) {
       }
       // MDI paginates newest-first; the thread reads oldest-first.
       const messages = listOf(r.data)
-        .map(shapeMessage)
+        .map((m) => shapeMessage(m, patientId))
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       return res.status(200).json({ messages });
     }
@@ -1376,15 +1396,18 @@ async function portal(req, res) {
         console.error('Portal upload failed:', r.status);
         return res.status(502).json({ error: 'Could not upload that file' });
       }
-      return res.status(200).json({ file: { id: fileId, name: r.data?.name || filename } });
+      return res.status(200).json({ file: { id: signFile(patientId, fileId), name: r.data?.name || filename } });
     }
 
     if (resource === 'send_message') {
       const channel = CHANNELS.has(req.body?.channel) ? req.body.channel : 'patient';
       const text = String(req.body?.text || '').trim();
-      const fileIds = Array.isArray(req.body?.file_ids)
-        ? req.body.file_ids.filter((f) => typeof f === 'string').slice(0, 10)
-        : [];
+      const asked = Array.isArray(req.body?.file_ids) ? req.body.file_ids.slice(0, 10) : [];
+      const fileIds = asked.map((f) => readFileId(patientId, f)).filter(Boolean);
+      if (fileIds.length !== asked.length) {
+        console.warn('Portal send refused: an attachment id was not one this patient was given');
+        return res.status(403).json({ error: 'Forbidden' });
+      }
       if (!text && !fileIds.length) return res.status(400).json({ error: 'Message is empty' });
       if (text.length > 5000) return res.status(400).json({ error: 'Message is too long' });
 
@@ -1407,7 +1430,7 @@ async function portal(req, res) {
         console.error('Portal send failed:', r.status);
         return res.status(502).json({ error: 'Could not send your message' });
       }
-      return res.status(200).json({ message: shapeMessage(r.data?.data || r.data) });
+      return res.status(200).json({ message: shapeMessage(r.data?.data || r.data, patientId) });
     }
 
     if (resource === 'read_message') {
@@ -1422,8 +1445,12 @@ async function portal(req, res) {
     }
 
     if (resource === 'file') {
-      const fileId = String(req.body?.file_id || '');
-      if (!fileId) return res.status(400).json({ error: 'file_id is required' });
+      if (!req.body?.file_id) return res.status(400).json({ error: 'file_id is required' });
+      const fileId = readFileId(patientId, req.body.file_id);
+      if (!fileId) {
+        console.warn('Portal file refused: not an id this patient was given');
+        return res.status(403).json({ error: 'Forbidden' });
+      }
 
       const r = await mdi(`/files/${encodeURIComponent(fileId)}`);
       if (!r.ok) return res.status(502).json({ error: 'Could not open that attachment' });

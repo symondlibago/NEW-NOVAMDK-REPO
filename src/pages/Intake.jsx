@@ -759,6 +759,8 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
           months,
           contact_id: stored("ghl_contact"),
           opportunity_id: stored("ghl_opportunity"),
+          // Names the patient paying, which the server checks the ids against.
+          release_token: stored("mdi_release_token"),
           billing: { first_name: firstName.trim(), last_name: lastName.trim(), zip: zip.trim() },
           // Lets the server write intake_stage "complete" if this payment is
           // the second of the two halves to land.
@@ -812,6 +814,7 @@ function PaymentGateModal({ productName, product, pid, choices = [], onChoose, t
         months,
         contact_id: stored("ghl_contact"),
         opportunity_id: stored("ghl_opportunity"),
+        release_token: stored("mdi_release_token"),
         submitted,
         treatment,
       }),
