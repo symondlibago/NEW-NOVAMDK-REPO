@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { addWeeks } from "date-fns";
-import { weekKey, weekStart } from "./habits";
+import { addDays, addWeeks } from "date-fns";
+import { dayKey, dayStreakOf, weekKey, weekStart } from "./habits";
 import { LESSONS } from "./lessons";
 
 /* Milestones (client, 2026-10-22): badges for showing up, not for results,
@@ -10,6 +10,7 @@ import { LESSONS } from "./lessons";
 export const MILESTONE_GROUPS = [
   { kind: "checkins", label: "Check-ins", steps: [1, 4, 8, 12, 26], name: (n) => (n === 1 ? "First check-in" : `${n} check-ins`) },
   { kind: "streak", label: "In a row", steps: [3, 6, 12], name: (n) => `${n} weeks in a row` },
+  { kind: "days", label: "Daily check-ins", steps: [3, 7, 14, 30], name: (n) => `${n} days in a row` },
   { kind: "strength", label: "Strength in 10", steps: [1, 10, 25], name: (n) => (n === 1 ? "First Strength in 10" : `${n} strength sessions`) },
   { kind: "lessons", label: "Lessons", steps: [4, LESSONS.length], name: (n) => (n === LESSONS.length ? "Every lesson read" : `${n} lessons read`) },
   { kind: "weight", label: "Weigh-ins", steps: [5, 10, 15, 20], name: (n) => `${n} lb down` },
@@ -24,6 +25,19 @@ function bestStreak(weeks) {
   let prev = null;
   for (const key of Object.keys(weeks).sort()) {
     run = prev && weekKey(addWeeks(weekStart(prev), 1)) === key ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = key;
+  }
+  return best;
+}
+
+/** The longest run of days in a row with a daily check-in. */
+function bestDayStreak(days) {
+  let best = 0;
+  let run = 0;
+  let prev = null;
+  for (const key of Object.keys(days).filter((k) => days[k]?.mood != null).sort()) {
+    run = prev && dayKey(addDays(new Date(`${prev}T12:00:00`), 1)) === key ? run + 1 : 1;
     best = Math.max(best, run);
     prev = key;
   }
@@ -47,6 +61,7 @@ export function milestoneState(data, streak = 0) {
   const value = {
     checkins: Object.keys(weeks).length,
     streak: bestStreak(weeks),
+    days: bestDayStreak(data.days || {}),
     strength: Object.values(data.strength || {}).reduce((a, b) => a + b, 0),
     lessons: (data.read || []).filter((t) => titles.has(t)).length,
     weight: weightDown(weeks),
@@ -58,7 +73,7 @@ export function milestoneState(data, streak = 0) {
 
   // The next badge is the closest one to earning in each kind, then the
   // closest of those. Weight is left out: it is not a habit to chase.
-  const now = { ...value, streak };
+  const now = { ...value, streak, days: dayStreakOf(data.days || {}) };
   const next = MILESTONE_GROUPS.filter((g) => g.kind !== "weight")
     .map((g) => list.find((m) => m.kind === g.kind && !m.got))
     .filter(Boolean)

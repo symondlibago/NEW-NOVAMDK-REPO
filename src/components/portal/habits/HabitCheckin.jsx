@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion as Motion } from "framer-motion";
 import { AlertCircle, ArrowRight, Check, ChevronLeft, Droplet, Egg, Flame, Footprints, HeartPulse, MessageSquare, Moon, Scale, Smile, Target, X } from "lucide-react";
-import { FEELING_TIPS, QUESTIONS, SYMPTOMS, TIPS_APPROVED, goalById, suggestGoals } from "../../../lib/habits";
+import { FACES, FEELING_TIPS, QUESTIONS, SYMPTOMS, TIPS_APPROVED, goalById, suggestGoals } from "../../../lib/habits";
 
 const ICON = { water: Droplet, sleep: Moon, active: Footprints, protein: Egg, energy: Smile, symptoms: HeartPulse, goal: Target, weight: Scale };
-const FACES = ["😣", "😕", "😐", "🙂", "😄"];
 
 const option =
   "flex w-full items-center justify-between gap-3 rounded-2xl border px-5 py-4 text-left text-base font-semibold transition-colors";

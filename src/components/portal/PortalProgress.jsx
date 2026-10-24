@@ -7,7 +7,7 @@ import { useBodySex, useWeeklyShot } from "../../lib/shots";
 import HabitCheckin from "./habits/HabitCheckin";
 import InchesCard from "./habits/InchesCard";
 import LessonsCard from "./habits/Lessons";
-import MilestonesCard, { MilestoneCelebration } from "./habits/Milestones";
+import MilestonesCard, { MilestoneCelebration, PointsCard } from "./habits/Milestones";
 import MealIdeas from "./habits/MealIdeas";
 import PhotosCard from "./habits/PhotosCard";
 import ShotsPanel from "./habits/ShotsPanel";
@@ -264,7 +264,10 @@ export default function PortalProgress({ onNavigate }) {
 
             {/* The weekly text reminder that sat here sent nothing: there is no
                 server side for it yet (client told, 2026-10-22). */}
-            <MilestonesCard state={milestones} className={`${card} mt-4`} />
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <PointsCard points={habits.points} className={card} />
+              <MilestonesCard state={milestones} className={card} />
+            </div>
           </>
         )}
 

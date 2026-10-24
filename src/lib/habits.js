@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { addWeeks, getISOWeek, getISOWeekYear, startOfISOWeek } from "date-fns";
+import { addDays, addWeeks, format, getISOWeek, getISOWeekYear, startOfISOWeek } from "date-fns";
 import { portalData } from "./portal";
 
 /* Weekly habits: a short weekly check-in on water, sleep, movement, protein
  * and how the week felt, with an optional weigh-in, a streak, one small goal
  * and a short read. Built after Noom's habit loop (client, 2026-10-13).
  * The shot log, strength sessions and monthly measurements were added from
- * Noom's GLP-1 Companion (client, 2026-10-14) and live in the same record.
+ * Noom's GLP-1 Companion (client, 2026-10-14) and live in the same record, as
+ * does the daily check-in with its rings and points (client, 2026-10-24).
  *
  * Version one keeps everything in this browser's storage, keyed by patient.
  * Nothing here is sent anywhere: these answers are health information, so they
@@ -90,10 +91,56 @@ export const FEELING_TIPS = {
 
 export const STRENGTH_PER_WEEK = 2;
 
+/* The daily check-in (client, 2026-10-24, after Hims and Noom): one tap on how
+   the day feels, then glasses of water and one bit of movement. Those three
+   are the day's rings. */
+export const WATER_GOAL = 8;
+export const MOODS = ["Rough", "Low", "Okay", "Good", "Great"];
+export const FACES = ["😣", "😕", "😐", "🙂", "😄"];
+export const dayKey = (date = new Date()) => format(date, "yyyy-MM-dd");
+
+/** Days in a row with a check-in, counting back from today, or from
+ *  yesterday while today's is still open. */
+export function dayStreakOf(days, now = new Date()) {
+  const checked = (d) => days[dayKey(d)]?.mood != null;
+  let d = checked(now) ? now : addDays(now, -1);
+  let n = 0;
+  while (checked(d)) {
+    n += 1;
+    d = addDays(d, -1);
+  }
+  return n;
+}
+
+/* Points for showing up, never for results. Worked out from the record each
+   time rather than kept as a total, so they can't drift from what was done. */
+export const POINTS = { checkin: 10, water: 10, move: 10, strength: 25, weekly: 50, lesson: 15 };
+export const LEVEL_SIZE = 250;
+
+export function pointsOf(data) {
+  let n = 0;
+  for (const d of Object.values(data.days || {})) {
+    if (d.mood != null) n += POINTS.checkin;
+    if ((d.water || 0) >= WATER_GOAL) n += POINTS.water;
+    if (d.move) n += POINTS.move;
+  }
+  n += Object.values(data.strength || {}).reduce((a, b) => a + b, 0) * POINTS.strength;
+  n += Object.keys(data.weeks || {}).length * POINTS.weekly;
+  n += (data.read || []).length * POINTS.lesson;
+  return n;
+}
+
+export const levelOf = (points) => ({
+  level: Math.floor(points / LEVEL_SIZE) + 1,
+  into: points % LEVEL_SIZE,
+  toNext: LEVEL_SIZE - (points % LEVEL_SIZE),
+});
+
 /* shots: [{ at, spot }], newest first. strength: sessions per week key.
    measures: { waist, hips } in inches per month key ("2026-10"). read: lesson
    titles (lessons.js). earned: milestone id to the date it was first reached;
-   seen: milestones already celebrated (milestones.js). */
+   seen: milestones already celebrated (milestones.js). days: the daily
+   check-in by date ("2026-10-24"), { mood, water, move }. */
 const EMPTY = {
   weeks: {},
   goal: null,
@@ -105,6 +152,7 @@ const EMPTY = {
   measures: {},
   earned: {},
   seen: [],
+  days: {},
 };
 
 const storageKey = (pid) => `${KEY}:${pid || "me"}`;
@@ -185,7 +233,10 @@ export function useHabits(pid) {
   );
 
   const thisWeek = weekKey();
+  const today = dayKey();
   const total = Object.keys(data.weeks).length;
+  const logDay = (patch) =>
+    update((d) => ({ ...d, days: { ...d.days, [today]: { ...d.days?.[today], ...patch, at: new Date().toISOString() } } }));
   return {
     data,
     thisWeek,
@@ -203,8 +254,19 @@ export function useHabits(pid) {
       update((d) => ({ ...d, earned: { ...Object.fromEntries(ids.map((id) => [id, new Date().toISOString()])), ...d.earned } })),
     markSeen: (ids) => update((d) => ({ ...d, seen: [...new Set([...(d.seen || []), ...ids])] })),
     strengthDone: data.strength?.[thisWeek] || 0,
+    // A session is also the day's movement.
     addStrength: () =>
-      update((d) => ({ ...d, strength: { ...d.strength, [thisWeek]: (d.strength?.[thisWeek] || 0) + 1 } })),
+      update((d) => ({
+        ...d,
+        strength: { ...d.strength, [thisWeek]: (d.strength?.[thisWeek] || 0) + 1 },
+        days: { ...d.days, [today]: { ...d.days?.[today], move: "strength", at: new Date().toISOString() } },
+      })),
+    day: data.days?.[today] || {},
+    dayStreak: dayStreakOf(data.days || {}),
+    points: pointsOf(data),
+    checkInDay: (mood) => logDay({ mood }),
+    setWater: (n) => logDay({ water: Math.max(0, Math.min(WATER_GOAL, n)) }),
+    logWalk: () => logDay({ move: "walk" }),
     logShot: (spot, at = new Date()) =>
       update((d) => ({
         ...d,
