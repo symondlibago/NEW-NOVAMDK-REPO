@@ -209,6 +209,9 @@ export default function StripeCheckout({
                the address up from the CRM when this is missing, so a resumed
                intake in a fresh tab still gets a receipt. */
             receipt_email: sessionStorage.getItem("nv_email") || undefined,
+            /* Names the patient on the hold, which is how the case release
+               finds what pays for it (2026-10-24). */
+            release_token: sessionStorage.getItem("mdi_release_token") || undefined,
             months: chosen.current,
             treatment,
             submitted,

@@ -1,9 +1,39 @@
 import { blocked, signReleaseToken } from './_guard.js';
 import { checkHuman } from './_turnstile.js';
+import { mdi as mdiPatientAuth, PATIENT_BASE } from './_mdi.js';
+import { readSession } from './_session.js';
 import { availableInState, isBlockedState } from '../src/lib/serviceArea.js';
 
 const CLIENT_ID = process.env.MDI_CLIENT_ID;
 const CLIENT_SECRET = process.env.MDI_CLIENT_SECRET;
+
+/* Security fix, 2026-10-24: an email address alone no longer opens an existing
+ * patient's chart. This used to hand anyone who typed a patient's email their
+ * name, birth date, phone and address, a voucher on their chart and a token
+ * that also signed in to their portal. A returning patient now proves the
+ * address first, with the same one-time code the portal sign-in emails them
+ * (MDI sends it), or is already signed in to the portal as that patient.
+ *
+ * Throttled per instance like portal-auth: a few codes per address, a handful
+ * of guesses per visitor. The code is six characters, so guessing it inside
+ * that is not a real prospect. */
+const TEN_MIN = 10 * 60_000;
+const buckets = new Map();
+function tooMany(key, limit) {
+  const now = Date.now();
+  const entry = buckets.get(key);
+  if (!entry || now - entry.start > TEN_MIN) {
+    buckets.set(key, { start: now, count: 1 });
+    if (buckets.size > 5000) {
+      for (const [k, v] of buckets) if (now - v.start > TEN_MIN) buckets.delete(k);
+    }
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > limit;
+}
+const clientIp = (req) =>
+  (req.headers?.['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -54,6 +84,8 @@ export default async function handler(req, res) {
       headers: { 'Authorization': `Bearer ${accessToken}` }
     });
     let patientId = null;
+    // Found rather than created here, so their chart is only opened once proven.
+    let existing = false;
     const p = req.body.patient;
     const consent = req.body.consent || null;
     if (p?.email) {
@@ -78,7 +110,10 @@ export default async function handler(req, res) {
             const found = await searchRes.json();
             const list = Array.isArray(found) ? found : found.data || [];
             const match = list.find((x) => (x.email || '').toLowerCase() === p.email.toLowerCase());
-            if (match) patientId = match.patient_id || match.id;
+            if (match) {
+              patientId = match.patient_id || match.id;
+              existing = true;
+            }
           }
         }
 
@@ -150,6 +185,34 @@ export default async function handler(req, res) {
         console.error('MDI patient prefill failed:', e.message);
       }
     }
+    if (existing && patientId && readSession(req) !== String(patientId)) {
+      const email = String(p.email).trim().toLowerCase();
+      const code = String(req.body.email_code || '').replace(/\s+/g, '').toUpperCase();
+      if (!code) {
+        if (!tooMany(`send:${email}`, 3)) {
+          const sent = await mdiPatientAuth('/auth/2fa', { method: 'POST', body: { email }, base: PATIENT_BASE });
+          if (!sent.ok && sent.status >= 500) {
+            console.error('MDI 2FA send failed for a returning patient:', sent.status);
+            return res.status(502).json({ error: 'Could not send your code' });
+          }
+          if (!sent.ok) console.warn(`MDI 2FA send returned ${sent.status} for a returning patient`);
+        }
+        return res.status(200).json({ verify_email: true, human_pass: human.pass });
+      }
+      if (tooMany(`try:${clientIp(req)}`, 10) || tooMany(`try:${email}`, 10)) {
+        return res.status(429).json({ error: 'Too many attempts' });
+      }
+      const checked = await mdiPatientAuth('/auth/2fa/validate', {
+        method: 'POST',
+        body: { email, verification_code: code },
+        base: PATIENT_BASE,
+      });
+      if (!checked.ok) {
+        console.warn(`Returning patient's email code refused (${checked.status})`);
+        return res.status(401).json({ error: 'bad_code', human_pass: human.pass });
+      }
+    }
+
     let patientProfile = null;
     if (patientId) {
       try {
@@ -230,13 +293,14 @@ export default async function handler(req, res) {
     }
 
     const voucherData = await voucherResponse.json();
+    /* No patient id or profile in the answer any more (2026-10-24): the page
+       never needed them once the CRM write started reading the chart itself,
+       and returning them is what made an email address worth trying. */
     return res.status(200).json({
       ...voucherData,
-      patient_id: patientId,
       prefill: !!patientId,
-      patient_profile: patientProfile,
       // Null unless API_SIGNING_SECRET is set — see api/_guard.js.
-      release_token: signReleaseToken(patientId)
+      release_token: signReleaseToken(patientId, { productId })
     });
 
   } catch (error) {

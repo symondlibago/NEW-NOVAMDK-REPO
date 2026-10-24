@@ -12,9 +12,10 @@ import {
   INTAKE_STAGE,
   SITE,
 } from "./_ghl.js";
-import { blocked } from "./_guard.js";
+import { blocked, readReleaseToken, releaseTokensEnabled } from "./_guard.js";
 import { checkHuman } from "./_turnstile.js";
 import { PRICES } from "./_prices.js";
+import { mdi, mdiConfigured } from "./_mdi.js";
 
 /* ------------------------------ contact form ----------------------------- */
 
@@ -277,6 +278,49 @@ async function kioskTextLink(req, res) {
   }
 }
 
+/* ------------------------------ intake sync ------------------------------ */
+
+/* Security fix, 2026-10-24. The intake sync used to take a whole patient from
+ * the browser with no proof of who was asking: GoHighLevel matched the email or
+ * phone to an existing contact and overwrote that person's name, birth date,
+ * address, tags, SMS consent and mdi_patient_id, which is the field the portal
+ * uses to find a patient's plan and saved card. It now needs the release token
+ * from the Start visit step, writes the patient the way MDI has them on that
+ * token's chart, takes the MDI id from the token, and only accepts the tags the
+ * page actually sends. */
+const INTAKE_TAGS = new Set(["website-lead", "kiosk", "weight-loss", "sexual-health", "longevity", "skin-health", "recovery-wellness", "supplements"]);
+const allowedTags = (tags) =>
+  (Array.isArray(tags) ? tags : []).filter(
+    (t) => typeof t === "string" && (INTAKE_TAGS.has(t) || /^kiosk-[a-z0-9-]{1,40}$/.test(t))
+  );
+
+async function chartProfile(patientId) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await mdi(`/patients/${encodeURIComponent(patientId)}`);
+    if (!r.ok) continue;
+    const d = r.data?.data || r.data || {};
+    return {
+      first_name: d.first_name || null,
+      last_name: d.last_name || null,
+      email: d.email || null,
+      phone_number: d.phone_number || null,
+      date_of_birth: d.date_of_birth || null,
+      gender: d.gender ?? null,
+      address: d.address
+        ? {
+            address: d.address.address || null,
+            address2: d.address.address2 || null,
+            zip_code: d.address.zip_code || null,
+            city_name: d.address.city_name || null,
+            // MDI nests the state; GHL wants the plain name.
+            state_name: d.address.state?.name || null,
+          }
+        : null,
+    };
+  }
+  return null;
+}
+
 /* -------------------------------- handler -------------------------------- */
 
 export default async function handler(req, res) {
@@ -300,8 +344,28 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: false, skipped: "not_configured" });
   }
 
+  /* Environments without API_SIGNING_SECRET mint no tokens at all, so there
+     the old, browser-supplied path still runs, as release tokens always have. */
+  let patient = req.body?.patient;
+  let mdiPatientId = req.body?.mdiPatientId;
+  if (releaseTokensEnabled()) {
+    const visit = readReleaseToken(req.body?.release_token);
+    if (!visit?.patientId) {
+      console.warn("Rejected an intake sync with no valid release token");
+      return res.status(403).json({ ok: false, error: "forbidden" });
+    }
+    const chart = mdiConfigured() ? await chartProfile(visit.patientId) : null;
+    if (!chart?.email) {
+      console.error(`Intake sync skipped: MDI patient ${visit.patientId} could not be read`);
+      return res.status(502).json({ ok: false, error: "upstream_failed" });
+    }
+    patient = chart;
+    mdiPatientId = visit.patientId;
+  }
+
   try {
-    const { patient, treatment, tags, source, note, value, kioskLocation, mdiPatientId, productLine, marketing, attribution } = req.body || {};
+    const { treatment, source, note, value, kioskLocation, productLine, marketing, attribution } = req.body || {};
+    const tags = allowedTags(req.body?.tags);
     /* This call is the hand-off: the contact and its opportunity are created a
        beat before the questionnaire opens, so the intake genuinely has not
        started yet. Anyone who never gets further stays parked here, which is
@@ -346,6 +410,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, contactId: contact?.id || null, opportunityId });
   } catch (e) {
     console.error("GHL contact sync failed:", e.message, e.details ?? "");
-    return res.status(200).json({ ok: false, error: e.message });
+    return res.status(200).json({ ok: false, error: "upstream_failed" });
   }
 }

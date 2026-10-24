@@ -1,5 +1,5 @@
 import { PRICES } from "./_prices.js";
-import { blocked } from "./_guard.js";
+import { blocked, readReleaseToken } from "./_guard.js";
 import {
   ghlConfigured,
   tagContact,
@@ -453,6 +453,10 @@ async function stripeIntent(req, res) {
         product_id: String(pid),
         opportunity_id: orderId || "",
         contact_id: contactId || "",
+        /* The MDI patient the visit's release token names (2026-10-24), which
+           is how /api/mdi-release finds the hold that pays for a case. An id,
+           nothing clinical. */
+        patient_id: readReleaseToken(req.body?.release_token)?.patientId || "",
         /* The term, so the entitlement can be rebuilt from Stripe alone.
            The counters live on the GHL contact where staff can hand-edit them,
            so the payment stays the immutable record of how many fills were

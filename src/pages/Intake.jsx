@@ -343,16 +343,29 @@ export default function IntakePage() {
     let releaseToken = null;
     try { releaseToken = sessionStorage.getItem("mdi_release_token"); } catch { /* private mode */ }
 
-    fetch("/api/mdi-release", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ case_id: caseId, release_token: releaseToken }),
-    })
-      .then((r) => { if (!r.ok) throw new Error(`release ${r.status}`); })
-      .catch((e) => {
-        released.current = false;
-        console.error("MDI release failed:", e.message);
-      });
+    /* The server now checks the case is this patient's and paid for before
+       releasing it (2026-10-24), and MDI can take a moment to link a new case
+       to its voucher, so a 409 is tried again for a minute or so. */
+    const waits = [3000, 6000, 12000, 20000, 30000];
+    const attempt = (n) =>
+      fetch("/api/mdi-release", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ case_id: caseId, release_token: releaseToken, opportunity_id: stored("ghl_opportunity") }),
+      })
+        .then((r) => {
+          if (r.ok) return;
+          if (r.status === 409 && n < waits.length) {
+            setTimeout(() => attempt(n + 1), waits[n]);
+            return;
+          }
+          throw new Error(`release ${r.status}`);
+        })
+        .catch((e) => {
+          released.current = false;
+          console.error("MDI release failed:", e.message);
+        });
+    attempt(0);
   }, [paid, caseId]);
 
   if (!token) return <Navigate to="/treatments" replace />;

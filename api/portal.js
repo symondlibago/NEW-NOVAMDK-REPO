@@ -811,7 +811,9 @@ async function portal(req, res) {
            checkout rather than asking the patient to choose between the rungs
            of a ladder they already chose from. Null falls back to the chooser. */
         product_id: card?.name ? productIdForCardName(card.name) : null,
-        release_token: signReleaseToken(patientId),
+        release_token: signReleaseToken(patientId, {
+          productId: card?.name ? productIdForCardName(card.name) : null,
+        }),
       });
     }
 
@@ -1185,7 +1187,9 @@ async function portal(req, res) {
            session storage and has no other way to learn them. */
         contact_id: fill.contactId,
         opportunity_id: opportunityId,
-        release_token: signReleaseToken(patientId),
+        /* "plan": this month was claimed (or its renewal held) just above, so
+           the token itself is what pays for the case it releases. */
+        release_token: signReleaseToken(patientId, { productId: pid, kind: 'plan' }),
       });
     }
 
