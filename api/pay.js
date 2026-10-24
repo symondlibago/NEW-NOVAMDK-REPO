@@ -1,5 +1,5 @@
 import { PRICES } from "./_prices.js";
-import { blocked } from "./_guard.js";
+import { blocked, readReleaseToken, releaseTokensEnabled } from "./_guard.js";
 import {
   ghlConfigured,
   tagContact,
@@ -10,6 +10,8 @@ import {
   updateOpportunityFields,
   clearOpportunityFields,
   contactById,
+  opportunityById,
+  ownsVisit,
   fieldValueOf,
   SEARCH_FIELD_ID,
   recordPlan,
@@ -142,7 +144,7 @@ async function alreadyReserved(req, pid) {
   try {
     const hold = await findHold(oppId);
     if (hold?.metadata?.renewal !== "1") return false;
-    const fill = await fillForProduct(readSession(req), pid);
+    const fill = await fillForProduct(await readSession(req), pid);
     return Boolean(fill && hold.metadata?.plan_opportunity_id === fill.opportunityId);
   } catch (e) {
     console.error(`Reservation check failed for opportunity ${oppId}:`, e.message);
@@ -226,6 +228,29 @@ async function markComplete(contactId, opportunityId, treatment) {
   for (const w of writes) {
     if (w.status === "rejected") console.error("GHL intake_stage complete write failed:", w.reason?.message);
   }
+}
+
+/* Security fix, 2026-10-24: who is paying, and for which card.
+ *
+ * A payment used to act on whatever contact and card ids the browser sent: with
+ * someone else's ids it cancelled their hold, put their email on the receipt
+ * and charged against their saved Stripe customer. Now the visit's release
+ * token has to name a patient, and any contact or card it names has to be that
+ * patient's own. Asking for a token at all also means a card form can only be
+ * opened by someone who got through the sign-up's bot check.
+ *
+ * Returns the patient id, or null after answering 403. Without tokens (a local
+ * dev server) it lets everything through as before. */
+async function payerOf(req, res, { contactId, orderId }) {
+  if (!releaseTokensEnabled()) return "";
+  const patientId = readReleaseToken(req.body?.release_token)?.patientId;
+  const theirs =
+    patientId &&
+    (!(contactId || orderId) || (await ownsVisit(patientId, { contactId, opportunityId: orderId })));
+  if (theirs) return patientId;
+  console.warn(`Refused a payment: ${patientId ? "the card or contact is not this patient's" : "no valid release token"}`);
+  res.status(403).json({ ok: false, error: "forbidden" });
+  return null;
 }
 
 /* ----------------------------------- Kurv ---------------------------------- */
@@ -331,6 +356,9 @@ async function stripeIntent(req, res) {
   }
 
   const orderId = clean(opportunity_id, 60);
+  const contactId = clean(contact_id, 60);
+  const patientId = await payerOf(req, res, { contactId, orderId });
+  if (patientId === null) return;
 
   /* Who gets the receipt. Stripe emails it itself once `receipt_email` is set,
      so nothing has to be asked for on the form, which the brief wanted kept to
@@ -344,7 +372,6 @@ async function stripeIntent(req, res) {
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
   const hinted = clean(req.body?.receipt_email, 120);
   let receiptEmail = hinted && EMAIL_RE.test(hinted) ? hinted : null;
-  const contactId = clean(contact_id, 60);
   let contact = null;
   if (contactId && ghlConfigured()) contact = await contactById(contactId);
   if (!receiptEmail && contact) {
@@ -453,6 +480,10 @@ async function stripeIntent(req, res) {
         product_id: String(pid),
         opportunity_id: orderId || "",
         contact_id: contactId || "",
+        /* The MDI patient the visit's release token names (2026-10-24), which
+           is how /api/mdi-release finds the hold that pays for a case. An id,
+           nothing clinical. */
+        patient_id: patientId || "",
         /* The term, so the entitlement can be rebuilt from Stripe alone.
            The counters live on the GHL contact where staff can hand-edit them,
            so the payment stays the immutable record of how many fills were
@@ -521,7 +552,7 @@ async function stripeIntent(req, res) {
  * Returns { code, discount, total, months } or { error }. Never throws.
  */
 const PROMO_RE = /^[A-Za-z0-9_-]{2,40}$/;
-async function promoFor(raw, { pid, months, customerId, intentId }) {
+async function promoFor(raw, { pid, months, customerId, intentId, patientId }) {
   const code = clean(raw, 40);
   if (!PROMO_RE.test(code)) return { error: "invalid" };
   const charge = chargeFor(pid, months);
@@ -570,10 +601,20 @@ async function promoFor(raw, { pid, months, customerId, intentId }) {
     { method: "GET" }
   );
   if (!history.ok) return { error: "unavailable" };
-  const ordered = (history.data?.data || []).some(
-    (pi) => pi.id !== intentId && (pi.status === "succeeded" || pi.status === "requires_capture")
-  );
-  if (ordered) return { error: "first_order" };
+  const isOrder = (pi) => pi.id !== intentId && (pi.status === "succeeded" || pi.status === "requires_capture");
+  if ((history.data?.data || []).some(isOrder)) return { error: "first_order" };
+
+  /* The same patient under a fresh customer still counts (2026-10-24): leaving
+     out the CRM contact used to mint a new customer with no history. Payments
+     have carried the MDI patient since then, so they are looked up by that too.
+     Stripe's search can lag a minute, which is fine for an order history; if
+     it is down the customer's history above has to do. */
+  if (patientId && /^[A-Za-z0-9-]{8,64}$/.test(patientId)) {
+    const q = encodeURIComponent(`metadata['patient_id']:'${patientId}'`);
+    const byPatient = await stripe(`/payment_intents/search?query=${q}&limit=100`, { method: "GET" });
+    if (!byPatient.ok) console.warn(`Stripe search for a patient's orders failed: ${byPatient.status}`);
+    else if ((byPatient.data?.data || []).some(isOrder)) return { error: "first_order" };
+  }
 
   /* Off the treatment, never the consultation fee. */
   let discount = 0;
@@ -646,7 +687,13 @@ async function stripeRetotal(req, res) {
      3 month term drops it (no stacking) and moving back puts it on again. */
   const asked = clean(req.body?.code, 40);
   const promo = asked
-    ? await promoFor(asked, { pid, months, customerId: intent.customer, intentId: intent.id })
+    ? await promoFor(asked, {
+        pid,
+        months,
+        customerId: intent.customer,
+        intentId: intent.id,
+        patientId: intent.metadata?.patient_id,
+      })
     : null;
   const applied = promo && !promo.error ? promo : null;
   const total = applied ? applied.total : charge.total;
@@ -708,7 +755,13 @@ async function stripeCoupon(req, res) {
 
   const asked = clean(req.body?.code, 40);
   const promo = asked
-    ? await promoFor(asked, { pid, months, customerId: intent.customer, intentId: intent.id })
+    ? await promoFor(asked, {
+        pid,
+        months,
+        customerId: intent.customer,
+        intentId: intent.id,
+        patientId: intent.metadata?.patient_id,
+      })
     : null;
   if (promo?.error) return res.status(200).json({ ok: false, error: promo.error });
   const total = promo ? promo.total : charge.total;
@@ -777,6 +830,15 @@ async function stripeSettle(req, res) {
    * succeeded is still accepted, both for the orders captured before this
    * changed and for the moment the capture itself lands. */
   const authorized = intent.status === "requires_capture";
+  /* Security fix, 2026-10-24: a hold that has already been captured was settled
+     when it was placed, and the capture webhook has since moved its card on.
+     Settling it again reset the plan's counters, which unlocked prepaid months
+     a second time, and dragged an approved card back to Paid. A repeat of this
+     call now changes nothing. */
+  if (intent.status === "succeeded" && intent.capture_method === "manual") {
+    console.info(`Stripe payment ${intent.id} was captured already; settle repeated, nothing changed`);
+    return res.status(200).json({ ok: true, transactionId: intent.id, amount: intent.amount / 100, held: false });
+  }
   if (intent.status !== "succeeded" && !authorized) {
     console.warn(`Stripe payment ${intent.id} is ${intent.status}, not settling`);
     await markFailed(contactId, orderId);
@@ -817,8 +879,10 @@ async function stripeSettle(req, res) {
        plan when they bought a second, losing its prepaid months.
 
        >= 1 on purpose. A single month purchase is a subscription too, so it
-       needs its term and product recorded for renewal to know what to bill. */
-    planMonths >= 1 && orderId ? recordPlan(orderId, planMonths, meta.product_id) : null,
+       needs its term and product recorded for renewal to know what to bill.
+       Only while held, before anything can have shipped: recordPlan zeroes
+       the fill counts. A payment taken outright is recorded by the webhook. */
+    planMonths >= 1 && orderId && authorized ? recordPlan(orderId, planMonths, meta.product_id) : null,
     /* The card was opened with a single month's price, before the patient had
        chosen a term. Put the real total on it now, or a 3 month plan reports
        as a third of itself for ever. A promotion code comes off it too. */
@@ -858,7 +922,8 @@ async function prepaidFill(req, res) {
   if (blocked(req, res, { max: 12 })) return;
 
   const { pid } = req.body || {};
-  const fill = await fillForProduct(readSession(req), pid);
+  const patientId = await readSession(req);
+  const fill = await fillForProduct(patientId, pid);
   if (!fill || !matchesFill(fill, pid)) {
     console.warn(`Refused a prepaid fill for product ${pid}: no matching plan`);
     return res.status(403).json({ ok: false, error: "plan_only" });
@@ -876,6 +941,16 @@ async function prepaidFill(req, res) {
 
   const orderId = clean(req.body?.opportunity_id, 60);
   const contactId = clean(req.body?.contact_id, 60);
+
+  /* Security fix, 2026-10-24: the card this month lands on has to be the
+     signed-in patient's own, and its name is the one GHL already holds. Both
+     used to come from the request, so a patient with a month left could move
+     anyone's card to Paid and rename it. */
+  if ((orderId || contactId) && !(await ownsVisit(patientId, { contactId, opportunityId: orderId }))) {
+    console.warn(`Refused a prepaid fill for ${pid}: the card or contact is not this patient's`);
+    return res.status(403).json({ ok: false, error: "plan_only" });
+  }
+  const treatment = orderId ? (await opportunityById(orderId))?.name || null : null;
 
   await Promise.allSettled([
     syncTag(contactId, { failed: false }),
@@ -903,9 +978,7 @@ async function prepaidFill(req, res) {
        questionnaire that has actually been submitted, and this can run before
        that. When it does, the encounter write completes the card instead. */
     markPaid(orderId, `plan:${fill.current}/${fill.months}`, { won: false }).then(() =>
-      req.body?.submitted === true
-        ? markComplete(contactId, orderId, clean(req.body?.treatment, 120))
-        : null
+      req.body?.submitted === true ? markComplete(contactId, orderId, treatment) : null
     ),
   ]);
   console.info(
@@ -1000,6 +1073,8 @@ async function renewPlan(req, res) {
 
 async function kurvStart(req, res) {
   if (blocked(req, res, { max: 8 })) return;
+  // Kurv only takes orders while Stripe is switched off (2026-10-24).
+  if (stripeEnabled()) return res.status(200).json({ ok: false, processor: "stripe" });
   const { pid, contact_id, opportunity_id, submitted, treatment } = req.body || {};
 
   // Priced here, never from the request, exactly as the card path does.
@@ -1015,6 +1090,7 @@ async function kurvStart(req, res) {
 
   const contactId = clean(contact_id, 60);
   const opportunityId = clean(opportunity_id, 60);
+  if ((await payerOf(req, res, { contactId, orderId: opportunityId })) === null) return;
   const origin = siteOrigin(req);
 
   const created = await createPayment({
@@ -1148,7 +1224,7 @@ export default async function handler(req, res) {
      * that has already been paid for, which is established from the portal
      * session cookie rather than from anything in the request. */
     if (isFollowOnRung(pid)) {
-      const fill = await fillForProduct(readSession(req), pid);
+      const fill = await fillForProduct(await readSession(req), pid);
       if (!fill || !fill.canSettle || !matchesFill(fill, pid)) {
         console.warn(`Refused a quote for plan-only product ${pid}`);
         return res.status(403).json({ ok: false, error: "plan_only" });
@@ -1201,6 +1277,12 @@ export default async function handler(req, res) {
     console.error("NMI_SECURITY_KEY missing — cannot take payment.");
     return res.status(503).json({ ok: false, error: "not_configured" });
   }
+  /* The backup charges a card outright, so it only answers while Stripe is
+     switched off and is not one more door for testing stolen cards (2026-10-24). */
+  if (stripeEnabled()) {
+    console.warn("Refused an NMI sale: Stripe is taking payments");
+    return res.status(409).json({ ok: false, error: "use_stripe" });
+  }
 
   const { payment_token: paymentToken, pid, contact_id, opportunity_id, billing, submitted, treatment } =
     req.body || {};
@@ -1209,6 +1291,8 @@ export default async function handler(req, res) {
   if (!token) {
     return res.status(400).json({ ok: false, error: "missing_token" });
   }
+  const payer = await payerOf(req, res, { contactId: clean(contact_id, 60), orderId: clean(opportunity_id, 60) });
+  if (payer === null) return;
 
   /* The price is looked up here and never read off the request. The amount the
      modal displays is decoration; trusting it would let anyone pay $1 for a

@@ -38,12 +38,21 @@ export default function KioskScreen() {
      pages out about 620 wide, which gave it the tablet sizes: a squeezed logo,
      a list that ran off the screen and a code panel a third of the screen tall
      (client, 2026-10-23). Fully Kiosk follows this only with "Use Wide
-     Viewport" on. */
+     Viewport" on.
+
+     The zoom that fits 1080 on the screen is set outright and locked: given
+     the width alone, the Fiteye opened at full size and had to be pinched out
+     after every load (client, 2026-10-23). Locked, a stray pinch can't zoom
+     the kiosk either. The screen's width is read two ways, the page as laid
+     out so far and the screen's short side, since an older browser can report
+     the screen in device pixels; the smaller is the real one. */
   useEffect(() => {
     const meta = document.querySelector('meta[name="viewport"]');
     if (!meta || !window.matchMedia("(orientation: portrait)").matches) return undefined;
     const was = meta.content;
-    meta.content = "width=1080";
+    const wide = Math.min(document.documentElement.clientWidth, window.screen.width, window.screen.height);
+    const fit = (wide / 1080).toFixed(4);
+    meta.content = `width=1080, initial-scale=${fit}, minimum-scale=${fit}, maximum-scale=${fit}, user-scalable=no`;
     return () => {
       meta.content = was;
     };

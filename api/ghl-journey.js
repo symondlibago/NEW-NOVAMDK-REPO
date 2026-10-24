@@ -8,8 +8,9 @@ import {
   clinicStamp,
   INTAKE_STAGE,
   FIELD,
+  ownsVisit,
 } from "./_ghl.js";
-import { blocked, verifyReleaseToken } from "./_guard.js";
+import { blocked, cleanGhlId, readReleaseToken, releaseTokensEnabled, verifyReleaseToken } from "./_guard.js";
 
 /* The browser names a milestone; the server decides what that means. `stage`
    lands on both the contact and the visit's opportunity: the contact copy is
@@ -43,7 +44,7 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: "Forbidden" });
   }
 
-  const contactId = req.body?.contact_id;
+  const contactId = cleanGhlId(req.body?.contact_id);
   const milestone = MILESTONES[req.body?.milestone];
   if (!contactId || !milestone) {
     console.warn(`Rejected /api/ghl-journey: unknown milestone "${req.body?.milestone}"`);
@@ -55,7 +56,15 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: false, skipped: "not_configured" });
   }
 
-  const opportunityId = req.body?.opportunity_id || null;
+  const opportunityId = cleanGhlId(req.body?.opportunity_id);
+
+  /* Security fix, 2026-10-24: the token has to name the patient these ids
+     belong to, or anyone holding one could rewrite another patient's card. */
+  const visit = releaseTokensEnabled() ? readReleaseToken(req.body?.release_token) : null;
+  if (visit && !(await ownsVisit(visit.patientId, { contactId, opportunityId }))) {
+    console.warn(`Rejected /api/ghl-journey: contact ${contactId} is not this patient's`);
+    return res.status(403).json({ error: "Forbidden" });
+  }
   const contactFields = {
     ...(milestone.fields || {}),
     ...(milestone.stage && { [FIELD.INTAKE_STAGE]: milestone.stage }),

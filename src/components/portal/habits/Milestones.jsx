@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { Award, BookOpen, CalendarCheck, Dumbbell, Flame, Scale } from "lucide-react";
+import { Award, BookOpen, CalendarCheck, Dumbbell, Flame, Scale, Star, Sun } from "lucide-react";
+import { LEVEL_SIZE, POINTS, levelOf } from "../../../lib/habits";
 import { MILESTONE_GROUPS } from "../../../lib/milestones";
 import Sheet from "./Sheet";
 
-const ICONS = { checkins: CalendarCheck, streak: Flame, strength: Dumbbell, lessons: BookOpen, weight: Scale };
+const ICONS = { checkins: CalendarCheck, streak: Flame, days: Sun, strength: Dumbbell, lessons: BookOpen, weight: Scale };
 
 /* Shown once for anything newly earned, at the top of Progress. One badge is
    named; if several came at once (the first visit after this shipped), the
@@ -35,6 +36,52 @@ export function MilestoneCelebration({ state, onSeen }) {
       >
         Nice
       </button>
+    </section>
+  );
+}
+
+const EARN = [
+  ["Daily check-in", POINTS.checkin],
+  ["Water goal for the day", POINTS.water],
+  ["A walk or workout", POINTS.move],
+  ["Strength in 10 session", POINTS.strength],
+  ["Weekly check-in", POINTS.weekly],
+  ["Lesson read", POINTS.lesson],
+];
+
+/* Points for showing up (client, 2026-10-24), with a level every
+   LEVEL_SIZE points and what each thing is worth. */
+export function PointsCard({ points, className = "" }) {
+  const lv = levelOf(points);
+  return (
+    <section className={className}>
+      <div className="flex items-center gap-3">
+        <span className="grid size-10 place-items-center rounded-full bg-surface-2 text-primary">
+          <Star size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-semibold text-ink">Points</p>
+          <p className="text-sm text-muted">Level {lv.level}</p>
+        </div>
+        <p className="text-2xl font-semibold tabular-nums tracking-tight text-ink">{points}</p>
+      </div>
+      <div className="mt-5">
+        <div className="flex items-baseline justify-between gap-4">
+          <p className="text-base font-semibold text-ink">Next: Level {lv.level + 1}</p>
+          <p className="shrink-0 text-sm text-muted">{lv.toNext} to go</p>
+        </div>
+        <span className="mt-2.5 block h-2 overflow-hidden rounded-full bg-line" aria-hidden="true">
+          <span className="block h-full rounded-full bg-primary" style={{ width: `${(lv.into / LEVEL_SIZE) * 100}%` }} />
+        </span>
+      </div>
+      <ul className="mt-5 space-y-1.5 text-sm">
+        {EARN.map(([label, n]) => (
+          <li key={label} className="flex justify-between gap-4">
+            <span className="text-muted">{label}</span>
+            <span className="font-semibold tabular-nums text-ink">+{n}</span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -93,7 +140,7 @@ export default function MilestonesCard({ state, className = "" }) {
 
       <Sheet open={all} onClose={() => setAll(false)} label="Milestones">
         <p className="text-2xl font-semibold tracking-tight text-ink">Milestones</p>
-        <p className="mt-1 text-sm text-muted">For showing up, week after week.</p>
+        <p className="mt-1 text-sm text-muted">For showing up, day after day.</p>
         {MILESTONE_GROUPS.map((g) => {
           const Icon = ICONS[g.kind];
           return (

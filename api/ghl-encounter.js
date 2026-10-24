@@ -12,8 +12,9 @@ import {
   FIELD,
   OPP_FIELD,
   CHECKOUT_LINK,
+  ownsVisit,
 } from "./_ghl.js";
-import { blocked, verifyReleaseToken } from "./_guard.js";
+import { blocked, cleanGhlId, readReleaseToken, releaseTokensEnabled, verifyReleaseToken } from "./_guard.js";
 import { isPlanMonthCard } from "./_fills.js";
 
 /* MDI's case statuses are workflow labels ("pending", "approved"), not clinical
@@ -70,7 +71,7 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: "Forbidden" });
   }
 
-  const contactId = req.body?.contact_id;
+  const contactId = cleanGhlId(req.body?.contact_id);
   const encounterId = typeof req.body?.encounter_id === "string" ? req.body.encounter_id.trim() : "";
   if (!contactId || !encounterId) {
     return res.status(400).json({ error: "contact_id and encounter_id are required" });
@@ -85,7 +86,15 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: false, skipped: "not_configured" });
   }
 
-  const opportunityId = req.body?.opportunity_id || null;
+  const opportunityId = cleanGhlId(req.body?.opportunity_id);
+
+  /* Security fix, 2026-10-24: the token has to name the patient these ids
+     belong to, or anyone holding one could rewrite another patient's card. */
+  const visit = releaseTokensEnabled() ? readReleaseToken(req.body?.release_token) : null;
+  if (visit && !(await ownsVisit(visit.patientId, { contactId, opportunityId }))) {
+    console.warn(`Rejected /api/ghl-encounter: contact ${contactId} is not this patient's`);
+    return res.status(403).json({ error: "Forbidden" });
+  }
   const treatment = req.body?.treatment || null;
   const status = safeStatus(req.body?.status);
   /* A second encounter inside one session is a genuinely new visit, so it earns

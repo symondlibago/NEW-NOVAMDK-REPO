@@ -234,7 +234,7 @@ export default function ProductPage() {
      record named a statement (the B12 combination notice, for one), which is
      what kept Compliance.jsx from firing an unrelated disclaimer onto an Rx
      page. */
-  const startVisit = async (patient, { turnstileToken } = {}) => {
+  const startVisit = async (patient, { turnstileToken, emailCode } = {}) => {
     track(EVENTS.START_VISIT, {
       product_id: active.id,
       product_name: active.name,
@@ -265,10 +265,21 @@ export default function ProductPage() {
              stands in for it on the address step's call. */
           turnstile_token: turnstileToken || undefined,
           human_pass: humanPass.current || undefined,
+          /* A returning patient's one-time code (2026-10-24): their chart only
+             opens once they have shown the email is theirs. */
+          email_code: emailCode || undefined,
         }),
       });
       if (res.status === 403) {
         throw new Error("We couldn't confirm you're not a bot. Please try again.");
+      }
+      if (res.status === 401) {
+        const why = await res.json().catch(() => ({}));
+        if (why.human_pass) humanPass.current = why.human_pass;
+        throw new Error("That code is incorrect or has expired. Check your email and try again.");
+      }
+      if (res.status === 429) {
+        throw new Error("Too many tries. Please wait a few minutes and try again.");
       }
       /* The server applied the state rule. For a returning patient this is the
          first and only place it can be caught, so it drives the same takeover
@@ -284,8 +295,9 @@ export default function ProductPage() {
       // Contact-only submit + no MDI record found: the modal collects the
       // rest of the profile (steps 2–3) before we mint the voucher.
       if (voucher.need_profile) return { needProfile: true };
-      const profile = voucher.patient_profile || (patient?.first_name ? patient : null);
-      if (profile?.email) {
+      // Known to MDI already: the modal asks for the code we just emailed them.
+      if (voucher.verify_email) return { verifyEmail: true };
+      if (patient?.email) {
         // Not awaited — the CRM write must never hold up the handoff to intake.
         // The opportunity id is stashed for the payment step, which moves that
         // same record to the Paid stage. It lands long before checkout, which is
@@ -297,12 +309,12 @@ export default function ProductPage() {
         const originLabel = scannedFrom ? sourceLabel(scannedFrom) : "NovaMDK website";
 
         syncToGhl({
-          patient: profile,
+          /* The server writes the patient as their MDI chart has them, found
+             through this token (2026-10-24), so what is sent here is only a
+             fallback for an environment that mints no tokens. */
+          patient,
+          release_token: voucher.release_token || undefined,
           treatment: treatmentLabel(active),
-          /* MDI's permanent id for this person, minted with the voucher a
-             moment ago. It rides along on the contact write rather than a
-             second call, and is simply absent when MDI couldn't resolve them. */
-          mdiPatientId: voucher.patient_id || undefined,
           // The category as the site names it. The server drops it when GHL's
           // dropdown has no matching option rather than failing the write.
           productLine: active.categoryName,
@@ -359,7 +371,7 @@ export default function ProductPage() {
             /* So checkout can put a receipt address on the payment without
                asking for one. Their own email, their own tab, cleared when it
                closes; the server re-checks it and falls back to the CRM. */
-            if (profile?.email) sessionStorage.setItem("nv_email", profile.email);
+            if (patient?.email) sessionStorage.setItem("nv_email", patient.email);
           } catch { /* private mode */ }
         }).catch((e) => {
           console.error("NovaMDK: GoHighLevel sync threw", e);
@@ -1061,6 +1073,11 @@ function PatientInfoModal({
      after a failed submit, since each token can be spent once. */
   const [humanToken, setHumanToken] = useState("");
   const [humanKey, setHumanKey] = useState(0);
+  /* Step 4, a returning patient's emailed code (2026-10-24). `resent` says a
+     fresh one went out. */
+  const [code, setCode] = useState("");
+  const [resent, setResent] = useState(false);
+  const codeValid = code.replace(/\s+/g, "").length >= 4;
   const [humanBroken, setHumanBroken] = useState(false);
   const humanValid = !turnstileOn || Boolean(humanToken);
 
@@ -1154,6 +1171,12 @@ function PatientInfoModal({
         go(1);
         return;
       }
+      if (res?.verifyEmail) {
+        setCode("");
+        setResent(false);
+        go(4);
+        return;
+      }
       /* A returning patient the pharmacy can't serve where they live. They
          never see the address step, so this is the only chance to say so. */
       if (res?.blockedState) {
@@ -1165,6 +1188,16 @@ function PatientInfoModal({
          ever resets a widget someone is still looking at. */
       setHumanToken("");
       setHumanKey((k) => k + 1);
+      return;
+    }
+    if (step === 4) {
+      if (!codeValid) return setNudgeAt("4.0");
+      const res = await onSubmit(
+        { email: form.email.trim(), consent: consentRecord(), marketing: marketingRecord() },
+        { emailCode: code }
+      );
+      // The state rule now runs once the code is through, so it lands here.
+      if (res?.blockedState) setServerBlock({ state: res.blockedState, served: res.served });
       return;
     }
     if (step === 1) {
@@ -1230,15 +1263,18 @@ function PatientInfoModal({
     "2.0": ["When's your birthday?", "It goes on your private patient file, so your intake won't ask again."],
     "2.1": ["What was your sex at birth?", ""],
     "3.0": ["Where should we deliver?", ""], // no PO box line (client, 2026-10-14)
+    "4.0": ["Welcome back. Check your email.", `We sent a code to ${form.email.trim()}. Enter it to continue.`],
   };
   const [title, subtitle] = SCREENS[screen];
   /* Where the bar sits: six screens from the email to the address. */
   const ORDER = ["0.0", "1.0", "1.1", "2.0", "2.1", "3.0"];
-  const progress = Math.max(0, ORDER.indexOf(screen) + 1) / ORDER.length;
+  const progress = Math.max(0, ORDER.indexOf(screen === "4.0" ? "0.0" : screen) + 1) / ORDER.length;
   /* The fields fade in as the question finishes typing. */
   const reveal = typingSeconds(title);
   const screenValid =
-    step === 0
+    step === 4
+      ? codeValid
+      : step === 0
       ? emailValid && consentValid && humanValid
       : step === 1
         ? part === 0 ? nameScreenValid : step1Valid
@@ -1254,6 +1290,8 @@ function PatientInfoModal({
           : !consentValid
             ? "Please tick the box to agree to the Privacy Policy, Terms and Telehealth Consent."
             : "One moment, we're still securing your visit."
+        : screen === "4.0"
+          ? "Please enter the code from your email."
         : screen === "1.0"
           ? !namesValid
             ? "Please enter your first and last name."
@@ -1275,6 +1313,7 @@ function PatientInfoModal({
   const flagRequired = Boolean(missing) && screen === "0.0" && emailValid && !consentValid;
   const flagFee = Boolean(missing) && screen === "1.0" && namesValid && !consent.fee;
   const back = () => {
+    if (step === 4) return go(0);
     if (part > 0) setPart(part - 1);
     else if (step > 1) go(step - 1, 1);
     else go(0);
@@ -1462,6 +1501,47 @@ function PatientInfoModal({
                     </>
                   )}
 
+                  {screen === "4.0" && (
+                    <>
+                      <FadeIn delay={reveal}>
+                        <input
+                          value={code}
+                          onChange={(e) => setCode(e.target.value.toUpperCase())}
+                          placeholder="Code"
+                          aria-label="Code from your email"
+                          autoComplete="one-time-code"
+                          autoCapitalize="characters"
+                          spellCheck={false}
+                          maxLength={12}
+                          autoFocus
+                          className={`${inputCls} tracking-widest`}
+                        />
+                      </FadeIn>
+                      <FadeIn delay={reveal + 0.08}>
+                        <p className="text-sm text-muted">
+                          {resent ? "We sent a new code. " : "No email? Check spam, or "}
+                          <button
+                            type="button"
+                            disabled={loading}
+                            onClick={async () => {
+                              setResent(false);
+                              const r = await onSubmit({
+                                email: form.email.trim(),
+                                consent: consentRecord(),
+                                marketing: marketingRecord(),
+                              });
+                              if (r?.verifyEmail) setResent(true);
+                            }}
+                            className="font-semibold text-primary underline-offset-2 hover:underline disabled:opacity-60"
+                          >
+                            send a new code
+                          </button>
+                          .
+                        </p>
+                      </FadeIn>
+                    </>
+                  )}
+
                   {screen === "1.0" && (
                     <>
                       <div className="grid gap-4 sm:grid-cols-2">
@@ -1631,7 +1711,7 @@ function PatientInfoModal({
                       }`}
                     >
                       {loading ? (
-                        <><Loader2 size={16} className="animate-spin" /> {step === 0 ? "Checking your records…" : "Preparing your intake…"}</>
+                        <><Loader2 size={16} className="animate-spin" /> {step === 0 ? "Checking your records…" : step === 4 ? "Checking your code…" : "Preparing your intake…"}</>
                       ) : (
                         <>Continue <ArrowRight size={16} /></>
                       )}

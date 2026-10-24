@@ -89,6 +89,11 @@ const HOLD_PAGES = 5;
 export async function findHold(opportunityId) {
   const id = typeof opportunityId === "string" ? opportunityId.trim() : "";
   if (!id) return null;
+  return findHoldWhere((p) => p.metadata?.opportunity_id === id, `opportunity ${id}`);
+}
+
+/** The newest hold awaiting capture that `match` accepts, by the same list walk. */
+export async function findHoldWhere(match, label = "a visit") {
   const since = Math.floor(Date.now() / 1000) - HOLD_WINDOW_DAYS * 86400;
   let after = null;
   for (let page = 0; page < HOLD_PAGES; page++) {
@@ -99,13 +104,11 @@ export async function findHold(opportunityId) {
       (after ? `&starting_after=${after}` : "");
     const r = await stripe(`/payment_intents?${qs}`, { method: "GET" });
     if (!r.ok) {
-      console.error(`Stripe hold lookup failed for ${id}: ${r.status}`);
+      console.error(`Stripe hold lookup failed for ${label}: ${r.status}`);
       return null;
     }
     const list = r.data?.data || [];
-    const hit = list.find(
-      (p) => p.status === "requires_capture" && p.metadata?.opportunity_id === id
-    );
+    const hit = list.find((p) => p.status === "requires_capture" && match(p));
     if (hit) return hit;
     if (!r.data?.has_more || list.length === 0) return null;
     after = list[list.length - 1].id;
@@ -113,7 +116,7 @@ export async function findHold(opportunityId) {
   /* Only reachable at a volume this practice is nowhere near, but silence here
      would be money quietly never collected. */
   console.error(
-    `Stripe hold lookup gave up after ${HOLD_PAGES} pages for opportunity ${id}. ` +
+    `Stripe hold lookup gave up after ${HOLD_PAGES} pages for ${label}. ` +
       `Raise HOLD_PAGES: a hold may exist and will expire uncaptured.`
   );
   return null;

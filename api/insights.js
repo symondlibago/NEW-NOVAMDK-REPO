@@ -25,6 +25,7 @@ import { spendBySource, spendBySourceIn, spendMonths, spendTotal } from "./_spen
 import { stripe, stripeEnabled, stripeMode } from "./_stripe.js";
 import { DIGEST_TAG, digestConfigured, sendDigest } from "./_digest.js";
 import { kvConfigured, kvCommand, kvPipeline } from "./_kv.js";
+import { KIOSK_LOCATIONS } from "../src/lib/kioskLocations.js";
 
 /* Everything the staff dashboard needs, in one function.
 
@@ -237,10 +238,13 @@ const SCAN_TTL_S = 400 * 24 * 60 * 60;
    api/ cannot import, so the store keeps its own set as counts arrive. */
 const KIOSK_SET = "kiosk:ids";
 
-/* Shaped like a placement, so a forged request cannot write arbitrary keys.
-   A well formed id we don't recognise is still counted: a kiosk that lost its
-   placement is worth seeing rather than silently dropping. */
-const KIOSK_ID = /^[a-z0-9-]{2,40}$/;
+/* Only a placement we actually have. An unknown id used to be counted so that a
+   kiosk which lost its placement stayed visible, but that let anyone inflate a
+   total with a made-up name (security review, 2026-10-24). A well formed id we
+   don't know is logged instead: the same mistake surfaces, without the count
+   taking a stranger's word for it. */
+const KIOSK_IDS = new Set(KIOSK_LOCATIONS.map((k) => k.id));
+const KIOSK_SHAPE = /^[a-z0-9-]{2,40}$/;
 
 const scanKey = (id, ymd) => `kiosk:${id}:${ymd}`;
 
@@ -250,7 +254,9 @@ async function handleScan(req, res) {
   if (blocked(req, res, { max: 60 })) return;
 
   const id = String(req.body?.kiosk || "").trim().toLowerCase();
-  if (!KIOSK_ID.test(id)) {
+  if (!KIOSK_IDS.has(id)) {
+    // Shaped right but unplaced: a kiosk misconfigured rather than a forgery.
+    if (KIOSK_SHAPE.test(id)) console.warn(`Kiosk scan from an unknown placement "${id}"`);
     return res.status(400).json({ error: "kiosk id required" });
   }
   if (!kvConfigured()) {
@@ -274,8 +280,12 @@ async function handleScan(req, res) {
 async function kioskCounts(days) {
   if (!kvConfigured()) return null;
 
-  const ids = await kvCommand("SMEMBERS", KIOSK_SET);
-  if (!Array.isArray(ids) || !ids.length) return ids ? [] : null;
+  const all = await kvCommand("SMEMBERS", KIOSK_SET);
+  if (!Array.isArray(all)) return null;
+  /* Filtered on the way out too, so anything written before the check above
+     existed is left out of the totals rather than needing a cleanup. */
+  const ids = all.filter((id) => KIOSK_IDS.has(id));
+  if (!ids.length) return [];
 
   const today = Date.now();
   const ymds = Array.from({ length: days }, (_, i) => ymdOf(today - i * DAY_MS));
@@ -1025,7 +1035,10 @@ async function moneySummary(w) {
     if (!pid) continue;
     const row = byProduct.get(pid) || { product_id: pid, revenue: 0, sales: 0 };
     row.revenue += t.amount;
-    if (t.type === "charge") row.sales += 1;
+    /* A charge refunded in full is not a sale, whenever the refund came: the
+       client's refunded test payments showed up as sales (2026-10-24). A
+       partly refunded one still counts. */
+    if (t.type === "charge" && !t.source?.refunded) row.sales += 1;
     byProduct.set(pid, row);
   }
 

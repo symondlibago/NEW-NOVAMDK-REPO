@@ -1,6 +1,6 @@
 import { blocked } from './_guard.js';
 import { mdi, mdiConfigured, PATIENT_BASE } from './_mdi.js';
-import { sessionCookie, clearedCookie, readSession, sessionsEnabled } from './_session.js';
+import { sessionCookie, clearedCookie, readSession, revokeSessions, sessionsEnabled } from './_session.js';
 const buckets = new Map();
 
 function tooMany(key, limit, windowMs) {
@@ -47,10 +47,14 @@ export default async function handler(req, res) {
 
   try {
     if (action === 'session') {
-      return res.status(200).json({ authenticated: Boolean(readSession(req)) });
+      return res.status(200).json({ authenticated: Boolean(await readSession(req)) });
     }
 
     if (action === 'logout') {
+      /* Clearing the cookie only ends it in this browser. The record ends every
+         copy of it, wherever it has already been. */
+      const who = await readSession(req);
+      if (who) await revokeSessions(who);
       res.setHeader('Set-Cookie', clearedCookie());
       return res.status(200).json({ authenticated: false });
     }

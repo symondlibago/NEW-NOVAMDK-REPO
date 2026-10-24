@@ -984,6 +984,22 @@ export async function opportunityById(opportunityId) {
   }
 }
 
+/* Whether a contact, and one of its cards when given, belong to this MDI
+   patient. Added 2026-10-24 so the ids the browser hands back are only ever
+   acted on for the patient its release token names: the contact's
+   mdi_patient_id must match, and the card must hang off that contact. The intake
+   sync writes that id from the token, so a patient's own visit always passes. */
+export async function ownsVisit(patientId, { contactId, opportunityId } = {}) {
+  if (!patientId || (!contactId && !opportunityId)) return false;
+  const opp = opportunityId ? await opportunityById(opportunityId) : null;
+  if (opportunityId && !opp) return false;
+  // A card on its own is checked through the contact it hangs off.
+  const owner = opp ? opp.contactId || opp.contact?.id : null;
+  if (opp && contactId && owner !== contactId) return false;
+  const contact = await contactById(contactId || owner);
+  return Boolean(contact) && fieldValueOf(contact, SEARCH_FIELD_ID.MDI_PATIENT_ID) === String(patientId);
+}
+
 /* The plan recorded on an opportunity GHL already handed us, or null.
  *
  * Synchronous on purpose: /opportunities/search returns customFields on every

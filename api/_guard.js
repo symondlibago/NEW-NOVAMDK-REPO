@@ -95,29 +95,64 @@ export function blocked(req, res, { max } = {}) {
 
 /* ---------------------------- release tokens ------------------------------ */
 const SIGNING_SECRET = process.env.API_SIGNING_SECRET || null;
-const TOKEN_TTL_MS = 45 * 60_000; // long enough to finish a questionnaire
+/* Long enough to finish a questionnaire and pay. Was 45 minutes, which left a
+   paid case on hold when someone took longer than that; safe to widen since the
+   token stopped working as a portal login (2026-10-24, below). */
+const TOKEN_TTL_MS = 2 * 60 * 60_000;
 
-export const releaseTokensEnabled = () => Boolean(SIGNING_SECRET);
+/* Deployed copies of the site, previews included, run against the real MDI,
+   CRM and Stripe, so there a missing secret refuses every token instead of
+   waving everything through (2026-10-24). Only a local dev server without one
+   keeps the old open behaviour. */
+const DEPLOYED = ["production", "preview"].includes(process.env.VERCEL_ENV);
+if (DEPLOYED && !SIGNING_SECRET) {
+  console.error("API_SIGNING_SECRET is not set: sign-ups, payments and case releases are refused until it is.");
+}
 
-export function signReleaseToken(patientId) {
+export const releaseTokensEnabled = () => Boolean(SIGNING_SECRET) || DEPLOYED;
+
+/* Security fix, 2026-10-24. A release token used to be `patient.time.sig`,
+   signed with the same secret and in the same shape as the portal's session
+   cookie, so one handed out at sign-up also opened that patient's portal. It
+   is now signed under its own "release:" label, which a session never is, and
+   names the visit it was minted for: the product, and whether it is a prepaid
+   or renewing month of a plan ("plan", minted by the portal after the month
+   was claimed) or an ordinary visit ("visit"). */
+const releaseSig = (payload) =>
+  createHmac("sha256", SIGNING_SECRET).update(`release:${payload}`).digest("hex");
+
+export function signReleaseToken(patientId, { productId = null, kind = "visit" } = {}) {
   if (!SIGNING_SECRET) return null;
-  const payload = `${patientId ?? "anon"}.${Date.now()}`;
-  const sig = createHmac("sha256", SIGNING_SECRET).update(payload).digest("hex");
-  return `${payload}.${sig}`;
+  const payload = `${patientId ?? "anon"}.${productId ?? "any"}.${kind === "plan" ? "plan" : "visit"}.${Date.now()}`;
+  return `${payload}.${releaseSig(payload)}`;
+}
+
+/** The visit a token was minted for, or null when it is missing, forged or
+ *  expired. patientId and productId are null where the token named none. */
+export function readReleaseToken(token) {
+  if (!SIGNING_SECRET || typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 5) return null;
+  const [patientId, productId, kind, issuedAt, sig] = parts;
+
+  const expected = releaseSig(`${patientId}.${productId}.${kind}.${issuedAt}`);
+  const a = Buffer.from(sig, "hex");
+  const b = Buffer.from(expected, "hex");
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  if (!(Date.now() - Number(issuedAt) < TOKEN_TTL_MS)) return null;
+
+  return {
+    patientId: patientId === "anon" ? null : patientId,
+    productId: productId === "any" ? null : productId,
+    kind,
+  };
 }
 
 export function verifyReleaseToken(token) {
-  if (!SIGNING_SECRET) return true; // not enforcing yet
-  if (typeof token !== "string") return false;
-
-  const parts = token.split(".");
-  if (parts.length !== 3) return false;
-  const [patientId, issuedAt, sig] = parts;
-
-  const expected = createHmac("sha256", SIGNING_SECRET).update(`${patientId}.${issuedAt}`).digest("hex");
-  const a = Buffer.from(sig, "hex");
-  const b = Buffer.from(expected, "hex");
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
-
-  return Date.now() - Number(issuedAt) < TOKEN_TTL_MS;
+  if (!releaseTokensEnabled()) return true; // a local dev server with no secret
+  return Boolean(readReleaseToken(token));
 }
+
+/* Ids the browser hands back, checked for shape before they go anywhere near
+   an upstream URL. GoHighLevel's are 20 or so letters and digits. */
+export const cleanGhlId = (v) => (typeof v === "string" && /^[A-Za-z0-9]{6,40}$/.test(v.trim()) ? v.trim() : null);

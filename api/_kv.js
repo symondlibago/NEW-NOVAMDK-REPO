@@ -21,11 +21,11 @@ const TIMEOUT_MS = 2000;
 
 export const kvConfigured = () => Boolean(BASE && TOKEN);
 
-async function send(body) {
+async function send(body, timeoutMs = TIMEOUT_MS) {
   if (!kvConfigured()) return null;
 
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
     const r = await fetch(`${BASE}/pipeline`, {
       method: "POST",
@@ -48,10 +48,12 @@ async function send(body) {
 }
 
 /** Several commands in one round trip, results in the order given. A command
- *  that errored on its own comes back as null rather than failing the rest. */
-export async function kvPipeline(commands) {
+ *  that errored on its own comes back as null rather than failing the rest.
+ *  `timeoutMs` overrides the default for a caller that cannot wait, such as the
+ *  session check sitting in front of a payment. */
+export async function kvPipeline(commands, { timeoutMs } = {}) {
   if (!commands.length) return [];
-  const out = await send(commands);
+  const out = await send(commands, timeoutMs);
   if (!Array.isArray(out)) return null;
   return out.map((x) => (x && x.error ? null : (x?.result ?? null)));
 }
